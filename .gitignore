@@ -22,3 +22,11 @@ modules.order
 *.str
 
 tags
+
+sim_build/
+
+fpga/mqnic/**/fpga.*
+fpga/mqnic/**/*.tcl
+fpga/mqnic/**/rev/
+fpga/mqnic/**/defines.v
+!fpga/mqnic/**/config.tcl
