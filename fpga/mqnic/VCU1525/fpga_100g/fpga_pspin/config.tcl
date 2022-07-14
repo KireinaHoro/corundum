@@ -132,10 +132,10 @@ dict set params MAX_TX_SIZE "9214"
 dict set params MAX_RX_SIZE "9214"
 dict set params TX_RAM_SIZE "131072"
 dict set params RX_RAM_SIZE "131072"
- 
+
 # Application block configuration
-dict set params APP_ID "32'h00000000"
-dict set params APP_ENABLE "0"
+dict set params APP_ID "32'h12340100"
+dict set params APP_ENABLE "1"
 dict set params APP_CTRL_ENABLE "1"
 dict set params APP_DMA_ENABLE "1"
 dict set params APP_AXIS_DIRECT_ENABLE "1"
@@ -163,7 +163,7 @@ dict set params PCIE_DMA_WRITE_TX_FC_ENABLE "1"
 # AXI lite interface configuration (control)
 dict set params AXIL_CTRL_DATA_WIDTH "32"
 dict set params AXIL_CTRL_ADDR_WIDTH "24"
- 
+
 # AXI lite interface configuration (application control)
 dict set params AXIL_APP_CTRL_DATA_WIDTH [dict get $params AXIL_CTRL_DATA_WIDTH]
 dict set params AXIL_APP_CTRL_ADDR_WIDTH "24"
@@ -243,5 +243,26 @@ dict for {name value} $params {
     lappend param_list $name=$value
 }
 
+set fileset [get_filesets sources_1]
+
 # set_property generic $param_list [current_fileset]
-set_property generic $param_list [get_filesets sources_1]
+set_property generic $param_list $fileset
+
+# include paths
+set include_rels {
+    axi/include
+    common_cells/include
+    cluster_interconnect/rtl/low_latency_interco
+    riscv/include
+}
+set include_dirs {}
+foreach {i} $include_rels {
+    lappend include_dirs [file normalize ../../../../app/pspin/deps/pspin/hw/deps/$i]
+}
+set_property include_dirs $include_dirs $fileset
+
+# synthesis define
+set_property verilog_define {TARGET_SYNTHESIS} $fileset
+
+# top module
+set_property top fpga $fileset

@@ -1,0 +1,3 @@
+[submodule "fpga/app/pspin/deps/pspin"]
+	path = fpga/app/pspin/deps/pspin
+	url = git@github.com:KireinaHoro/pspin

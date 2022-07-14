@@ -473,38 +473,31 @@ initial begin
     end
 end
 
-/*
- * AXI-Lite slave interface (control from host)
- */
-axil_ram #(
-    .DATA_WIDTH(AXIL_APP_CTRL_DATA_WIDTH),
-    .ADDR_WIDTH(12),
-    .STRB_WIDTH(AXIL_APP_CTRL_STRB_WIDTH),
-    .PIPELINE_OUTPUT(1)
-)
-ram_inst (
-    .clk(clk),
-    .rst(rst),
+localparam NUM_CLUSTERS = 1;
+localparam NUM_MPQ = 256;
 
-    .s_axil_awaddr(s_axil_app_ctrl_awaddr),
-    .s_axil_awprot(s_axil_app_ctrl_awprot),
-    .s_axil_awvalid(s_axil_app_ctrl_awvalid),
-    .s_axil_awready(s_axil_app_ctrl_awready),
-    .s_axil_wdata(s_axil_app_ctrl_wdata),
-    .s_axil_wstrb(s_axil_app_ctrl_wstrb),
-    .s_axil_wvalid(s_axil_app_ctrl_wvalid),
-    .s_axil_wready(s_axil_app_ctrl_wready),
-    .s_axil_bresp(s_axil_app_ctrl_bresp),
-    .s_axil_bvalid(s_axil_app_ctrl_bvalid),
-    .s_axil_bready(s_axil_app_ctrl_bready),
-    .s_axil_araddr(s_axil_app_ctrl_araddr),
-    .s_axil_arprot(s_axil_app_ctrl_arprot),
-    .s_axil_arvalid(s_axil_app_ctrl_arvalid),
-    .s_axil_arready(s_axil_app_ctrl_arready),
-    .s_axil_rdata(s_axil_app_ctrl_rdata),
-    .s_axil_rresp(s_axil_app_ctrl_rresp),
-    .s_axil_rvalid(s_axil_app_ctrl_rvalid),
-    .s_axil_rready(s_axil_app_ctrl_rready)
+wire [NUM_CLUSTERS-1:0] cl_fetch_en;
+wire [NUM_CLUSTERS-1:0] cl_eoc;
+wire [NUM_CLUSTERS-1:0] cl_busy;
+
+wire [NUM_MPQ-1:0] mpq_full;
+
+assign cl_fetch_en = !rst ? 4'b1111 : 0;
+
+// TODO connect host master to pspin
+pspin_wrap #(
+    .N_CLUSTERS(NUM_CLUSTERS), // pspin_cfg_pkg::NUM_CLUSTERS
+    .N_MPQ(NUM_MPQ)     // pspin_cfg_pkg::NUM_MPQ
+)
+pspin_inst (
+    .clk_i(clk),
+    .rst_ni(!rst),
+
+    .cl_fetch_en_i(cl_fetch_en),
+    .cl_eoc_o(cl_eoc),
+    .cl_busy_o(cl_busy),
+
+    .mpq_full_o(mpq_full)
 );
 
 /*
