@@ -134,25 +134,25 @@ module mqnic_app_block #
     /*
      * AXI-Lite slave interface (control from host)
      */
-    input  wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]            s_axil_app_ctrl_awaddr,
-    input  wire [2:0]                                     s_axil_app_ctrl_awprot,
-    input  wire                                           s_axil_app_ctrl_awvalid,
-    output wire                                           s_axil_app_ctrl_awready,
-    input  wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]            s_axil_app_ctrl_wdata,
-    input  wire [AXIL_APP_CTRL_STRB_WIDTH-1:0]            s_axil_app_ctrl_wstrb,
-    input  wire                                           s_axil_app_ctrl_wvalid,
-    output wire                                           s_axil_app_ctrl_wready,
-    output wire [1:0]                                     s_axil_app_ctrl_bresp,
-    output wire                                           s_axil_app_ctrl_bvalid,
-    input  wire                                           s_axil_app_ctrl_bready,
-    input  wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]            s_axil_app_ctrl_araddr,
-    input  wire [2:0]                                     s_axil_app_ctrl_arprot,
-    input  wire                                           s_axil_app_ctrl_arvalid,
-    output wire                                           s_axil_app_ctrl_arready,
-    output wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]            s_axil_app_ctrl_rdata,
-    output wire [1:0]                                     s_axil_app_ctrl_rresp,
-    output wire                                           s_axil_app_ctrl_rvalid,
-    input  wire                                           s_axil_app_ctrl_rready,
+    (* mark_debug = "true" *) input  wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]            s_axil_app_ctrl_awaddr,
+    (* mark_debug = "true" *) input  wire [2:0]                                     s_axil_app_ctrl_awprot,
+    (* mark_debug = "true" *) input  wire                                           s_axil_app_ctrl_awvalid,
+    (* mark_debug = "true" *) output wire                                           s_axil_app_ctrl_awready,
+    (* mark_debug = "true" *) input  wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]            s_axil_app_ctrl_wdata,
+    (* mark_debug = "true" *) input  wire [AXIL_APP_CTRL_STRB_WIDTH-1:0]            s_axil_app_ctrl_wstrb,
+    (* mark_debug = "true" *) input  wire                                           s_axil_app_ctrl_wvalid,
+    (* mark_debug = "true" *) output wire                                           s_axil_app_ctrl_wready,
+    (* mark_debug = "true" *) output wire [1:0]                                     s_axil_app_ctrl_bresp,
+    (* mark_debug = "true" *) output wire                                           s_axil_app_ctrl_bvalid,
+    (* mark_debug = "true" *) input  wire                                           s_axil_app_ctrl_bready,
+    (* mark_debug = "true" *) input  wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]            s_axil_app_ctrl_araddr,
+    (* mark_debug = "true" *) input  wire [2:0]                                     s_axil_app_ctrl_arprot,
+    (* mark_debug = "true" *) input  wire                                           s_axil_app_ctrl_arvalid,
+    (* mark_debug = "true" *) output wire                                           s_axil_app_ctrl_arready,
+    (* mark_debug = "true" *) output wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]            s_axil_app_ctrl_rdata,
+    (* mark_debug = "true" *) output wire [1:0]                                     s_axil_app_ctrl_rresp,
+    (* mark_debug = "true" *) output wire                                           s_axil_app_ctrl_rvalid,
+    (* mark_debug = "true" *) input  wire                                           s_axil_app_ctrl_rready,
 
     /*
      * AXI-Lite master interface (control to NIC)
@@ -473,7 +473,7 @@ initial begin
     end
 end
 
-localparam NUM_CLUSTERS = 1;
+localparam NUM_CLUSTERS = 2;
 localparam NUM_MPQ = 256;
 
 wire [NUM_CLUSTERS-1:0] cl_fetch_en;
@@ -484,20 +484,272 @@ wire [NUM_MPQ-1:0] mpq_full;
 
 assign cl_fetch_en = !rst ? 4'b1111 : 0;
 
-// TODO connect host master to pspin
+
+// FIXME: allow selecting handler buffer and program buffer
+wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    pspin_axil_awaddr;
+wire [2:0]                             pspin_axil_awprot;
+wire                                   pspin_axil_awvalid;
+wire                                   pspin_axil_awready;
+wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    pspin_axil_wdata;
+wire [AXIL_APP_CTRL_STRB_WIDTH-1:0]    pspin_axil_wstrb;
+wire                                   pspin_axil_wvalid;
+wire                                   pspin_axil_wready;
+wire [1:0]                             pspin_axil_bresp;
+wire                                   pspin_axil_bvalid;
+wire                                   pspin_axil_bready;
+wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    pspin_axil_araddr;
+wire [2:0]                             pspin_axil_arprot;
+wire                                   pspin_axil_arvalid;
+wire                                   pspin_axil_arready;
+wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    pspin_axil_rdata;
+wire [1:0]                             pspin_axil_rresp;
+wire                                   pspin_axil_rvalid;
+wire                                   pspin_axil_rready;
+
+wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    ctrl_reg_axil_awaddr;
+wire [2:0]                             ctrl_reg_axil_awprot;
+wire                                   ctrl_reg_axil_awvalid;
+wire                                   ctrl_reg_axil_awready;
+wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    ctrl_reg_axil_wdata;
+wire [AXIL_APP_CTRL_STRB_WIDTH-1:0]    ctrl_reg_axil_wstrb;
+wire                                   ctrl_reg_axil_wvalid;
+wire                                   ctrl_reg_axil_wready;
+wire [1:0]                             ctrl_reg_axil_bresp;
+wire                                   ctrl_reg_axil_bvalid;
+wire                                   ctrl_reg_axil_bready;
+wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    ctrl_reg_axil_araddr;
+wire [2:0]                             ctrl_reg_axil_arprot;
+wire                                   ctrl_reg_axil_arvalid;
+wire                                   ctrl_reg_axil_arready;
+wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    ctrl_reg_axil_rdata;
+wire [1:0]                             ctrl_reg_axil_rresp;
+wire                                   ctrl_reg_axil_rvalid;
+wire                                   ctrl_reg_axil_rready;
+
+axil_interconnect_wrap_1x2 #(
+    .DATA_WIDTH(AXIL_APP_CTRL_DATA_WIDTH),
+    .ADDR_WIDTH(AXIL_APP_CTRL_ADDR_WIDTH),
+    .STRB_WIDTH(AXIL_APP_CTRL_STRB_WIDTH),
+    .M00_BASE_ADDR('h0_0000),    // L2 memory write
+    .M00_ADDR_WIDTH(16),
+    .M01_BASE_ADDR('h1_0000),    // control registers
+    .M01_ADDR_WIDTH(16)
+) i_host_interconnect (
+    .clk                    (clk),
+    .rst                    (rst),
+
+    .s00_axil_awaddr        (s_axil_app_ctrl_awaddr),
+    .s00_axil_awprot        (s_axil_app_ctrl_awprot),
+    .s00_axil_awvalid       (s_axil_app_ctrl_awvalid),
+    .s00_axil_awready       (s_axil_app_ctrl_awready),
+    .s00_axil_wdata         (s_axil_app_ctrl_wdata),
+    .s00_axil_wstrb         (s_axil_app_ctrl_wstrb),
+    .s00_axil_wvalid        (s_axil_app_ctrl_wvalid),
+    .s00_axil_wready        (s_axil_app_ctrl_wready),
+    .s00_axil_bresp         (s_axil_app_ctrl_bresp),
+    .s00_axil_bvalid        (s_axil_app_ctrl_bvalid),
+    .s00_axil_bready        (s_axil_app_ctrl_bready),
+    .s00_axil_araddr        (s_axil_app_ctrl_araddr),
+    .s00_axil_arprot        (s_axil_app_ctrl_arprot),
+    .s00_axil_arvalid       (s_axil_app_ctrl_arvalid),
+    .s00_axil_arready       (s_axil_app_ctrl_arready),
+    .s00_axil_rdata         (s_axil_app_ctrl_rdata),
+    .s00_axil_rresp         (s_axil_app_ctrl_rresp),
+    .s00_axil_rvalid        (s_axil_app_ctrl_rvalid),
+    .s00_axil_rready        (s_axil_app_ctrl_rready),
+
+    .m00_axil_awaddr        (pspin_axil_awaddr),
+    .m00_axil_awprot        (pspin_axil_awprot),
+    .m00_axil_awvalid       (pspin_axil_awvalid),
+    .m00_axil_awready       (pspin_axil_awready),
+    .m00_axil_wdata         (pspin_axil_wdata),
+    .m00_axil_wstrb         (pspin_axil_wstrb),
+    .m00_axil_wvalid        (pspin_axil_wvalid),
+    .m00_axil_wready        (pspin_axil_wready),
+    .m00_axil_bresp         (pspin_axil_bresp),
+    .m00_axil_bvalid        (pspin_axil_bvalid),
+    .m00_axil_bready        (pspin_axil_bready),
+    .m00_axil_araddr        (pspin_axil_araddr),
+    .m00_axil_arprot        (pspin_axil_arprot),
+    .m00_axil_arvalid       (pspin_axil_arvalid),
+    .m00_axil_arready       (pspin_axil_arready),
+    .m00_axil_rdata         (pspin_axil_rdata),
+    .m00_axil_rresp         (pspin_axil_rresp),
+    .m00_axil_rvalid        (pspin_axil_rvalid),
+    .m00_axil_rready        (pspin_axil_rready),
+
+    .m01_axil_awaddr        (ctrl_reg_axil_awaddr),
+    .m01_axil_awprot        (ctrl_reg_axil_awprot),
+    .m01_axil_awvalid       (ctrl_reg_axil_awvalid),
+    .m01_axil_awready       (ctrl_reg_axil_awready),
+    .m01_axil_wdata         (ctrl_reg_axil_wdata),
+    .m01_axil_wstrb         (ctrl_reg_axil_wstrb),
+    .m01_axil_wvalid        (ctrl_reg_axil_wvalid),
+    .m01_axil_wready        (ctrl_reg_axil_wready),
+    .m01_axil_bresp         (ctrl_reg_axil_bresp),
+    .m01_axil_bvalid        (ctrl_reg_axil_bvalid),
+    .m01_axil_bready        (ctrl_reg_axil_bready),
+    .m01_axil_araddr        (ctrl_reg_axil_araddr),
+    .m01_axil_arprot        (ctrl_reg_axil_arprot),
+    .m01_axil_arvalid       (ctrl_reg_axil_arvalid),
+    .m01_axil_arready       (ctrl_reg_axil_arready),
+    .m01_axil_rdata         (ctrl_reg_axil_rdata),
+    .m01_axil_rresp         (ctrl_reg_axil_rresp),
+    .m01_axil_rvalid        (ctrl_reg_axil_rvalid),
+    .m01_axil_rready        (ctrl_reg_axil_rready)
+);
+
+localparam VALID_ADDR_WIDTH = AXIL_APP_CTRL_ADDR_WIDTH - $clog2(AXIL_APP_CTRL_STRB_WIDTH);
+localparam WORD_WIDTH = AXIL_APP_CTRL_STRB_WIDTH;
+localparam WORD_SIZE = AXIL_APP_CTRL_DATA_WIDTH/WORD_WIDTH;
+
+// control registers (32bit):
+// - cluster fetch enable (W) 0x0000
+// - cluster reset (high) (W) 0x0004
+// - cluster eoc          (R) 0x0100
+// - cluster busy         (R) 0x0104
+// - mpq full             (R) 0x0108
+// - stdout FIFO          (R) 0x1000
+localparam NUM_RDONLY_REGS = 3;
+localparam NUM_WRONLY_REGS = 2;
+reg [AXIL_APP_CTRL_DATA_WIDTH-1:0] ctrl_rd_regs [NUM_RDONLY_REGS-1:0], ctrl_wr_regs [NUM_WRONLY_REGS-1:0];
+reg [AXIL_APP_CTRL_DATA_WIDTH-1:0] reg_intf_rd_data;
+reg reg_intf_rd_ack;
+reg reg_intf_wr_ack;
+assign ctrl_reg_inst.reg_rd_data = reg_intf_rd_data;
+assign ctrl_reg_inst.reg_rd_ack = reg_intf_rd_ack;
+assign ctrl_reg_inst.reg_wr_ack = reg_intf_wr_ack;
+assign ctrl_reg_inst.reg_rd_wait = 'b0;
+assign ctrl_reg_inst.reg_wr_wait = 'b0;
+
+wire [VALID_ADDR_WIDTH-1:0] reg_rd_addr_valid = ctrl_reg_inst.reg_rd_addr >> (AXIL_APP_CTRL_ADDR_WIDTH - VALID_ADDR_WIDTH);
+wire reg_rd_in_range = reg_rd_addr_valid < NUM_RDONLY_REGS;
+wire [VALID_ADDR_WIDTH-1:0] reg_wr_addr_valid = ctrl_reg_inst.reg_wr_addr >> (AXIL_APP_CTRL_ADDR_WIDTH - VALID_ADDR_WIDTH);
+wire reg_wr_in_range = reg_wr_addr_valid < NUM_WRONLY_REGS;
+
+integer i;
+
+wire [31:0] stdout_dout = pspin_inst.i_pspin.i_periphs.i_stdout.dout;
+wire stdout_rd_rst_busy = pspin_inst.i_pspin.i_periphs.i_stdout.rd_rst_busy;
+reg stdout_rd_en_reg;
+
+always @* begin
+    pspin_inst.i_pspin.i_periphs.i_stdout.rd_en <= stdout_rd_en_reg;
+end
+
+always @(posedge clk, posedge rst) begin
+    if (rst) begin
+        for (i = 0; i < NUM_RDONLY_REGS; i = i + 1) begin
+            ctrl_rd_regs[i] <= 'h0;
+        end
+        for (i = 0; i < NUM_WRONLY_REGS; i = i + 1) begin
+            ctrl_wr_regs[i] <= 'h0;
+        end
+        reg_intf_rd_data <= 'h0;
+        reg_intf_rd_ack <= 'b0;
+        reg_intf_wr_ack <= 'b0;
+    end else begin
+        // read
+        if (ctrl_reg_inst.reg_rd_en) begin
+            if (ctrl_reg_inst.reg_rd_addr == 'h1000) begin
+                if (stdout_rd_rst_busy) begin
+                    // FIFO not ready, give garbage data
+                    reg_intf_rd_data <= 'hffffffff;
+                end else begin
+                    stdout_rd_en_reg <= 'b1;
+                    reg_intf_rd_data <= stdout_dout;
+                end
+            end else begin
+                if (reg_rd_in_range)
+                    reg_intf_rd_data <= ctrl_rd_regs[reg_rd_addr_valid];
+                else
+                    reg_intf_rd_data <= 'hffffffff;
+            end
+            reg_intf_rd_ack <= 'b1;
+        end else if (reg_intf_rd_ack) begin
+            reg_intf_rd_ack <= 'b0;
+            stdout_rd_en_reg <= 'b0;
+        end
+
+        // write
+        for (i = 0; i < AXIL_APP_CTRL_STRB_WIDTH; i = i + 1) begin
+            if (ctrl_reg_inst.reg_wr_en && ctrl_reg_inst.reg_wr_strb[i] && reg_wr_in_range) begin
+                ctrl_wr_regs[reg_wr_addr_valid][WORD_SIZE*i +: WORD_SIZE] <= ctrl_reg_inst.reg_wr_data[WORD_SIZE*i +: WORD_SIZE];
+                reg_intf_wr_ack <= 'b1;
+            end else if (reg_intf_wr_ack) begin
+                reg_intf_wr_ack <= 'b0;
+            end
+        end
+
+        // update
+        ctrl_rd_regs[0] <= cl_eoc;   // eoc
+        ctrl_rd_regs[1] <= cl_busy;  // busy
+        ctrl_rd_regs[2] <= mpq_full; // mpq full
+    end
+end
+
 pspin_wrap #(
     .N_CLUSTERS(NUM_CLUSTERS), // pspin_cfg_pkg::NUM_CLUSTERS
     .N_MPQ(NUM_MPQ)     // pspin_cfg_pkg::NUM_MPQ
 )
 pspin_inst (
     .clk_i(clk),
-    .rst_ni(!rst),
+    .rst_ni(!rst && !ctrl_wr_regs[1][0]),
 
-    .cl_fetch_en_i(cl_fetch_en),
+    .cl_fetch_en_i(ctrl_wr_regs[0]),
     .cl_eoc_o(cl_eoc),
     .cl_busy_o(cl_busy),
 
-    .mpq_full_o(mpq_full)
+    .mpq_full_o(mpq_full),
+
+    .host_slave_aw_addr_i   ({'h1d, pspin_axil_awaddr}),
+    .host_slave_aw_prot_i   (pspin_axil_awprot),
+    .host_slave_aw_valid_i  (pspin_axil_awvalid),
+    .host_slave_aw_ready_o  (pspin_axil_awready),
+    .host_slave_w_data_i    (pspin_axil_wdata),
+    .host_slave_w_strb_i    (pspin_axil_wstrb),
+    .host_slave_w_valid_i   (pspin_axil_wvalid),
+    .host_slave_w_ready_o   (pspin_axil_wready),
+    .host_slave_b_resp_o    (pspin_axil_bresp),
+    .host_slave_b_valid_o   (pspin_axil_bvalid),
+    .host_slave_b_ready_i   (pspin_axil_bready),
+    .host_slave_ar_addr_i   ({'h1d, pspin_axil_araddr}),
+    .host_slave_ar_prot_i   (pspin_axil_arprot),
+    .host_slave_ar_valid_i  (pspin_axil_arvalid),
+    .host_slave_ar_ready_o  (pspin_axil_arready),
+    .host_slave_r_data_o    (pspin_axil_rdata),
+    .host_slave_r_resp_o    (pspin_axil_rresp),
+    .host_slave_r_valid_o   (pspin_axil_rvalid),
+    .host_slave_r_ready_i   (pspin_axil_rready)
+);
+
+axil_reg_if #(
+    .DATA_WIDTH(AXIL_APP_CTRL_DATA_WIDTH),
+    .ADDR_WIDTH(AXIL_APP_CTRL_ADDR_WIDTH),
+    .STRB_WIDTH(AXIL_APP_CTRL_STRB_WIDTH)
+) ctrl_reg_inst (
+    .clk(clk),
+    .rst(rst),
+
+    .s_axil_awaddr          (ctrl_reg_axil_awaddr),
+    .s_axil_awprot          (ctrl_reg_axil_awprot),
+    .s_axil_awvalid         (ctrl_reg_axil_awvalid),
+    .s_axil_awready         (ctrl_reg_axil_awready),
+    .s_axil_wdata           (ctrl_reg_axil_wdata),
+    .s_axil_wstrb           (ctrl_reg_axil_wstrb),
+    .s_axil_wvalid          (ctrl_reg_axil_wvalid),
+    .s_axil_wready          (ctrl_reg_axil_wready),
+    .s_axil_bresp           (ctrl_reg_axil_bresp),
+    .s_axil_bvalid          (ctrl_reg_axil_bvalid),
+    .s_axil_bready          (ctrl_reg_axil_bready),
+    .s_axil_araddr          (ctrl_reg_axil_araddr),
+    .s_axil_arprot          (ctrl_reg_axil_arprot),
+    .s_axil_arvalid         (ctrl_reg_axil_arvalid),
+    .s_axil_arready         (ctrl_reg_axil_arready),
+    .s_axil_rdata           (ctrl_reg_axil_rdata),
+    .s_axil_rresp           (ctrl_reg_axil_rresp),
+    .s_axil_rvalid          (ctrl_reg_axil_rvalid),
+    .s_axil_rready          (ctrl_reg_axil_rready)
 );
 
 /*

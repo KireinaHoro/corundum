@@ -340,8 +340,10 @@ pspin_cmd_t         nic_cmd_req;
 pspin_cmd_resp_t    nic_cmd_resp;
 
 pspin #(
-    .N_CLUSTERS           (pspin_cfg_pkg::NUM_CLUSTERS),
-    .N_MPQ                (pspin_cfg_pkg::NUM_MPQ)
+    // XXX: we do not use these from pspin_cfg_pkg
+    // to keep them in sync with mqnic_app_block
+    .N_CLUSTERS           (N_CLUSTERS),
+    .N_MPQ                (N_MPQ)
 ) i_pspin (
     .clk_i                (clk_i),
     .rst_ni               (rst_ni),

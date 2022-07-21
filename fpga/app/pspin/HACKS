@@ -1,5 +1,5 @@
 List of hacks incorporated while developing.
 
-- Corundum APP block comes with a 16-bit AXI Lite host slave interface, while PsPIN has a 32KB program memory (15bit).  The top 1 bit is used to select between the L2 program memory access and configuration registers.
+- 24-bit address space for s_axil_app_ctrl_*; low 16 bit is used to reconstruct the pspin host side address
 - hw/deps/pulp_cluster/rtl/pulp_cluster.sv: removed tryx_ctrl and joined s_core_periph_bus and s_core_periph_tryx
 - apb_bus.sv compile order: set compile order to manual in Vivado; see https://support.xilinx.com/s/article/69320?language=en_US
