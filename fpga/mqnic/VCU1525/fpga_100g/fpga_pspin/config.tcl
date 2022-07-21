@@ -262,7 +262,7 @@ foreach {i} $include_rels {
 set_property include_dirs $include_dirs $fileset
 
 # synthesis define
-set_property verilog_define {TARGET_SYNTHESIS} $fileset
+set_property verilog_define {TARGET_SYNTHESIS PULP_FPGA_EMUL} $fileset
 
 # top module
 set_property top fpga $fileset
