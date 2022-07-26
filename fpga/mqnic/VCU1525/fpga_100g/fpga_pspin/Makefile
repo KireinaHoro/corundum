@@ -107,6 +107,7 @@ SYN_FILES += lib/pcie/rtl/pulse_merge.v
 # Corundum-PsPIN
 SYN_FILES += app/pspin/rtl/mqnic_app_block.v
 SYN_FILES += app/pspin/rtl/pspin_wrap.sv
+SYN_FILES += app/pspin/rtl/pspin_ctrl_regs.sv
 SYN_FILES += app/pspin/rtl/axil_interconnect_wrap_1x2.v
 
 # PsPIN upstream
