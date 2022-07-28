@@ -27,6 +27,7 @@ sim_build/
 
 fpga/mqnic/**/fpga.*
 fpga/mqnic/**/*.tcl
+!fpga/mqnic/**/ip/*.tcl
 fpga/mqnic/**/rev/
 fpga/mqnic/**/defines.v
 !fpga/mqnic/**/config.tcl
