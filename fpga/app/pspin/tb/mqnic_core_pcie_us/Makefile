@@ -78,7 +78,6 @@ VERILOG_SOURCES += ../../rtl/common/stats_dma_if_pcie.v
 VERILOG_SOURCES += ../../rtl/common/stats_dma_latency.v
 VERILOG_SOURCES += ../../rtl/common/mqnic_tx_scheduler_block_rr.v
 VERILOG_SOURCES += ../../rtl/common/tx_scheduler_rr.v
-VERILOG_SOURCES += ../../rtl/mqnic_app_block.v
 VERILOG_SOURCES += ../../lib/eth/rtl/ptp_clock.v
 VERILOG_SOURCES += ../../lib/eth/rtl/ptp_clock_cdc.v
 VERILOG_SOURCES += ../../lib/eth/rtl/ptp_perout.v
@@ -127,6 +126,11 @@ VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_us_if_cq.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_us_cfg.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_us_msi.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pulse_merge.v
+
+VERILOG_SOURCES += ../../rtl/mqnic_app_block.v
+VERILOG_SOURCES += ../../rtl/axil_interconnect_wrap_1x2.v
+VERILOG_SOURCES += ../../rtl/pspin_wrap.sv
+VERILOG_SOURCES += ../../rtl/pspin_ctrl_regs.v
 
 # module parameters
 
@@ -189,7 +193,7 @@ export PARAM_TX_RAM_SIZE ?= 131072
 export PARAM_RX_RAM_SIZE ?= 131072
 
 # Application block configuration
-export PARAM_APP_ID ?= $(shell echo $$((16#12340001)) )
+export PARAM_APP_ID ?= $(shell echo $$((16\#12340001)) )
 export PARAM_APP_ENABLE ?= 1
 export PARAM_APP_CTRL_ENABLE ?= 1
 export PARAM_APP_DMA_ENABLE ?= 1

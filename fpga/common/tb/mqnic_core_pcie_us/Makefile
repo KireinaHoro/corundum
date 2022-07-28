@@ -187,7 +187,7 @@ export PARAM_TX_RAM_SIZE ?= 131072
 export PARAM_RX_RAM_SIZE ?= 131072
 
 # Application block configuration
-export PARAM_APP_ID ?= $(shell echo $$((16#00000000)) )
+export PARAM_APP_ID ?= $(shell echo $$((16\#00000000)) )
 export PARAM_APP_ENABLE ?= 0
 export PARAM_APP_CTRL_ENABLE ?= 1
 export PARAM_APP_DMA_ENABLE ?= 1
@@ -341,7 +341,7 @@ ifeq ($(SIM), icarus)
 		COMPILE_ARGS += -s iverilog_dump
 	endif
 else ifeq ($(SIM), verilator)
-	COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH
+	COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH -Wno-UNOPT -Wno-LATCH -Wno-LITENDIAN -Wno-CASEINCOMPLETE -Wno-PINMISSING
 
 	COMPILE_ARGS += -GIF_COUNT=$(PARAM_IF_COUNT)
 	COMPILE_ARGS += -GPORTS_PER_IF=$(PARAM_PORTS_PER_IF)
