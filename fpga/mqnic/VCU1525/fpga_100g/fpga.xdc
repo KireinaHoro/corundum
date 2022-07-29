@@ -253,3 +253,4 @@ create_clock -period 10.000 -name pcie_mgt_refclk_1 [get_ports pcie_refclk_p]
 set_false_path -from [get_ports pcie_reset_n]
 set_input_delay 0.000 [get_ports pcie_reset_n]
 
+
