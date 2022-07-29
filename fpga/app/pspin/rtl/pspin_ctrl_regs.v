@@ -47,14 +47,17 @@ module pspin_ctrl_regs #
     output wire                   s_axil_rvalid,
     input  wire                   s_axil_rready,
 
-    // register data out
+    // PsPIN-facing interfaces are in this clock
+    input  wire                   pspin_clk,
+
+    // register data - in pspin_clk
     output wire [NUM_CLUSTERS-1:0] cl_fetch_en_o,
     output wire                    aux_rst_o,
     input  wire [NUM_CLUSTERS-1:0] cl_eoc_i,
     input  wire [NUM_CLUSTERS-1:0] cl_busy_i,
     input  wire [NUM_MPQ-1:0]      mpq_full_i,
     
-    // stdout FIFO
+    // stdout FIFO - in pspin_clk
     output wire                   stdout_rd_en,
     input  wire                   stdout_rd_rst_busy,
     input  wire [31:0]            stdout_dout
@@ -87,8 +90,25 @@ wire reg_wr_in_range = reg_wr_addr_valid < NUM_WRONLY_REGS;
 
 reg stdout_rd_en_reg;
 assign stdout_rd_en = stdout_rd_en_reg;
-assign cl_fetch_en_o = ctrl_wr_regs[0];
-assign aux_rst_o = ctrl_wr_regs[1][0];
+
+// CDC
+wire [NUM_CLUSTERS-1:0] cl_eoc_x;
+wire [NUM_CLUSTERS-1:0] cl_busy_x;
+wire [NUM_MPQ-1:0]      mpq_full_x;
+
+bus_cdc_wrap #(.WIDTH(2*NUM_CLUSTERS+NUM_MPQ)) i_cdc_in (
+    .src_clk(pspin_clk),
+    .dest_clk(clk),
+    .src_in({cl_eoc_i, cl_busy_i, mpq_full_i}),
+    .dest_out({cl_eoc_x, cl_busy_x, mpq_full_x})
+);
+
+bus_cdc_wrap #(.WIDTH(NUM_CLUSTERS+1)) i_cdc_out (
+    .src_clk(clk),
+    .dest_clk(pspin_clk),
+    .src_in({ctrl_wr_regs[0], ctrl_wr_regs[1][0]}),
+    .dest_out({cl_fetch_en_o, aux_rst_o})
+);
 
 integer i;
 always @(posedge clk, posedge rst) begin
@@ -139,11 +159,11 @@ always @(posedge clk, posedge rst) begin
         end
 
         // update
-        ctrl_rd_regs[0] <= cl_eoc_i;   // eoc
-        ctrl_rd_regs[1] <= cl_busy_i;  // busy
+        ctrl_rd_regs[0] <= cl_eoc_x;   // eoc
+        ctrl_rd_regs[1] <= cl_busy_x;  // busy
         
         for (i = 0; i < 8; i = i + 1) begin
-            ctrl_rd_regs[2 + i] <= mpq_full_i[i*DATA_WIDTH +: DATA_WIDTH];
+            ctrl_rd_regs[2 + i] <= mpq_full_x[i*DATA_WIDTH +: DATA_WIDTH];
         end
     end
 end

@@ -105,10 +105,11 @@ SYN_FILES += lib/pcie/rtl/pcie_us_msi.v
 SYN_FILES += lib/pcie/rtl/pulse_merge.v
 
 # Corundum-PsPIN
+SYN_FILES += app/pspin/rtl/axil_interconnect_wrap_1x2.v
+SYN_FILES += app/pspin/rtl/bus_cdc_wrap.v
 SYN_FILES += app/pspin/rtl/mqnic_app_block.v
 SYN_FILES += app/pspin/rtl/pspin_wrap.sv
 SYN_FILES += app/pspin/rtl/pspin_ctrl_regs.sv
-SYN_FILES += app/pspin/rtl/axil_interconnect_wrap_1x2.v
 
 # PsPIN upstream
 SYN_FILES += app/pspin/deps/pspin/hw/deps/scm/latch_scm/register_file_1w_multi_port_read.sv
