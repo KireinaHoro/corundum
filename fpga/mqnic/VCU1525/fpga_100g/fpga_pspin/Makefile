@@ -112,7 +112,9 @@ SYN_FILES += app/pspin/rtl/pspin_wrap.sv
 SYN_FILES += app/pspin/rtl/pspin_ctrl_regs.sv
 
 # PsPIN upstream
-SYN_FILES += app/pspin/deps/pspin/hw/deps/scm/latch_scm/register_file_1w_multi_port_read.sv
+SYN_FILES += app/pspin/deps/pspin/hw/deps/scm/fpga_scm/register_file_1r_1w.sv
+SYN_FILES += app/pspin/deps/pspin/hw/deps/scm/fpga_scm/register_file_1r_1w_1row.sv
+SYN_FILES += app/pspin/deps/pspin/hw/deps/scm/fpga_scm/register_file_1w_multi_port_read.sv
 SYN_FILES += app/pspin/deps/pspin/hw/deps/axi2apb/src/axi2apb_wrap.sv
 SYN_FILES += app/pspin/deps/pspin/hw/deps/axi2apb/src/axi2apb_64_32.sv
 SYN_FILES += app/pspin/deps/pspin/hw/deps/cluster_peripherals/cluster_control_unit/cluster_control_unit.sv
