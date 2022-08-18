@@ -253,4 +253,8 @@ create_clock -period 10.000 -name pcie_mgt_refclk_1 [get_ports pcie_refclk_p]
 set_false_path -from [get_ports pcie_reset_n]
 set_input_delay 0.000 [get_ports pcie_reset_n]
 
+# reset from PCIe host for PsPIN
+set_false_path -to [get_pins core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/i_pspin_rst/U0/EXT_LPF/ACTIVE_HIGH_AUX.ACT_HI_AUX/GENERATE_LEVEL_P_S_CDC.SINGLE_BIT.CROSS_PLEVEL_IN2SCNDRY_IN_cdc_to/D]
 
+# timer hold
+set_false_path -from [get_pins core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/i_pspin_clk_wiz/inst/mmcme4_adv_inst/CLKOUT0] -to [get_pins {core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/gen_clusters[*].gen_cluster_sync.i_cluster/i_ooc/i_bound/cluster_peripherals_i/cluster_timer_wrap_i/timer_unit_i/s_ref_clk0_reg/D}]
