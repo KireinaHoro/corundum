@@ -36,12 +36,12 @@
 #include "mqnic.h"
 #include <linux/module.h>
 
-MODULE_DESCRIPTION("mqnic template application driver");
-MODULE_AUTHOR("Alex Forencich");
+MODULE_DESCRIPTION("mqnic pspin driver");
+MODULE_AUTHOR("Pengcheng Xu");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_VERSION("0.1");
 
-struct mqnic_app_template {
+struct mqnic_app_pspin {
 	struct device *dev;
 	struct mqnic_dev *mdev;
 	struct mqnic_adev *adev;
@@ -53,10 +53,10 @@ struct mqnic_app_template {
 	void __iomem *ram_hw_addr;
 };
 
-static int mqnic_app_template_probe(struct auxiliary_device *adev,
+static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
 		const struct auxiliary_device_id *id)
 {
-	struct mqnic_app_template *app;
+	struct mqnic_app_pspin *app;
 	struct mqnic_dev *mdev = container_of(adev, struct mqnic_adev, adev)->mdev;
 	struct device *dev = &adev->dev;
 
@@ -81,46 +81,57 @@ static int mqnic_app_template_probe(struct auxiliary_device *adev,
 	app->ram_hw_addr = mdev->ram_hw_addr;
 
 	// Read/write test
+	/*
 	dev_info(dev, "Write to application registers");
 	iowrite32(0x11223344, app->app_hw_addr);
 
 	dev_info(dev, "Read from application registers");
 	dev_info(dev, "%08x", ioread32(app->app_hw_addr));
+	*/
+
+	// bring out of reset
+	dev_info(dev, "Bringing cluster out of reset");
+	iowrite32(0x0, app->app_hw_addr + 0x10004);
+
+	dev_info(dev, "Reading from L2 program memory");
+	dev_info(dev, "%08x", ioread32(app->app_hw_addr + ))
+
+	dev_info(dev, "Write to ")
 
 	return 0;
 }
 
-static void mqnic_app_template_remove(struct auxiliary_device *adev)
+static void mqnic_app_pspin_remove(struct auxiliary_device *adev)
 {
-	struct mqnic_app_template *app = dev_get_drvdata(&adev->dev);
+	struct mqnic_app_pspin *app = dev_get_drvdata(&adev->dev);
 	struct device *dev = app->dev;
 
 	dev_info(dev, "%s() called", __func__);
 }
 
-static const struct auxiliary_device_id mqnic_app_template_id_table[] = {
-	{ .name = "mqnic.app_12340001" },
+static const struct auxiliary_device_id mqnic_app_pspin_id_table[] = {
+	{ .name = "mqnic.app_12340100" },
 	{},
 };
 
-MODULE_DEVICE_TABLE(auxiliary, mqnic_app_template_id_table);
+MODULE_DEVICE_TABLE(auxiliary, mqnic_app_pspin_id_table);
 
-static struct auxiliary_driver mqnic_app_template_driver = {
-	.name = "mqnic_app_template",
-	.probe = mqnic_app_template_probe,
-	.remove = mqnic_app_template_remove,
-	.id_table = mqnic_app_template_id_table,
+static struct auxiliary_driver mqnic_app_pspin_driver = {
+	.name = "mqnic_app_pspin",
+	.probe = mqnic_app_pspin_probe,
+	.remove = mqnic_app_pspin_remove,
+	.id_table = mqnic_app_pspin_id_table,
 };
 
-static int __init mqnic_app_template_init(void)
+static int __init mqnic_app_pspin_init(void)
 {
-	return auxiliary_driver_register(&mqnic_app_template_driver);
+	return auxiliary_driver_register(&mqnic_app_pspin_driver);
 }
 
-static void __exit mqnic_app_template_exit(void)
+static void __exit mqnic_app_pspin_exit(void)
 {
-	auxiliary_driver_unregister(&mqnic_app_template_driver);
+	auxiliary_driver_unregister(&mqnic_app_pspin_driver);
 }
 
-module_init(mqnic_app_template_init);
-module_exit(mqnic_app_template_exit);
+module_init(mqnic_app_pspin_init);
+module_exit(mqnic_app_pspin_exit);
