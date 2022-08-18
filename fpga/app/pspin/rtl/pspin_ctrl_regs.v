@@ -67,6 +67,10 @@ localparam VALID_ADDR_WIDTH = ADDR_WIDTH - $clog2(STRB_WIDTH);
 localparam WORD_WIDTH = STRB_WIDTH;
 localparam WORD_SIZE = DATA_WIDTH/WORD_WIDTH;
 
+// base of read regs 0x100
+localparam [VALID_ADDR_WIDTH-1:0] FILLED_BASE = {{VALID_ADDR_WIDTH{1'b0}}, 'h100};
+localparam [VALID_ADDR_WIDTH-1:0] FIFO_BASE = {{VALID_ADDR_WIDTH{1'b0}}, 'h1000};
+
 localparam NUM_RDONLY_REGS = 10;
 localparam NUM_WRONLY_REGS = 2;
 reg [DATA_WIDTH-1:0] ctrl_rd_regs [NUM_RDONLY_REGS-1:0];
@@ -82,10 +86,9 @@ wire reg_intf_wr_en;
 wire [ADDR_WIDTH-1:0] reg_intf_rd_addr;
 wire [ADDR_WIDTH-1:0] reg_intf_wr_addr;
 wire [STRB_WIDTH-1:0] reg_intf_wr_strb;
-// base of read regs 0x100
-wire [VALID_ADDR_WIDTH-1:0] reg_rd_addr_valid = (reg_intf_rd_addr - 'h100) >> (ADDR_WIDTH - VALID_ADDR_WIDTH);
+wire [VALID_ADDR_WIDTH-1:0] reg_rd_addr_valid = (reg_intf_rd_addr - FILLED_BASE) >> (ADDR_WIDTH - VALID_ADDR_WIDTH);
 wire [VALID_ADDR_WIDTH-1:0] reg_wr_addr_valid = reg_intf_wr_addr >> (ADDR_WIDTH - VALID_ADDR_WIDTH);
-wire reg_rd_in_range = reg_intf_rd_addr >= 'h100 && reg_rd_addr_valid < NUM_RDONLY_REGS;
+wire reg_rd_in_range = reg_intf_rd_addr >= FILLED_BASE && reg_rd_addr_valid < NUM_RDONLY_REGS;
 wire reg_wr_in_range = reg_wr_addr_valid < NUM_WRONLY_REGS;
 
 reg stdout_rd_en_reg;
@@ -114,24 +117,24 @@ integer i;
 always @(posedge clk, posedge rst) begin
     if (rst) begin
         for (i = 0; i < NUM_RDONLY_REGS; i = i + 1) begin
-            ctrl_rd_regs[i] <= 'h0;
+            ctrl_rd_regs[i] <= {DATA_WIDTH{1'b0}};
         end
         for (i = 0; i < NUM_WRONLY_REGS; i = i + 1) begin
-            if (i == 1) // reset - reset high
-                ctrl_wr_regs[i] <= 'h1;
+            if (i == 1) // reset output - reset high
+                ctrl_wr_regs[i] <= {DATA_WIDTH{1'b1}};
             else
-                ctrl_wr_regs[i] <= 'h0;
+                ctrl_wr_regs[i] <= {DATA_WIDTH{1'h0}};
         end
-        reg_intf_rd_data <= 'h0;
-        reg_intf_rd_ack <= 'b0;
-        reg_intf_wr_ack <= 'b0;
+        reg_intf_rd_data <= {DATA_WIDTH{1'h0}};
+        reg_intf_rd_ack <= 1'b0;
+        reg_intf_wr_ack <= 1'b0;
     end else begin
         // read
         if (reg_intf_rd_en) begin
-            if (reg_intf_rd_addr == 'h1000) begin
+            if (reg_intf_rd_addr == FIFO_BASE) begin
                 if (stdout_rd_rst_busy) begin
                     // FIFO not ready, give garbage data
-                    reg_intf_rd_data <= 'hffffffff;
+                    reg_intf_rd_data <= {DATA_WIDTH{1'b1}};
                 end else begin
                     stdout_rd_en_reg <= 'b1;
                     reg_intf_rd_data <= stdout_dout;
@@ -140,7 +143,7 @@ always @(posedge clk, posedge rst) begin
                 if (reg_rd_in_range)
                     reg_intf_rd_data <= ctrl_rd_regs[reg_rd_addr_valid];
                 else
-                    reg_intf_rd_data <= 'hffffffff;
+                    reg_intf_rd_data <= {DATA_WIDTH{1'b1}};
             end
             reg_intf_rd_ack <= 'b1;
         end else if (reg_intf_rd_ack) begin
