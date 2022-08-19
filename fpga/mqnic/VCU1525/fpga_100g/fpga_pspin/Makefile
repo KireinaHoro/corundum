@@ -362,6 +362,7 @@ XDC_FILES += placement.xdc
 XDC_FILES += cfgmclk.xdc
 XDC_FILES += boot.xdc
 XDC_FILES += floorplan.xdc
+XDC_FILES += debug.xdc
 XDC_FILES += lib/axis/syn/vivado/axis_async_fifo.tcl
 XDC_FILES += lib/axis/syn/vivado/sync_reset.tcl
 XDC_FILES += lib/eth/syn/vivado/ptp_clock_cdc.tcl
