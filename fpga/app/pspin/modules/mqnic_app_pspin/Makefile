@@ -5,8 +5,8 @@ KBUILD_EXTRA_SYMBOLS=$(src)/../mqnic/Module.symvers
 ccflags-y += -I$(src)/../mqnic/
 
 # object files to build
-obj-m += mqnic_app_template.o
-mqnic_app_template-y += main.o
+obj-m += mqnic_app_pspin.o
+mqnic_app_pspin-y += main.o
 
 else
 

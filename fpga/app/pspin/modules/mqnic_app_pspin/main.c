@@ -34,103 +34,409 @@
  */
 
 #include "mqnic.h"
+#include <asm-generic/errno-base.h>
+#include <linux/init.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/version.h>
+
+#include <linux/cdev.h>
+#include <linux/device.h>
+#include <linux/err.h>
+#include <linux/errno.h>
+#include <linux/fs.h>
+#include <linux/iopoll.h>
+#include <linux/kernel.h>
+#include <linux/mutex.h>
+#include <linux/slab.h>
+
+#include <linux/uaccess.h>
 
 MODULE_DESCRIPTION("mqnic pspin driver");
 MODULE_AUTHOR("Pengcheng Xu");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_VERSION("0.1");
 
+// We expose the mapped L2/prog mem address space to userspace as a single
+// character-special file.  The userspace handler loader should undo the
+// mapping correctly.
+#define REG(app, offset) ((app)->app_hw_addr + 0x800000 + (offset))
+#define R_CLUSTER_FETCH_EN(app) (REG(app, 0x0000))
+#define R_CLUSTER_RESET(app) (REG(app, 0x0004))
+#define R_CLUSTER_EOC(app) (REG(app, 0x0100))
+#define R_CLUSTER_BUSY(app) (REG(app, 0x0104))
+#define R_MPQ_BUSY_0(app) (REG(app, 0x0108))
+#define R_MPQ_BUSY_1(app) (REG(app, 0x010c))
+#define R_MPQ_BUSY_2(app) (REG(app, 0x0110))
+#define R_MPQ_BUSY_3(app) (REG(app, 0x0114))
+#define R_MPQ_BUSY_4(app) (REG(app, 0x0118))
+#define R_MPQ_BUSY_5(app) (REG(app, 0x011c))
+#define R_MPQ_BUSY_6(app) (REG(app, 0x0120))
+#define R_MPQ_BUSY_7(app) (REG(app, 0x0124))
+#define R_STDOUT_FIFO(app) (REG(app, 0x1000))
+
+#define PSPIN_MEM(app, off) ((app)->app_hw_addr + (off))
+
+#define PSPIN_DEVICE_NAME "pspin"
 struct mqnic_app_pspin {
-	struct device *dev;
-	struct mqnic_dev *mdev;
-	struct mqnic_adev *adev;
+  struct device *dev;
+  struct mqnic_dev *mdev;
+  struct mqnic_adev *adev;
 
-	struct device *nic_dev;
+  struct device *nic_dev;
 
-	void __iomem *nic_hw_addr;
-	void __iomem *app_hw_addr;
-	void __iomem *ram_hw_addr;
+  void __iomem *nic_hw_addr;
+  void __iomem *app_hw_addr;
+  void __iomem *ram_hw_addr;
 };
 
-static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
-		const struct auxiliary_device_id *id)
-{
-	struct mqnic_app_pspin *app;
-	struct mqnic_dev *mdev = container_of(adev, struct mqnic_adev, adev)->mdev;
-	struct device *dev = &adev->dev;
+struct pspin_cdev {
+  enum {
+    TY_MEM,
+    TY_FIFO,
+  } type;
+  struct mqnic_app_pspin *app;
+  unsigned char *block_buffer;
+  struct mutex pspin_mutex;
+  struct cdev cdev;
+  struct device *dev;
+};
 
-	dev_info(dev, "%s() called", __func__);
+static int pspin_ndevices = 2;
+static unsigned long pspin_block_size = 512;
+// only checked for mem, stdout is assumed to be unbounded
+static unsigned long pspin_mem_size = 0x200000;
 
-	if (!mdev->hw_addr || !mdev->app_hw_addr) {
-		dev_err(dev, "Error: required region not present");
-		return -EIO;
-	}
+static unsigned int pspin_major = 0;
+static struct pspin_cdev *pspin_cdevs = NULL;
+static struct class *pspin_class = NULL;
 
-	app = devm_kzalloc(dev, sizeof(*app), GFP_KERNEL);
-	if (!app)
-		return -ENOMEM;
+int pspin_open(struct inode *inode, struct file *filp) {
+  unsigned mj = imajor(inode);
+  unsigned mn = iminor(inode);
 
-	app->dev = dev;
-	app->mdev = mdev;
-	dev_set_drvdata(&adev->dev, app);
+  struct pspin_cdev *dev = NULL;
+  struct device *d;
 
-	app->nic_dev = mdev->dev;
-	app->nic_hw_addr = mdev->hw_addr;
-	app->app_hw_addr = mdev->app_hw_addr;
-	app->ram_hw_addr = mdev->ram_hw_addr;
+  if (mj != pspin_major || mn < 0 || mn >= pspin_ndevices) {
+    printk(KERN_WARNING "No character device found with %d:%d\n", mj, mn);
+    return -ENODEV;
+  }
 
-	// Read/write test
-	/*
-	dev_info(dev, "Write to application registers");
-	iowrite32(0x11223344, app->app_hw_addr);
+  dev = &pspin_cdevs[mn];
+  filp->private_data = dev;
+  d = dev->dev;
 
-	dev_info(dev, "Read from application registers");
-	dev_info(dev, "%08x", ioread32(app->app_hw_addr));
-	*/
+  if (inode->i_cdev != &dev->cdev) {
+    dev_warn(d, "open: internal error\n");
+    return -ENODEV;
+  }
 
-	// bring out of reset
-	dev_info(dev, "Bringing cluster out of reset");
-	iowrite32(0x0, app->app_hw_addr + 0x10004);
-
-	dev_info(dev, "Reading from L2 program memory");
-	dev_info(dev, "%08x", ioread32(app->app_hw_addr + ))
-
-	dev_info(dev, "Write to ")
-
-	return 0;
+  if (dev->block_buffer == NULL) {
+    dev->block_buffer =
+        (unsigned char *)devm_kzalloc(d, pspin_block_size, GFP_KERNEL);
+    if (dev->block_buffer == NULL) {
+      dev_warn(d, "open: out of memory\n");
+      return -ENOMEM;
+    }
+  }
+  return 0;
 }
 
-static void mqnic_app_pspin_remove(struct auxiliary_device *adev)
-{
-	struct mqnic_app_pspin *app = dev_get_drvdata(&adev->dev);
-	struct device *dev = app->dev;
+int pspin_release(struct inode *inode, struct file *filp) { return 0; }
 
-	dev_info(dev, "%s() called", __func__);
+ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
+                   loff_t *f_pos) {
+  struct pspin_cdev *dev = (struct pspin_cdev *)filp->private_data;
+  struct mqnic_app_pspin *app = dev->app;
+  ssize_t retval = 0;
+  int i;
+
+  if (mutex_lock_killable(&dev->pspin_mutex))
+    return -EINTR;
+  if (dev->type == TY_MEM && *f_pos >= pspin_mem_size)
+    goto out;
+  if (dev->type == TY_MEM && *f_pos + count > pspin_mem_size)
+    count = pspin_mem_size - *f_pos;
+  if (count > pspin_block_size)
+    count = pspin_block_size;
+  if (dev->type == TY_MEM)
+    count = round_down(count, 4);
+
+  if (dev->type == TY_MEM) {
+    for (i = 0; i < count; i += 4) {
+      *((u32 *)&dev->block_buffer[i]) =
+          ioread32(PSPIN_MEM(app, *f_pos + count));
+    }
+    retval = count;
+  } else {
+    u32 reg;
+    uintptr_t off = 0;
+    // read at least one first so we don't trigger EOF
+    readx_poll_timeout(ioread32, R_STDOUT_FIFO(app), reg, reg != ~0, 100, 0);
+    dev->block_buffer[off++] = (unsigned char)reg;
+
+    while ((reg = ioread32(R_STDOUT_FIFO(app))) != ~0 && off < pspin_block_size)
+      dev->block_buffer[off++] = (unsigned char)reg;
+    retval = off;
+  }
+
+  if (copy_to_user(buf, dev->block_buffer, retval) != 0) {
+    retval = -EFAULT;
+    goto out;
+  }
+
+  if (dev->type == TY_MEM)
+    *f_pos += retval;
+out:
+  mutex_unlock(&dev->pspin_mutex);
+  return retval;
+}
+
+ssize_t pspin_write(struct file *filp, const char __user *buf, size_t count,
+                    loff_t *f_pos) {
+  struct pspin_cdev *dev = (struct pspin_cdev *)filp->private_data;
+  struct mqnic_app_pspin *app = dev->app;
+  ssize_t retval = 0;
+  int i;
+
+  if (dev->type == TY_FIFO) {
+    dev_warn(dev->dev, "stdout FIFO does not support writing\n");
+    return -EINVAL;
+  }
+
+  if (mutex_lock_killable(&dev->pspin_mutex))
+    return -EINTR;
+
+  if (*f_pos >= pspin_mem_size) {
+    retval = -EINVAL;
+    goto out;
+  }
+
+  if (*f_pos + count > pspin_mem_size)
+    count = pspin_mem_size - *f_pos;
+  if (count > pspin_block_size)
+    count = pspin_block_size;
+  count = round_down(count, 4);
+
+  if (copy_from_user(dev->block_buffer, buf, count) != 0) {
+    retval = -EFAULT;
+    goto out;
+  }
+
+  for (i = 0; i < count; i += 4) {
+    iowrite32(*((u32 *)&dev->block_buffer[i]), PSPIN_MEM(app, count));
+  }
+  *f_pos += count;
+  retval = count;
+
+out:
+  mutex_unlock(&dev->pspin_mutex);
+  return retval;
+}
+
+loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
+  struct pspin_cdev *dev = (struct pspin_cdev *)filp->private_data;
+  loff_t newpos = 0;
+
+  if (dev->type == TY_FIFO) {
+    dev_warn(dev->dev, "stdout FIFO does not support seeking\n");
+    return -EINVAL;
+  }
+
+  switch (whence) {
+  case SEEK_SET:
+    newpos = off;
+    break;
+  case SEEK_CUR:
+    newpos = filp->f_pos + off;
+    break;
+  case SEEK_END:
+    newpos = pspin_mem_size + off;
+    break;
+  default: // not supported
+    return -EINVAL;
+  }
+  if (newpos < 0 || newpos > pspin_mem_size)
+    return -EINVAL;
+  filp->f_pos = newpos;
+  return newpos;
+}
+
+struct file_operations pspin_fops = {
+    .owner = THIS_MODULE,
+    .read = pspin_read,
+    .write = pspin_write,
+    .open = pspin_open,
+    .release = pspin_release,
+    .llseek = pspin_llseek,
+};
+
+static int pspin_construct_device(struct pspin_cdev *dev, int minor,
+                                  struct class *class,
+                                  struct mqnic_app_pspin *app) {
+  int err = 0;
+  dev_t devno = MKDEV(pspin_major, minor);
+
+  BUG_ON(dev == NULL || class == NULL);
+  BUG_ON(minor < 0 || minor >= 2);
+
+  dev->block_buffer = NULL;
+  dev->app = app;
+  mutex_init(&dev->pspin_mutex);
+  cdev_init(&dev->cdev, &pspin_fops);
+  dev->cdev.owner = THIS_MODULE;
+  dev->type = minor == 0 ? TY_MEM : TY_FIFO;
+
+  err = cdev_add(&dev->cdev, devno, 1);
+  if (err) {
+    printk(KERN_WARNING "error %d while trying to add %s%d", err,
+           PSPIN_DEVICE_NAME, minor);
+    return err;
+  }
+
+  dev->dev =
+      device_create(class, NULL, devno, NULL, PSPIN_DEVICE_NAME "%d", minor);
+  if (IS_ERR(dev->dev)) {
+    err = PTR_ERR(dev->dev);
+    printk(KERN_WARNING "error %d while trying to create %s%d", err,
+           PSPIN_DEVICE_NAME, minor);
+    cdev_del(&dev->cdev);
+    return err;
+  }
+  return 0;
+}
+
+static void pspin_destroy_device(struct pspin_cdev *dev, int minor,
+                                 struct class *class) {
+  BUG_ON(dev == NULL || class == NULL);
+  BUG_ON(minor < 0 || minor >= 2);
+
+  device_destroy(class, MKDEV(pspin_major, minor));
+  cdev_del(&dev->cdev);
+  kfree(dev->block_buffer);
+  mutex_destroy(&dev->pspin_mutex);
+}
+
+static void pspin_cleanup_chrdev(int devices_to_destroy) {
+  int i;
+
+  if (pspin_cdevs) {
+    for (i = 0; i < devices_to_destroy; ++i)
+      pspin_destroy_device(&pspin_cdevs[i], i, pspin_class);
+    kfree(pspin_cdevs);
+  }
+
+  if (pspin_class)
+    class_destroy(pspin_class);
+
+  unregister_chrdev_region(MKDEV(pspin_major, 0), pspin_ndevices);
+}
+
+static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
+                                 const struct auxiliary_device_id *id) {
+  struct mqnic_dev *mdev = container_of(adev, struct mqnic_adev, adev)->mdev;
+  struct device *dev = &adev->dev;
+
+  struct mqnic_app_pspin *app;
+
+  int err = 0;
+  int i = 0;
+  int devices_to_destroy = 0;
+  dev_t devno = 0;
+
+  dev_info(dev, "%s() called", __func__);
+
+  if (!mdev->hw_addr || !mdev->app_hw_addr) {
+    dev_err(dev,
+            "Error: required region not present: hw_addr %p, app_hw_addr %p\n",
+            mdev->hw_addr, mdev->app_hw_addr);
+    return -EIO;
+  }
+
+  app = devm_kzalloc(dev, sizeof(*app), GFP_KERNEL);
+  if (!app)
+    return -ENOMEM;
+
+  app->dev = dev;
+  app->mdev = mdev;
+  dev_set_drvdata(&adev->dev, app);
+
+  app->nic_dev = mdev->dev;
+  app->nic_hw_addr = mdev->hw_addr;
+  app->app_hw_addr = mdev->app_hw_addr;
+  app->ram_hw_addr = mdev->ram_hw_addr;
+
+  // setup character special devices
+  if (pspin_ndevices <= 0) {
+    printk(KERN_WARNING "invalid value of pspin_ndevices: %d\n",
+           pspin_ndevices);
+    return -EINVAL;
+  }
+
+  err = alloc_chrdev_region(&devno, 0, pspin_ndevices, PSPIN_DEVICE_NAME);
+  if (err < 0) {
+    printk(KERN_WARNING "alloc_chrdev_region() failed\n");
+    return err;
+  }
+  pspin_major = MAJOR(devno);
+
+  pspin_class = class_create(THIS_MODULE, PSPIN_DEVICE_NAME);
+  if (IS_ERR(pspin_class)) {
+    err = PTR_ERR(pspin_class);
+    goto fail;
+  }
+
+  pspin_cdevs = (struct pspin_cdev *)devm_kzalloc(
+      dev, pspin_ndevices * sizeof(struct pspin_cdev), GFP_KERNEL);
+  if (pspin_cdevs == NULL) {
+    err = -ENOMEM;
+    goto fail;
+  }
+
+  for (i = 0; i < pspin_ndevices; ++i) {
+    err = pspin_construct_device(&pspin_cdevs[i], i, pspin_class, app);
+    if (err) {
+      devices_to_destroy = i;
+      goto fail;
+    }
+  }
+  return 0;
+
+fail:
+  pspin_cleanup_chrdev(devices_to_destroy);
+  return err;
+}
+
+static void mqnic_app_pspin_remove(struct auxiliary_device *adev) {
+  struct mqnic_app_pspin *app = dev_get_drvdata(&adev->dev);
+  struct device *dev = app->dev;
+
+  dev_info(dev, "%s() called", __func__);
+
+  pspin_cleanup_chrdev(pspin_ndevices);
 }
 
 static const struct auxiliary_device_id mqnic_app_pspin_id_table[] = {
-	{ .name = "mqnic.app_12340100" },
-	{},
+    {.name = "mqnic.app_12340100"},
+    {},
 };
 
 MODULE_DEVICE_TABLE(auxiliary, mqnic_app_pspin_id_table);
 
 static struct auxiliary_driver mqnic_app_pspin_driver = {
-	.name = "mqnic_app_pspin",
-	.probe = mqnic_app_pspin_probe,
-	.remove = mqnic_app_pspin_remove,
-	.id_table = mqnic_app_pspin_id_table,
+    .name = "mqnic_app_pspin",
+    .probe = mqnic_app_pspin_probe,
+    .remove = mqnic_app_pspin_remove,
+    .id_table = mqnic_app_pspin_id_table,
 };
 
-static int __init mqnic_app_pspin_init(void)
-{
-	return auxiliary_driver_register(&mqnic_app_pspin_driver);
+static int __init mqnic_app_pspin_init(void) {
+  return auxiliary_driver_register(&mqnic_app_pspin_driver);
 }
 
-static void __exit mqnic_app_pspin_exit(void)
-{
-	auxiliary_driver_unregister(&mqnic_app_pspin_driver);
+static void __exit mqnic_app_pspin_exit(void) {
+  auxiliary_driver_unregister(&mqnic_app_pspin_driver);
 }
 
 module_init(mqnic_app_pspin_init);
