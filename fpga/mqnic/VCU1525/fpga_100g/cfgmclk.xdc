@@ -4,3 +4,4 @@
 create_clock -period 15.000 -name cfgmclk [get_pins startupe3_inst/CFGMCLK]
 
 
+
