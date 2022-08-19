@@ -17,6 +17,9 @@ class TB:
         self.log = logging.getLogger('cocotb.tb')
         self.log.setLevel(logging.DEBUG)
 
+        self.dut.stdout_dout.value = 0
+        self.dut.stdout_data_valid.value = 0
+
         cocotb.start_soon(Clock(dut.clk, 2, units='ns').start())
 
         self.axil_master = AxiLiteMaster(AxiLiteBus.from_prefix(dut, 's_axil'), dut.clk, dut.rst)
@@ -86,11 +89,37 @@ async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inse
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
 
+async def run_test_stdout(dut, data_in=None, idle_inserter=None, backpressure_inserter=None):
+    tb = TB(dut)
+    await tb.cycle_reset()
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    test_data = b'Hello, world!'
+
+    async def fifo_driver(data, start_delay=10):
+        for _ in range(start_delay):
+            await RisingEdge(tb.dut.clk)
+        for c in data:
+            print(f'Dequeuing \'{chr(c)}\'')
+            tb.dut.stdout_dout.value = c
+            tb.dut.stdout_data_valid.value = 1
+            await RisingEdge(tb.dut.stdout_rd_en)
+            await RisingEdge(tb.dut.clk)
+            tb.dut.stdout_data_valid.value = 0
+
+    cocotb.start_soon(fifo_driver(test_data))
+    data = [await tb.axil_master.read_dword(0x1000) for _ in range(20)]
+    data = [chr(x) for x in data if x != 0xffffffff]
+
+    print('Data received:')
+    print(''.join(data))
+
 def cycle_pause():
     return itertools.cycle([1, 1, 0, 0])
 
 if cocotb.SIM_NAME:
-    for test in [run_test_regs]:
+    for test in [run_test_regs, run_test_stdout]:
         factory = TestFactory(test)
         factory.add_option('idle_inserter', [None, cycle_pause])
         factory.add_option('backpressure_inserter', [None, cycle_pause])

@@ -59,8 +59,8 @@ module pspin_ctrl_regs #
     
     // stdout FIFO - in pspin_clk
     output wire                   stdout_rd_en,
-    input  wire                   stdout_rd_rst_busy,
-    input  wire [31:0]            stdout_dout
+    input  wire [31:0]            stdout_dout,
+    input  wire                   stdout_data_valid
 );
 
 localparam VALID_ADDR_WIDTH = ADDR_WIDTH - $clog2(STRB_WIDTH);
@@ -68,8 +68,8 @@ localparam WORD_WIDTH = STRB_WIDTH;
 localparam WORD_SIZE = DATA_WIDTH/WORD_WIDTH;
 
 // base of read regs 0x100
-localparam [VALID_ADDR_WIDTH-1:0] FILLED_BASE = {{VALID_ADDR_WIDTH{1'b0}}, 'h100};
-localparam [VALID_ADDR_WIDTH-1:0] FIFO_BASE = {{VALID_ADDR_WIDTH{1'b0}}, 'h1000};
+localparam [VALID_ADDR_WIDTH-1:0] FILLED_BASE = {{VALID_ADDR_WIDTH{1'b0}}, 32'h100};
+localparam [VALID_ADDR_WIDTH-1:0] FIFO_BASE = {{VALID_ADDR_WIDTH{1'b0}}, 32'h1000};
 
 localparam NUM_RDONLY_REGS = 10;
 localparam NUM_WRONLY_REGS = 2;
@@ -99,6 +99,7 @@ wire [NUM_CLUSTERS-1:0] cl_eoc_x;
 wire [NUM_CLUSTERS-1:0] cl_busy_x;
 wire [NUM_MPQ-1:0]      mpq_full_x;
 
+`ifdef TARGET_SYNTHESIS
 bus_cdc_wrap #(.WIDTH(2*NUM_CLUSTERS+NUM_MPQ)) i_cdc_in (
     .src_clk(pspin_clk),
     .dest_clk(clk),
@@ -112,6 +113,10 @@ bus_cdc_wrap #(.WIDTH(NUM_CLUSTERS+1)) i_cdc_out (
     .src_in({ctrl_wr_regs[0], ctrl_wr_regs[1][0]}),
     .dest_out({cl_fetch_en_o, aux_rst_o})
 );
+`else
+assign {cl_eoc_x, cl_busy_x, mpq_full_x} = {cl_eoc_i, cl_busy_i, mpq_full_i};
+assign {cl_fetch_en_o, aux_rst_o} = {ctrl_wr_regs[0], ctrl_wr_regs[1][0]};
+`endif
 
 integer i;
 always @(posedge clk, posedge rst) begin
@@ -132,8 +137,8 @@ always @(posedge clk, posedge rst) begin
         // read
         if (reg_intf_rd_en) begin
             if (reg_intf_rd_addr == FIFO_BASE) begin
-                if (stdout_rd_rst_busy) begin
-                    // FIFO not ready, give garbage data
+                if (!stdout_data_valid) begin
+                    // FIFO data not valid, give garbage data
                     reg_intf_rd_data <= {DATA_WIDTH{1'b1}};
                 end else begin
                     stdout_rd_en_reg <= 'b1;

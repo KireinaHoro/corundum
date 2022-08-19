@@ -662,8 +662,8 @@ pspin_ctrl_regs #(
     .mpq_full_i             (mpq_full),
 
     .stdout_rd_en           (stdout_rd_en),
-    .stdout_rd_rst_busy     (pspin_inst.i_pspin.i_periphs.i_stdout.rd_rst_busy),
-    .stdout_dout            (pspin_inst.i_pspin.i_periphs.i_stdout.dout)
+    .stdout_dout            (pspin_inst.i_pspin.i_periphs.i_stdout.dout),
+    .stdout_data_valid      (pspin_inst.i_pspin.i_periphs.i_stdout.data_valid)
 );
 
 pspin_clk_wiz i_pspin_clk_wiz (
