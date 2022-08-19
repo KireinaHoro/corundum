@@ -259,3 +259,4 @@ set_false_path -to [get_pins core_inst/core_inst/core_pcie_inst/core_inst/app.ap
 # timer hold
 set_false_path -from [get_pins core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/i_pspin_clk_wiz/inst/mmcme4_adv_inst/CLKOUT0] -to [get_pins {core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/gen_clusters[*].gen_cluster_sync.i_cluster/i_ooc/i_bound/cluster_peripherals_i/cluster_timer_wrap_i/timer_unit_i/s_ref_clk0_reg/D}]
 
+
