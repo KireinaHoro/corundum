@@ -97,23 +97,27 @@ async def run_test_stdout(dut, data_in=None, idle_inserter=None, backpressure_in
 
     test_data = b'Hello, world!'
 
-    async def fifo_driver(data, start_delay=10):
+    async def fifo_driver(data, start_delay=30):
         for _ in range(start_delay):
             await RisingEdge(tb.dut.clk)
         for c in data:
             print(f'Dequeuing \'{chr(c)}\'')
             tb.dut.stdout_dout.value = c
             tb.dut.stdout_data_valid.value = 1
-            await RisingEdge(tb.dut.stdout_rd_en)
             await RisingEdge(tb.dut.clk)
+            while tb.dut.stdout_rd_en.value != 1 or tb.dut.stdout_data_valid.value != 1:
+                await RisingEdge(tb.dut.clk)
             tb.dut.stdout_data_valid.value = 0
 
     cocotb.start_soon(fifo_driver(test_data))
     data = [await tb.axil_master.read_dword(0x1000) for _ in range(20)]
     data = [chr(x) for x in data if x != 0xffffffff]
+    data = ''.join(data)
 
     print('Data received:')
-    print(''.join(data))
+    print(data)
+    
+    assert data == test_data.decode()
 
 def cycle_pause():
     return itertools.cycle([1, 1, 0, 0])

@@ -151,7 +151,9 @@ always @(posedge clk, posedge rst) begin
                     reg_intf_rd_data <= {DATA_WIDTH{1'b1}};
             end
             reg_intf_rd_ack <= 'b1;
-        end else if (reg_intf_rd_ack) begin
+        end
+
+        if (reg_intf_rd_ack) begin
             reg_intf_rd_ack <= 'b0;
             stdout_rd_en_reg <= 'b0;
         end
