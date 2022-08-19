@@ -68,8 +68,8 @@ module mqnic_app_block #
     parameter APP_ID = 32'h12340100,
     parameter APP_CTRL_ENABLE = 1,
     parameter APP_DMA_ENABLE = 1,
-    parameter APP_AXIS_DIRECT_ENABLE = 1,
-    parameter APP_AXIS_SYNC_ENABLE = 1,
+    parameter APP_AXIS_DIRECT_ENABLE = 0,
+    parameter APP_AXIS_SYNC_ENABLE = 0,
     parameter APP_AXIS_IF_ENABLE = 1,
     parameter APP_STAT_ENABLE = 1,
     parameter APP_GPIO_IN_WIDTH = 32,
@@ -485,7 +485,27 @@ wire pspin_clk;
 wire pspin_rst;
 wire mmcm_locked;
 
-// FIXME: allow selecting handler buffer and program buffer
+// XXX: address space compressed but we don't actually need that much
+// L2       starts at 32'h1c00_0000 -> 24'h00_0000
+// prog mem starts at 32'h1d00_0000 -> 24'h40_0000
+function [31:0] l2_addr_gen;
+    input [AXIL_APP_CTRL_ADDR_WIDTH-1:0] mqnic_addr;
+    reg   [23:0] real_addr;
+    begin
+        real_addr = {1'b0, mqnic_addr[AXIL_APP_CTRL_ADDR_WIDTH-2:0]};
+        if (mqnic_addr <= 24'h40_0000)
+            l2_addr_gen = {8'h1c, real_addr};
+        else if (mqnic_addr <= 24'h80_0000)
+            l2_addr_gen = {8'h1d, real_addr};
+        `ifndef TARGET_SYNTHESIS
+        else begin
+            $error("Address greater than limit for L2 & program memory: 0x%0h", mqnic_addr);
+            $finish;
+        end
+        `endif
+    end
+endfunction
+
 wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    pspin_fast_axil_awaddr;
 wire [2:0]                             pspin_fast_axil_awprot;
 wire                                   pspin_fast_axil_awvalid;
@@ -551,9 +571,10 @@ axil_interconnect_wrap_1x2 #(
     .DATA_WIDTH(AXIL_APP_CTRL_DATA_WIDTH),
     .ADDR_WIDTH(AXIL_APP_CTRL_ADDR_WIDTH),
     .STRB_WIDTH(AXIL_APP_CTRL_STRB_WIDTH),
-    .M00_BASE_ADDR('h0_0000),    // L2 memory write
-    .M00_ADDR_WIDTH(16),
-    .M01_BASE_ADDR('h1_0000),    // control registers
+    // total 24 bits of app addr
+    .M00_BASE_ADDR(24'h00_0000),    // L2 memory write
+    .M00_ADDR_WIDTH(23),
+    .M01_BASE_ADDR(24'h80_0000),    // control registers
     .M01_ADDR_WIDTH(16)
 ) i_host_interconnect (
     .clk                    (clk),
@@ -746,7 +767,7 @@ pspin_inst (
 
     .mpq_full_o(mpq_full),
 
-    .host_slave_aw_addr_i   ({'h1d, pspin_axil_awaddr}),
+    .host_slave_aw_addr_i   (l2_addr_gen(pspin_axil_awaddr)),
     .host_slave_aw_prot_i   (pspin_axil_awprot),
     .host_slave_aw_valid_i  (pspin_axil_awvalid),
     .host_slave_aw_ready_o  (pspin_axil_awready),
@@ -757,7 +778,7 @@ pspin_inst (
     .host_slave_b_resp_o    (pspin_axil_bresp),
     .host_slave_b_valid_o   (pspin_axil_bvalid),
     .host_slave_b_ready_i   (pspin_axil_bready),
-    .host_slave_ar_addr_i   ({'h1d, pspin_axil_araddr}),
+    .host_slave_ar_addr_i   (l2_addr_gen(pspin_axil_araddr)),
     .host_slave_ar_prot_i   (pspin_axil_arprot),
     .host_slave_ar_valid_i  (pspin_axil_arvalid),
     .host_slave_ar_ready_o  (pspin_axil_arready),
