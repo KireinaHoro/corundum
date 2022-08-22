@@ -49,6 +49,7 @@
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
+#include <linux/stat.h>
 
 #include <linux/uaccess.h>
 
@@ -78,6 +79,7 @@ MODULE_VERSION("0.1");
 #define PSPIN_MEM(app, off) ((app)->app_hw_addr + (off))
 
 #define PSPIN_DEVICE_NAME "pspin"
+#define PSPIN_NUM_CLUSTERS 2L
 struct mqnic_app_pspin {
   struct device *dev;
   struct mqnic_dev *mdev;
@@ -89,6 +91,86 @@ struct mqnic_app_pspin {
   void __iomem *app_hw_addr;
   void __iomem *ram_hw_addr;
 };
+
+// NUM_CLUSTERS of 1 or 0
+static ssize_t cl_fetch_en_store(struct device *dev,
+                                 struct device_attribute *attr, const char *buf,
+                                 size_t count) {
+  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
+  u32 reg = 0;
+  int i;
+
+  if (count != PSPIN_NUM_CLUSTERS) {
+    dev_err(dev, "%s(): cluster count mismatch: expected %ld, got %ld\n",
+            __func__, PSPIN_NUM_CLUSTERS, count);
+    return -EINVAL;
+  }
+
+  for (i = 0; i < PSPIN_NUM_CLUSTERS; ++i) {
+    if (buf[i] == '1')
+      reg |= 1 << i;
+  }
+  iowrite32(reg, R_CLUSTER_FETCH_EN(app));
+
+  return count;
+}
+
+static ssize_t cl_rst_store(struct device *dev,
+                                  struct device_attribute *attr,
+                                  const char *buf, size_t count) {
+  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
+  u32 reg = 0;
+  int i;
+
+  if (count != PSPIN_NUM_CLUSTERS) {
+    dev_err(dev, "%s(): cluster count mismatch: expected %ld, got %ld\n",
+            __func__, PSPIN_NUM_CLUSTERS, count);
+    return -EINVAL;
+  }
+
+  for (i = 0; i < PSPIN_NUM_CLUSTERS; ++i) {
+    if (buf[i] == '1')
+      reg |= 1 << i;
+  }
+  iowrite32(reg, R_CLUSTER_RESET(app));
+
+  return count;
+}
+
+static ssize_t cl_eoc_show(struct device *dev, struct device_attribute *attr, char *buf) {
+  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
+
+  return scnprintf(buf, PAGE_SIZE, "0x%08x\n", ioread32(R_CLUSTER_EOC(app)));
+}
+
+static ssize_t cl_busy_show(struct device *dev, struct device_attribute *attr, char *buf) {
+  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
+
+  return scnprintf(buf, PAGE_SIZE, "0x%08x\n", ioread32(R_CLUSTER_BUSY(app)));
+}
+
+static ssize_t mpq_full_show(struct device *dev, struct device_attribute *attr, char *buf) {
+  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
+
+  ssize_t count = 0;
+
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_0(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_1(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_2(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_3(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_4(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_5(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_6(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_7(app)));
+
+  return count;
+}
+
+static struct device_attribute dev_attr_cl_fetch_en = __ATTR_WO(cl_fetch_en);
+static struct device_attribute dev_attr_cl_rst = __ATTR_WO(cl_rst);
+static struct device_attribute dev_attr_cl_eoc = __ATTR_RO(cl_eoc);
+static struct device_attribute dev_attr_cl_busy = __ATTR_RO(cl_busy);
+static struct device_attribute dev_attr_mpq_full = __ATTR_RO(mpq_full);
 
 struct pspin_cdev {
   enum {
@@ -401,9 +483,34 @@ static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
       goto fail;
     }
   }
+  devices_to_destroy = pspin_ndevices;
+
+  // control registers
+  err = device_create_file(dev, &dev_attr_cl_fetch_en);
+  if (err)
+    goto fail;
+  err = device_create_file(dev, &dev_attr_cl_rst);
+  if (err)
+    goto fail;
+  err = device_create_file(dev, &dev_attr_cl_eoc);
+  if (err)
+    goto fail;
+  err = device_create_file(dev, &dev_attr_cl_busy);
+  if (err)
+    goto fail;
+  err = device_create_file(dev, &dev_attr_mpq_full);
+  if (err)
+    goto fail;
+
   return 0;
 
 fail:
+  device_remove_file(dev, &dev_attr_cl_fetch_en);
+  device_remove_file(dev, &dev_attr_cl_rst);
+  device_remove_file(dev, &dev_attr_cl_eoc);
+  device_remove_file(dev, &dev_attr_cl_busy);
+  device_remove_file(dev, &dev_attr_mpq_full);
+
   pspin_cleanup_chrdev(devices_to_destroy);
   return err;
 }
