@@ -492,10 +492,11 @@ function [31:0] l2_addr_gen;
     input [AXIL_APP_CTRL_ADDR_WIDTH-1:0] mqnic_addr;
     reg   [23:0] real_addr;
     begin
+        l2_addr_gen = 32'h0000_0000;
         real_addr = {1'b0, mqnic_addr[AXIL_APP_CTRL_ADDR_WIDTH-2:0]};
-        if (mqnic_addr <= 24'h40_0000)
+        if (mqnic_addr < 24'h40_0000)
             l2_addr_gen = {8'h1c, real_addr};
-        else if (mqnic_addr <= 24'h80_0000)
+        else if (mqnic_addr < 24'h80_0000)
             l2_addr_gen = {8'h1d, real_addr};
         `ifndef TARGET_SYNTHESIS
         else begin
@@ -546,6 +547,11 @@ wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    pspin_axil_rdata;
 wire [1:0]                             pspin_axil_rresp;
 wire                                   pspin_axil_rvalid;
 wire                                   pspin_axil_rready;
+
+wire [31:0] pspin_mapped_axil_awaddr;
+wire [31:0] pspin_mapped_axil_araddr;
+assign pspin_mapped_axil_awaddr = l2_addr_gen(pspin_axil_awaddr);
+assign pspin_mapped_axil_araddr = l2_addr_gen(pspin_axil_araddr);
 
 wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    ctrl_reg_axil_awaddr;
 wire [2:0]                             ctrl_reg_axil_awprot;
@@ -767,10 +773,13 @@ pspin_inst (
 
     .mpq_full_o(mpq_full),
 
-    .host_slave_aw_addr_i   (l2_addr_gen(pspin_axil_awaddr)),
+    .host_slave_aw_addr_i   (pspin_mapped_axil_awaddr),
     .host_slave_aw_prot_i   (pspin_axil_awprot),
     .host_slave_aw_valid_i  (pspin_axil_awvalid),
     .host_slave_aw_ready_o  (pspin_axil_awready),
+    .host_slave_ar_addr_i   (pspin_mapped_axil_araddr),
+    .host_slave_ar_valid_i  (pspin_axil_arvalid),
+    .host_slave_ar_ready_o  (pspin_axil_arready),
     .host_slave_w_data_i    (pspin_axil_wdata),
     .host_slave_w_strb_i    (pspin_axil_wstrb),
     .host_slave_w_valid_i   (pspin_axil_wvalid),
@@ -778,10 +787,7 @@ pspin_inst (
     .host_slave_b_resp_o    (pspin_axil_bresp),
     .host_slave_b_valid_o   (pspin_axil_bvalid),
     .host_slave_b_ready_i   (pspin_axil_bready),
-    .host_slave_ar_addr_i   (l2_addr_gen(pspin_axil_araddr)),
     .host_slave_ar_prot_i   (pspin_axil_arprot),
-    .host_slave_ar_valid_i  (pspin_axil_arvalid),
-    .host_slave_ar_ready_o  (pspin_axil_arready),
     .host_slave_r_data_o    (pspin_axil_rdata),
     .host_slave_r_resp_o    (pspin_axil_rresp),
     .host_slave_r_valid_o   (pspin_axil_rvalid),
