@@ -6,9 +6,9 @@ module pspin_pkt_alloc #
     parameter INFLIGHT_WIDTH = 32,
     parameter MSGID_WIDTH = 10,
     // spin_hw_conf.h: L2_PKT_BUFF_START
-    parameter [ADDR_WIDTH-1:0] BUF_START = 32'h1c400000,
+    parameter [ADDR_WIDTH-1:0] BUF_START = 32'h1c100000,
     // spin_hw_conf.h: L2_PKT_BUFF_SIZE
-    parameter [ADDR_WIDTH-1:0] BUF_SIZE = 2*1024*1024,
+    parameter [ADDR_WIDTH-1:0] BUF_SIZE = 1*1024*1024,
     // large packets: Ethernet frame max 1518 (rounded to ALIGNMENT)
     parameter [LEN_WIDTH-1:0] SLOT0_SIZE = 1536,   
     parameter [LEN_WIDTH-1:0] SLOT0_COUNT = 1024,
