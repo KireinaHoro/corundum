@@ -774,23 +774,53 @@ pspin_inst (
 
     .host_slave_aw_addr_i   (pspin_mapped_axil_awaddr),
     .host_slave_aw_prot_i   (pspin_axil_awprot),
+    .host_slave_aw_region_i (4'b0),
+    .host_slave_aw_len_i    (3'b0),
+    .host_slave_aw_size_i   (3'b010), // 4-byte
+    .host_slave_aw_burst_i  (2'b1),
+    .host_slave_aw_lock_i   (1'b0),
+    .host_slave_aw_atop_i   (5'b0),
+    .host_slave_aw_cache_i  (4'b0),
+    .host_slave_aw_qos_i    (4'b0),
+    .host_slave_aw_id_i     (6'b0),
+    .host_slave_aw_user_i   (4'b0),
     .host_slave_aw_valid_i  (pspin_axil_awvalid),
     .host_slave_aw_ready_o  (pspin_axil_awready),
+
     .host_slave_ar_addr_i   (pspin_mapped_axil_araddr),
+    .host_slave_ar_prot_i   (pspin_axil_arprot),
+    .host_slave_ar_region_i (4'b0),
+    .host_slave_ar_len_i    (3'b0),
+    .host_slave_ar_size_i   (3'b010), // 4-byte
+    .host_slave_ar_burst_i  (2'b1),
+    .host_slave_ar_lock_i   (1'b0),
+    .host_slave_ar_cache_i  (4'b0),
+    .host_slave_ar_qos_i    (4'b0),
+    .host_slave_ar_id_i     (6'b0),
+    .host_slave_ar_user_i   (4'b0),
     .host_slave_ar_valid_i  (pspin_axil_arvalid),
     .host_slave_ar_ready_o  (pspin_axil_arready),
+
     .host_slave_w_data_i    (pspin_axil_wdata),
     .host_slave_w_strb_i    (pspin_axil_wstrb),
+    .host_slave_w_user_i    (4'b0),
+    .host_slave_w_last_i    (1'b0),
     .host_slave_w_valid_i   (pspin_axil_wvalid),
     .host_slave_w_ready_o   (pspin_axil_wready),
-    .host_slave_b_resp_o    (pspin_axil_bresp),
-    .host_slave_b_valid_o   (pspin_axil_bvalid),
-    .host_slave_b_ready_i   (pspin_axil_bready),
-    .host_slave_ar_prot_i   (pspin_axil_arprot),
+
     .host_slave_r_data_o    (pspin_axil_rdata),
     .host_slave_r_resp_o    (pspin_axil_rresp),
+    .host_slave_r_last_o    (),
+    .host_slave_r_id_o      (),
+    .host_slave_r_user_o    (),
     .host_slave_r_valid_o   (pspin_axil_rvalid),
-    .host_slave_r_ready_i   (pspin_axil_rready)
+    .host_slave_r_ready_i   (pspin_axil_rready),
+
+    .host_slave_b_resp_o    (pspin_axil_bresp),
+    .host_slave_b_id_o      (),
+    .host_slave_b_user_o    (),
+    .host_slave_b_valid_o   (pspin_axil_bvalid),
+    .host_slave_b_ready_i   (pspin_axil_bready)
 );
 
 /*
