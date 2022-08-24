@@ -36,7 +36,7 @@ either expressed or implied, of The Regents of the University of California.
 
 #include <mqnic/mqnic.h>
 
-#define TEMPLATE_APP_ID 0x12340001
+#define PSPIN_APP_ID 0x12340100
 
 static void usage(char *name)
 {
@@ -104,9 +104,9 @@ int main(int argc, char *argv[])
         goto err;
     }
 
-    if (dev->app_id != TEMPLATE_APP_ID)
+    if (dev->app_id != PSPIN_APP_ID)
     {
-        fprintf(stderr, "Unexpected application id (expected 0x%08x, got 0x%08x)\n", TEMPLATE_APP_ID, dev->app_id);
+        fprintf(stderr, "Unexpected application id (expected 0x%08x, got 0x%08x)\n", PSPIN_APP_ID, dev->app_id);
         goto err;
     }
 

@@ -12,7 +12,7 @@ LDLIBS += -lmqnic
 
 LIBMQNIC = lib/mqnic/libmqnic.a
 
-BIN = app-template-test
+BIN = app-pspin
 
 GENDEPFLAGS = -MD -MP -MF .$(@F).d
 
@@ -28,7 +28,7 @@ $(LIBMQNIC): FORCE
 %.o: %.c
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
-app-template-test: app-template-test.o $(LIBMQNIC)
+app-pspin: app-pspin.o $(LIBMQNIC)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 install:
