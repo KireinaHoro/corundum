@@ -27,40 +27,37 @@ module pspin_ctrl_regs #
     /*
      * AXI-Lite slave interface
      */
-    input  wire [ADDR_WIDTH-1:0]  s_axil_awaddr,
-    input  wire [2:0]             s_axil_awprot,
-    input  wire                   s_axil_awvalid,
-    output wire                   s_axil_awready,
-    input  wire [DATA_WIDTH-1:0]  s_axil_wdata,
-    input  wire [STRB_WIDTH-1:0]  s_axil_wstrb,
-    input  wire                   s_axil_wvalid,
-    output wire                   s_axil_wready,
-    output wire [1:0]             s_axil_bresp,
-    output wire                   s_axil_bvalid,
-    input  wire                   s_axil_bready,
-    input  wire [ADDR_WIDTH-1:0]  s_axil_araddr,
-    input  wire [2:0]             s_axil_arprot,
-    input  wire                   s_axil_arvalid,
-    output wire                   s_axil_arready,
-    output wire [DATA_WIDTH-1:0]  s_axil_rdata,
-    output wire [1:0]             s_axil_rresp,
-    output wire                   s_axil_rvalid,
-    input  wire                   s_axil_rready,
+    (* mark_debug = "true" *) input  wire [ADDR_WIDTH-1:0]  s_axil_awaddr,
+    (* mark_debug = "true" *) input  wire [2:0]             s_axil_awprot,
+    (* mark_debug = "true" *) input  wire                   s_axil_awvalid,
+    (* mark_debug = "true" *) output wire                   s_axil_awready,
+    (* mark_debug = "true" *) input  wire [DATA_WIDTH-1:0]  s_axil_wdata,
+    (* mark_debug = "true" *) input  wire [STRB_WIDTH-1:0]  s_axil_wstrb,
+    (* mark_debug = "true" *) input  wire                   s_axil_wvalid,
+    (* mark_debug = "true" *) output wire                   s_axil_wready,
+    (* mark_debug = "true" *) output wire [1:0]             s_axil_bresp,
+    (* mark_debug = "true" *) output wire                   s_axil_bvalid,
+    (* mark_debug = "true" *) input  wire                   s_axil_bready,
+    (* mark_debug = "true" *) input  wire [ADDR_WIDTH-1:0]  s_axil_araddr,
+    (* mark_debug = "true" *) input  wire [2:0]             s_axil_arprot,
+    (* mark_debug = "true" *) input  wire                   s_axil_arvalid,
+    (* mark_debug = "true" *) output wire                   s_axil_arready,
+    (* mark_debug = "true" *) output wire [DATA_WIDTH-1:0]  s_axil_rdata,
+    (* mark_debug = "true" *) output wire [1:0]             s_axil_rresp,
+    (* mark_debug = "true" *) output wire                   s_axil_rvalid,
+    (* mark_debug = "true" *) input  wire                   s_axil_rready,
 
-    // PsPIN-facing interfaces are in this clock
-    input  wire                   pspin_clk,
-
-    // register data - in pspin_clk
-    output wire [NUM_CLUSTERS-1:0] cl_fetch_en_o,
-    output wire                    aux_rst_o,
-    input  wire [NUM_CLUSTERS-1:0] cl_eoc_i,
-    input  wire [NUM_CLUSTERS-1:0] cl_busy_i,
-    input  wire [NUM_MPQ-1:0]      mpq_full_i,
+    // register data
+    (* mark_debug = "true" *) output wire [NUM_CLUSTERS-1:0] cl_fetch_en_o,
+    (* mark_debug = "true" *) output wire                    aux_rst_o,
+    (* mark_debug = "true" *) input  wire [NUM_CLUSTERS-1:0] cl_eoc_i,
+    (* mark_debug = "true" *) input  wire [NUM_CLUSTERS-1:0] cl_busy_i,
+    (* mark_debug = "true" *) input  wire [NUM_MPQ-1:0]      mpq_full_i,
     
-    // stdout FIFO - in pspin_clk
-    output wire                   stdout_rd_en,
-    input  wire [31:0]            stdout_dout,
-    input  wire                   stdout_data_valid
+    // stdout FIFO
+    (* mark_debug = "true" *) output wire                   stdout_rd_en,
+    (* mark_debug = "true" *) input  wire [31:0]            stdout_dout,
+    (* mark_debug = "true" *) input  wire                   stdout_data_valid
 );
 
 localparam VALID_ADDR_WIDTH = ADDR_WIDTH - $clog2(STRB_WIDTH);
