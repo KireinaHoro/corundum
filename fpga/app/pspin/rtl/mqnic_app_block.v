@@ -483,6 +483,7 @@ wire [NUM_MPQ-1:0] mpq_full;
 wire aux_rst;
 wire pspin_clk;
 wire pspin_rst;
+wire interconnect_aresetn;
 wire mmcm_locked;
 
 // XXX: address space compressed but we don't actually need that much
@@ -507,27 +508,27 @@ function [31:0] l2_addr_gen;
     end
 endfunction
 
-wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    pspin_fast_axil_awaddr;
-wire [2:0]                             pspin_fast_axil_awprot;
-wire                                   pspin_fast_axil_awvalid;
-wire                                   pspin_fast_axil_awready;
-wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    pspin_fast_axil_wdata;
-wire [AXIL_APP_CTRL_STRB_WIDTH-1:0]    pspin_fast_axil_wstrb;
-wire                                   pspin_fast_axil_wvalid;
-wire                                   pspin_fast_axil_wready;
-wire [1:0]                             pspin_fast_axil_bresp;
-wire                                   pspin_fast_axil_bvalid;
-wire                                   pspin_fast_axil_bready;
-wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    pspin_fast_axil_araddr;
-wire [2:0]                             pspin_fast_axil_arprot;
-wire                                   pspin_fast_axil_arvalid;
-wire                                   pspin_fast_axil_arready;
-wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    pspin_fast_axil_rdata;
-wire [1:0]                             pspin_fast_axil_rresp;
-wire                                   pspin_fast_axil_rvalid;
-wire                                   pspin_fast_axil_rready;
+// 50MHz from host before demux
+(* mark_debug = "true" *) wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    s_slow_axil_awaddr;
+(* mark_debug = "true" *) wire [2:0]                             s_slow_axil_awprot;
+(* mark_debug = "true" *) wire                                   s_slow_axil_awvalid;
+(* mark_debug = "true" *) wire                                   s_slow_axil_awready;
+(* mark_debug = "true" *) wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    s_slow_axil_wdata;
+(* mark_debug = "true" *) wire [AXIL_APP_CTRL_STRB_WIDTH-1:0]    s_slow_axil_wstrb;
+(* mark_debug = "true" *) wire                                   s_slow_axil_wvalid;
+(* mark_debug = "true" *) wire                                   s_slow_axil_wready;
+(* mark_debug = "true" *) wire [1:0]                             s_slow_axil_bresp;
+(* mark_debug = "true" *) wire                                   s_slow_axil_bvalid;
+(* mark_debug = "true" *) wire                                   s_slow_axil_bready;
+(* mark_debug = "true" *) wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    s_slow_axil_araddr;
+(* mark_debug = "true" *) wire [2:0]                             s_slow_axil_arprot;
+(* mark_debug = "true" *) wire                                   s_slow_axil_arvalid;
+(* mark_debug = "true" *) wire                                   s_slow_axil_arready;
+(* mark_debug = "true" *) wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    s_slow_axil_rdata;
+(* mark_debug = "true" *) wire [1:0]                             s_slow_axil_rresp;
+(* mark_debug = "true" *) wire                                   s_slow_axil_rvalid;
+(* mark_debug = "true" *) wire                                   s_slow_axil_rready;
 
-// FIXME: allow selecting handler buffer and program buffer
 wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    pspin_axil_awaddr;
 wire [2:0]                             pspin_axil_awprot;
 wire                                   pspin_axil_awvalid;
@@ -583,48 +584,48 @@ axil_interconnect_wrap_1x2 #(
     .M01_BASE_ADDR(24'h80_0000),    // control registers
     .M01_ADDR_WIDTH(16)
 ) i_host_interconnect (
-    .clk                    (clk),
-    .rst                    (rst),
+    .clk                    (pspin_clk),
+    .rst                    (pspin_rst),
 
-    .s00_axil_awaddr        (s_axil_app_ctrl_awaddr),
-    .s00_axil_awprot        (s_axil_app_ctrl_awprot),
-    .s00_axil_awvalid       (s_axil_app_ctrl_awvalid),
-    .s00_axil_awready       (s_axil_app_ctrl_awready),
-    .s00_axil_wdata         (s_axil_app_ctrl_wdata),
-    .s00_axil_wstrb         (s_axil_app_ctrl_wstrb),
-    .s00_axil_wvalid        (s_axil_app_ctrl_wvalid),
-    .s00_axil_wready        (s_axil_app_ctrl_wready),
-    .s00_axil_bresp         (s_axil_app_ctrl_bresp),
-    .s00_axil_bvalid        (s_axil_app_ctrl_bvalid),
-    .s00_axil_bready        (s_axil_app_ctrl_bready),
-    .s00_axil_araddr        (s_axil_app_ctrl_araddr),
-    .s00_axil_arprot        (s_axil_app_ctrl_arprot),
-    .s00_axil_arvalid       (s_axil_app_ctrl_arvalid),
-    .s00_axil_arready       (s_axil_app_ctrl_arready),
-    .s00_axil_rdata         (s_axil_app_ctrl_rdata),
-    .s00_axil_rresp         (s_axil_app_ctrl_rresp),
-    .s00_axil_rvalid        (s_axil_app_ctrl_rvalid),
-    .s00_axil_rready        (s_axil_app_ctrl_rready),
+    .s00_axil_awaddr        (s_slow_axil_awaddr),
+    .s00_axil_awprot        (s_slow_axil_awprot),
+    .s00_axil_awvalid       (s_slow_axil_awvalid),
+    .s00_axil_awready       (s_slow_axil_awready),
+    .s00_axil_wdata         (s_slow_axil_wdata),
+    .s00_axil_wstrb         (s_slow_axil_wstrb),
+    .s00_axil_wvalid        (s_slow_axil_wvalid),
+    .s00_axil_wready        (s_slow_axil_wready),
+    .s00_axil_bresp         (s_slow_axil_bresp),
+    .s00_axil_bvalid        (s_slow_axil_bvalid),
+    .s00_axil_bready        (s_slow_axil_bready),
+    .s00_axil_araddr        (s_slow_axil_araddr),
+    .s00_axil_arprot        (s_slow_axil_arprot),
+    .s00_axil_arvalid       (s_slow_axil_arvalid),
+    .s00_axil_arready       (s_slow_axil_arready),
+    .s00_axil_rdata         (s_slow_axil_rdata),
+    .s00_axil_rresp         (s_slow_axil_rresp),
+    .s00_axil_rvalid        (s_slow_axil_rvalid),
+    .s00_axil_rready        (s_slow_axil_rready),
 
-    .m00_axil_awaddr        (pspin_fast_axil_awaddr),
-    .m00_axil_awprot        (pspin_fast_axil_awprot),
-    .m00_axil_awvalid       (pspin_fast_axil_awvalid),
-    .m00_axil_awready       (pspin_fast_axil_awready),
-    .m00_axil_wdata         (pspin_fast_axil_wdata),
-    .m00_axil_wstrb         (pspin_fast_axil_wstrb),
-    .m00_axil_wvalid        (pspin_fast_axil_wvalid),
-    .m00_axil_wready        (pspin_fast_axil_wready),
-    .m00_axil_bresp         (pspin_fast_axil_bresp),
-    .m00_axil_bvalid        (pspin_fast_axil_bvalid),
-    .m00_axil_bready        (pspin_fast_axil_bready),
-    .m00_axil_araddr        (pspin_fast_axil_araddr),
-    .m00_axil_arprot        (pspin_fast_axil_arprot),
-    .m00_axil_arvalid       (pspin_fast_axil_arvalid),
-    .m00_axil_arready       (pspin_fast_axil_arready),
-    .m00_axil_rdata         (pspin_fast_axil_rdata),
-    .m00_axil_rresp         (pspin_fast_axil_rresp),
-    .m00_axil_rvalid        (pspin_fast_axil_rvalid),
-    .m00_axil_rready        (pspin_fast_axil_rready),
+    .m00_axil_awaddr        (pspin_axil_awaddr),
+    .m00_axil_awprot        (pspin_axil_awprot),
+    .m00_axil_awvalid       (pspin_axil_awvalid),
+    .m00_axil_awready       (pspin_axil_awready),
+    .m00_axil_wdata         (pspin_axil_wdata),
+    .m00_axil_wstrb         (pspin_axil_wstrb),
+    .m00_axil_wvalid        (pspin_axil_wvalid),
+    .m00_axil_wready        (pspin_axil_wready),
+    .m00_axil_bresp         (pspin_axil_bresp),
+    .m00_axil_bvalid        (pspin_axil_bvalid),
+    .m00_axil_bready        (pspin_axil_bready),
+    .m00_axil_araddr        (pspin_axil_araddr),
+    .m00_axil_arprot        (pspin_axil_arprot),
+    .m00_axil_arvalid       (pspin_axil_arvalid),
+    .m00_axil_arready       (pspin_axil_arready),
+    .m00_axil_rdata         (pspin_axil_rdata),
+    .m00_axil_rresp         (pspin_axil_rresp),
+    .m00_axil_rvalid        (pspin_axil_rvalid),
+    .m00_axil_rready        (pspin_axil_rready),
 
     .m01_axil_awaddr        (ctrl_reg_axil_awaddr),
     .m01_axil_awprot        (ctrl_reg_axil_awprot),
@@ -657,8 +658,8 @@ pspin_ctrl_regs #(
     .STRB_WIDTH(AXIL_APP_CTRL_STRB_WIDTH),
     .NUM_CLUSTERS(NUM_CLUSTERS)
 ) i_pspin_ctrl (
-    .clk(clk),
-    .rst(rst),
+    .clk(pspin_clk),
+    .rst(pspin_rst),
 
     .s_axil_awaddr          (ctrl_reg_axil_awaddr),
     .s_axil_awprot          (ctrl_reg_axil_awprot),
@@ -680,8 +681,6 @@ pspin_ctrl_regs #(
     .s_axil_rvalid          (ctrl_reg_axil_rvalid),
     .s_axil_rready          (ctrl_reg_axil_rready),
 
-    .pspin_clk,
-    
     .cl_fetch_en_o          (cl_fetch_en),
     .aux_rst_o              (aux_rst),
     .cl_eoc_i               (cl_eoc),
@@ -703,59 +702,59 @@ pspin_clk_wiz i_pspin_clk_wiz (
 pspin_host_clk_converter i_pspin_axi_conv (
   .s_axi_aclk(clk),                         // input wire s_axi_aclk
   .s_axi_aresetn(!rst),                     // input wire s_axi_aresetn
-  .s_axi_awaddr(pspin_fast_axil_awaddr),    // input wire [23 : 0] s_axi_awaddr
-  .s_axi_awprot(pspin_fast_axil_awprot),    // input wire [2 : 0] s_axi_awprot
-  .s_axi_awvalid(pspin_fast_axil_awvalid),  // input wire s_axi_awvalid
-  .s_axi_awready(pspin_fast_axil_awready),  // output wire s_axi_awready
-  .s_axi_wdata(pspin_fast_axil_wdata),      // input wire [31 : 0] s_axi_wdata
-  .s_axi_wstrb(pspin_fast_axil_wstrb),      // input wire [3 : 0] s_axi_wstrb
-  .s_axi_wvalid(pspin_fast_axil_wvalid),    // input wire s_axi_wvalid
-  .s_axi_wready(pspin_fast_axil_wready),    // output wire s_axi_wready
-  .s_axi_bresp(pspin_fast_axil_bresp),      // output wire [1 : 0] s_axi_bresp
-  .s_axi_bvalid(pspin_fast_axil_bvalid),    // output wire s_axi_bvalid
-  .s_axi_bready(pspin_fast_axil_bready),    // input wire s_axi_bready
-  .s_axi_araddr(pspin_fast_axil_araddr),    // input wire [23 : 0] s_axi_araddr
-  .s_axi_arprot(pspin_fast_axil_arprot),    // input wire [2 : 0] s_axi_arprot
-  .s_axi_arvalid(pspin_fast_axil_arvalid),  // input wire s_axi_arvalid
-  .s_axi_arready(pspin_fast_axil_arready),  // output wire s_axi_arready
-  .s_axi_rdata(pspin_fast_axil_rdata),      // output wire [31 : 0] s_axi_rdata
-  .s_axi_rresp(pspin_fast_axil_rresp),      // output wire [1 : 0] s_axi_rresp
-  .s_axi_rvalid(pspin_fast_axil_rvalid),    // output wire s_axi_rvalid
-  .s_axi_rready(pspin_fast_axil_rready),    // input wire s_axi_rready
+  .s_axi_awaddr(s_axil_app_ctrl_awaddr),    // input wire [23 : 0] s_axi_awaddr
+  .s_axi_awprot(s_axil_app_ctrl_awprot),    // input wire [2 : 0] s_axi_awprot
+  .s_axi_awvalid(s_axil_app_ctrl_awvalid),  // input wire s_axi_awvalid
+  .s_axi_awready(s_axil_app_ctrl_awready),  // output wire s_axi_awready
+  .s_axi_wdata(s_axil_app_ctrl_wdata),      // input wire [31 : 0] s_axi_wdata
+  .s_axi_wstrb(s_axil_app_ctrl_wstrb),      // input wire [3 : 0] s_axi_wstrb
+  .s_axi_wvalid(s_axil_app_ctrl_wvalid),    // input wire s_axi_wvalid
+  .s_axi_wready(s_axil_app_ctrl_wready),    // output wire s_axi_wready
+  .s_axi_bresp(s_axil_app_ctrl_bresp),      // output wire [1 : 0] s_axi_bresp
+  .s_axi_bvalid(s_axil_app_ctrl_bvalid),    // output wire s_axi_bvalid
+  .s_axi_bready(s_axil_app_ctrl_bready),    // input wire s_axi_bready
+  .s_axi_araddr(s_axil_app_ctrl_araddr),    // input wire [23 : 0] s_axi_araddr
+  .s_axi_arprot(s_axil_app_ctrl_arprot),    // input wire [2 : 0] s_axi_arprot
+  .s_axi_arvalid(s_axil_app_ctrl_arvalid),  // input wire s_axi_arvalid
+  .s_axi_arready(s_axil_app_ctrl_arready),  // output wire s_axi_arready
+  .s_axi_rdata(s_axil_app_ctrl_rdata),      // output wire [31 : 0] s_axi_rdata
+  .s_axi_rresp(s_axil_app_ctrl_rresp),      // output wire [1 : 0] s_axi_rresp
+  .s_axi_rvalid(s_axil_app_ctrl_rvalid),    // output wire s_axi_rvalid
+  .s_axi_rready(s_axil_app_ctrl_rready),    // input wire s_axi_rready
 
-  .m_axi_aclk(pspin_clk),              // input wire m_axi_aclk
-  .m_axi_aresetn(!pspin_rst),          // input wire m_axi_aresetn
-  .m_axi_awaddr(pspin_axil_awaddr),    // output wire [23 : 0] m_axi_awaddr
-  .m_axi_awprot(pspin_axil_awprot),    // output wire [2 : 0] m_axi_awprot
-  .m_axi_awvalid(pspin_axil_awvalid),  // output wire m_axi_awvalid
-  .m_axi_awready(pspin_axil_awready),  // input wire m_axi_awready
-  .m_axi_wdata(pspin_axil_wdata),      // output wire [31 : 0] m_axi_wdata
-  .m_axi_wstrb(pspin_axil_wstrb),      // output wire [3 : 0] m_axi_wstrb
-  .m_axi_wvalid(pspin_axil_wvalid),    // output wire m_axi_wvalid
-  .m_axi_wready(pspin_axil_wready),    // input wire m_axi_wready
-  .m_axi_bresp(pspin_axil_bresp),      // input wire [1 : 0] m_axi_bresp
-  .m_axi_bvalid(pspin_axil_bvalid),    // input wire m_axi_bvalid
-  .m_axi_bready(pspin_axil_bready),    // output wire m_axi_bready
-  .m_axi_araddr(pspin_axil_araddr),    // output wire [23 : 0] m_axi_araddr
-  .m_axi_arprot(pspin_axil_arprot),    // output wire [2 : 0] m_axi_arprot
-  .m_axi_arvalid(pspin_axil_arvalid),  // output wire m_axi_arvalid
-  .m_axi_arready(pspin_axil_arready),  // input wire m_axi_arready
-  .m_axi_rdata(pspin_axil_rdata),      // input wire [31 : 0] m_axi_rdata
-  .m_axi_rresp(pspin_axil_rresp),      // input wire [1 : 0] m_axi_rresp
-  .m_axi_rvalid(pspin_axil_rvalid),    // input wire m_axi_rvalid
-  .m_axi_rready(pspin_axil_rready)     // output wire m_axi_rready
+  .m_axi_aclk(pspin_clk),               // input wire m_axi_aclk
+  .m_axi_aresetn(interconnect_aresetn), // input wire m_axi_aresetn
+  .m_axi_awaddr(s_slow_axil_awaddr),    // output wire [23 : 0] m_axi_awaddr
+  .m_axi_awprot(s_slow_axil_awprot),    // output wire [2 : 0] m_axi_awprot
+  .m_axi_awvalid(s_slow_axil_awvalid),  // output wire m_axi_awvalid
+  .m_axi_awready(s_slow_axil_awready),  // input wire m_axi_awready
+  .m_axi_wdata(s_slow_axil_wdata),      // output wire [31 : 0] m_axi_wdata
+  .m_axi_wstrb(s_slow_axil_wstrb),      // output wire [3 : 0] m_axi_wstrb
+  .m_axi_wvalid(s_slow_axil_wvalid),    // output wire m_axi_wvalid
+  .m_axi_wready(s_slow_axil_wready),    // input wire m_axi_wready
+  .m_axi_bresp(s_slow_axil_bresp),      // input wire [1 : 0] m_axi_bresp
+  .m_axi_bvalid(s_slow_axil_bvalid),    // input wire m_axi_bvalid
+  .m_axi_bready(s_slow_axil_bready),    // output wire m_axi_bready
+  .m_axi_araddr(s_slow_axil_araddr),    // output wire [23 : 0] m_axi_araddr
+  .m_axi_arprot(s_slow_axil_arprot),    // output wire [2 : 0] m_axi_arprot
+  .m_axi_arvalid(s_slow_axil_arvalid),  // output wire m_axi_arvalid
+  .m_axi_arready(s_slow_axil_arready),  // input wire m_axi_arready
+  .m_axi_rdata(s_slow_axil_rdata),      // input wire [31 : 0] m_axi_rdata
+  .m_axi_rresp(s_slow_axil_rresp),      // input wire [1 : 0] m_axi_rresp
+  .m_axi_rvalid(s_slow_axil_rvalid),    // input wire m_axi_rvalid
+  .m_axi_rready(s_slow_axil_rready)     // output wire m_axi_rready
 );
 
 proc_sys_reset_0 i_pspin_rst (
   .slowest_sync_clk(pspin_clk),        // input wire slowest_sync_clk
   .ext_reset_in(rst),                  // input wire ext_reset_in
-  .aux_reset_in(aux_rst),              // input wire aux_reset_in
+  .aux_reset_in('b0),                  // input wire aux_reset_in
   .mb_debug_sys_rst('b0),              // input wire mb_debug_sys_rst
   .dcm_locked(mmcm_locked),            // input wire dcm_locked
   .mb_reset(pspin_rst),                // output wire mb_reset
   .bus_struct_reset(),                 // output wire [0 : 0] bus_struct_reset
   .peripheral_reset(),                 // output wire [0 : 0] peripheral_reset
-  .interconnect_aresetn(),             // output wire [0 : 0] interconnect_aresetn
+  .interconnect_aresetn,               // output wire [0 : 0] interconnect_aresetn
   .peripheral_aresetn()                // output wire [0 : 0] peripheral_aresetn
 );
 
@@ -765,7 +764,7 @@ pspin_wrap #(
 )
 pspin_inst (
     .clk_i(pspin_clk),
-    .rst_ni(!pspin_rst),
+    .rst_ni(!pspin_rst && !aux_rst),
 
     .cl_fetch_en_i(cl_fetch_en),
     .cl_eoc_o(cl_eoc),

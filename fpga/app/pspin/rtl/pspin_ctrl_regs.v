@@ -96,24 +96,8 @@ wire [NUM_CLUSTERS-1:0] cl_eoc_x;
 wire [NUM_CLUSTERS-1:0] cl_busy_x;
 wire [NUM_MPQ-1:0]      mpq_full_x;
 
-`ifdef TARGET_SYNTHESIS
-bus_cdc_wrap #(.WIDTH(2*NUM_CLUSTERS+NUM_MPQ)) i_cdc_in (
-    .src_clk(pspin_clk),
-    .dest_clk(clk),
-    .src_in({cl_eoc_i, cl_busy_i, mpq_full_i}),
-    .dest_out({cl_eoc_x, cl_busy_x, mpq_full_x})
-);
-
-bus_cdc_wrap #(.WIDTH(NUM_CLUSTERS+1)) i_cdc_out (
-    .src_clk(clk),
-    .dest_clk(pspin_clk),
-    .src_in({ctrl_wr_regs[0], ctrl_wr_regs[1][0]}),
-    .dest_out({cl_fetch_en_o, aux_rst_o})
-);
-`else
 assign {cl_eoc_x, cl_busy_x, mpq_full_x} = {cl_eoc_i, cl_busy_i, mpq_full_i};
 assign {cl_fetch_en_o, aux_rst_o} = {ctrl_wr_regs[0], ctrl_wr_regs[1][0]};
-`endif
 
 integer i;
 always @(posedge clk, posedge rst) begin
