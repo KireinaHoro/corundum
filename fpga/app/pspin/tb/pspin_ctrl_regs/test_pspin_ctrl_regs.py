@@ -46,7 +46,7 @@ class TB:
         await RisingEdge(self.dut.clk)
         await RisingEdge(self.dut.clk)
 
-async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inserter=None):
+async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inserter=None, start_addr=0x80_0000):
     tb = TB(dut)
     await tb.cycle_reset()
     tb.set_idle_generator(idle_inserter)
@@ -55,26 +55,26 @@ async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.log.info('Testing cluster enable reg')
     assert tb.dut.cl_fetch_en_o.value == 0b00, 'cluster enable reset value mismatch'
 
-    await tb.axil_master.write_dword(0x0000, 0b11)
+    await tb.axil_master.write_dword(start_addr + 0x0000, 0b11)
     assert tb.dut.cl_fetch_en_o.value == 0b11, 'cluster enable mismatch'
     await RisingEdge(dut.clk)
 
-    await tb.axil_master.write_dword(0x0000, 0b00)
+    await tb.axil_master.write_dword(start_addr + 0x0000, 0b00)
     assert tb.dut.cl_fetch_en_o.value == 0b00, 'cluster enable mismatch'
     await RisingEdge(dut.clk)
 
     tb.log.info('Testing reset reg')
     assert tb.dut.aux_rst_o.value == 0b1, 'aux rst reset value mismatch'
     
-    await tb.axil_master.write_dword(0x0004, 0b0)
+    await tb.axil_master.write_dword(start_addr + 0x0004, 0b0)
     assert tb.dut.aux_rst_o.value == 0b0, 'aux rst mismatch'
     await RisingEdge(dut.clk)
 
-    await tb.axil_master.write_dword(0x0004, 0b1)
+    await tb.axil_master.write_dword(start_addr + 0x0004, 0b1)
     assert tb.dut.aux_rst_o.value == 0b1, 'aux rst mismatch'
     await RisingEdge(dut.clk)
 
-    await tb.axil_master.write_dword(0x0004, 0b0)
+    await tb.axil_master.write_dword(start_addr + 0x0004, 0b0)
     assert tb.dut.aux_rst_o.value == 0b0, 'aux rst mismatch'
     await RisingEdge(dut.clk)
 
@@ -82,14 +82,14 @@ async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.dut.cl_eoc_i.value = 0b10
     tb.dut.cl_busy_i.value = 0b11
     tb.dut.mpq_full_i.value = 0xdeadbeef_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff
-    assert await tb.axil_master.read_dword(0x0100) == 0b10
-    assert await tb.axil_master.read_dword(0x0104) == 0b11
-    assert await tb.axil_master.read_dwords(0x0108, 8) == [0xffffffff] * 7 + [0xdeadbeef]
+    assert await tb.axil_master.read_dword(start_addr + 0x0100) == 0b10
+    assert await tb.axil_master.read_dword(start_addr + 0x0104) == 0b11
+    assert await tb.axil_master.read_dwords(start_addr + 0x0108, 8) == [0xffffffff] * 7 + [0xdeadbeef]
     
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
 
-async def run_test_stdout(dut, data_in=None, idle_inserter=None, backpressure_inserter=None):
+async def run_test_stdout(dut, data_in=None, idle_inserter=None, backpressure_inserter=None, start_addr=0x80_0000):
     tb = TB(dut)
     await tb.cycle_reset()
     tb.set_idle_generator(idle_inserter)
@@ -110,7 +110,7 @@ async def run_test_stdout(dut, data_in=None, idle_inserter=None, backpressure_in
             tb.dut.stdout_data_valid.value = 0
 
     cocotb.start_soon(fifo_driver(test_data))
-    data = [await tb.axil_master.read_dword(0x1000) for _ in range(20)]
+    data = [await tb.axil_master.read_dword(start_addr + 0x1000) for _ in range(20)]
     data = [chr(x) for x in data if x != 0xffffffff]
     data = ''.join(data)
 

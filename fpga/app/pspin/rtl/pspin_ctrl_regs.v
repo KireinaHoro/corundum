@@ -19,7 +19,8 @@ module pspin_ctrl_regs #
     parameter DATA_WIDTH = 32,
     parameter STRB_WIDTH = DATA_WIDTH/8,
     parameter NUM_CLUSTERS = 2,
-    parameter NUM_MPQ = 256
+    parameter NUM_MPQ = 256,
+    parameter TRUNC_WIDTH = 16
 ) (
     input  wire                   clk,
     input  wire                   rst,
@@ -187,18 +188,21 @@ axil_reg_if #(
     .s_axil_rvalid          (s_axil_rvalid),
     .s_axil_rready          (s_axil_rready),
 
-    .reg_rd_addr            (reg_intf_rd_addr),
+    .reg_rd_addr            (reg_intf_rd_addr[TRUNC_WIDTH-1:0]),
     .reg_rd_en              (reg_intf_rd_en),
     .reg_rd_data            (reg_intf_rd_data),
     .reg_rd_ack             (reg_intf_rd_ack),
     .reg_rd_wait            (1'b0),
 
-    .reg_wr_addr            (reg_intf_wr_addr),
+    .reg_wr_addr            (reg_intf_wr_addr[TRUNC_WIDTH-1:0]),
     .reg_wr_strb            (reg_intf_wr_strb),
     .reg_wr_en              (reg_intf_wr_en),
     .reg_wr_data            (reg_intf_wr_data),
     .reg_wr_ack             (reg_intf_wr_ack),
     .reg_wr_wait            (1'b0)
 );
+
+assign reg_intf_rd_addr[ADDR_WIDTH-1:TRUNC_WIDTH] = 'b0;
+assign reg_intf_wr_addr[ADDR_WIDTH-1:TRUNC_WIDTH] = 'b0;
 
 endmodule
