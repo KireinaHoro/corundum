@@ -536,6 +536,12 @@ static void mqnic_app_pspin_remove(struct auxiliary_device *adev) {
 
   dev_info(dev, "%s() called", __func__);
 
+  device_remove_file(dev, &dev_attr_cl_fetch_en);
+  device_remove_file(dev, &dev_attr_cl_rst);
+  device_remove_file(dev, &dev_attr_cl_eoc);
+  device_remove_file(dev, &dev_attr_cl_busy);
+  device_remove_file(dev, &dev_attr_mpq_full);
+
   pspin_cleanup_chrdev(pspin_ndevices);
 }
 
