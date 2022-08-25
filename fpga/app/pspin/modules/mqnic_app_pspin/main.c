@@ -35,6 +35,7 @@
 
 #include "mqnic.h"
 #include <asm-generic/errno-base.h>
+#include <asm-generic/errno.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -115,9 +116,8 @@ static ssize_t cl_fetch_en_store(struct device *dev,
   return count;
 }
 
-static ssize_t cl_rst_store(struct device *dev,
-                                  struct device_attribute *attr,
-                                  const char *buf, size_t count) {
+static ssize_t cl_rst_store(struct device *dev, struct device_attribute *attr,
+                            const char *buf, size_t count) {
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
   u32 reg = 0;
   int i;
@@ -137,31 +137,42 @@ static ssize_t cl_rst_store(struct device *dev,
   return count;
 }
 
-static ssize_t cl_eoc_show(struct device *dev, struct device_attribute *attr, char *buf) {
+static ssize_t cl_eoc_show(struct device *dev, struct device_attribute *attr,
+                           char *buf) {
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
 
   return scnprintf(buf, PAGE_SIZE, "0x%08x\n", ioread32(R_CLUSTER_EOC(app)));
 }
 
-static ssize_t cl_busy_show(struct device *dev, struct device_attribute *attr, char *buf) {
+static ssize_t cl_busy_show(struct device *dev, struct device_attribute *attr,
+                            char *buf) {
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
 
   return scnprintf(buf, PAGE_SIZE, "0x%08x\n", ioread32(R_CLUSTER_BUSY(app)));
 }
 
-static ssize_t mpq_full_show(struct device *dev, struct device_attribute *attr, char *buf) {
+static ssize_t mpq_full_show(struct device *dev, struct device_attribute *attr,
+                             char *buf) {
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
 
   ssize_t count = 0;
 
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_0(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_1(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_2(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_3(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_4(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_5(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_6(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n", ioread32(R_MPQ_BUSY_7(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
+                     ioread32(R_MPQ_BUSY_0(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
+                     ioread32(R_MPQ_BUSY_1(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
+                     ioread32(R_MPQ_BUSY_2(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
+                     ioread32(R_MPQ_BUSY_3(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
+                     ioread32(R_MPQ_BUSY_4(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
+                     ioread32(R_MPQ_BUSY_5(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
+                     ioread32(R_MPQ_BUSY_6(app)));
+  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
+                     ioread32(R_MPQ_BUSY_7(app)));
 
   return count;
 }
@@ -227,6 +238,7 @@ int pspin_open(struct inode *inode, struct file *filp) {
 
 int pspin_release(struct inode *inode, struct file *filp) { return 0; }
 
+DECLARE_WAIT_QUEUE_HEAD(stdout_read_queue);
 ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
                    loff_t *f_pos) {
   struct pspin_cdev *dev = (struct pspin_cdev *)filp->private_data;
@@ -255,7 +267,10 @@ ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
     u32 reg;
     uintptr_t off = 0;
     // read at least one first so we don't trigger EOF
-    readx_poll_timeout(ioread32, R_STDOUT_FIFO(app), reg, reg != ~0, 100, 0);
+    retval = wait_event_interruptible(stdout_read_queue, (reg = ioread32(R_STDOUT_FIFO(app))) != ~0);
+    if (retval < 0)
+      goto out;
+
     dev->block_buffer[off++] = (unsigned char)reg;
 
     while ((reg = ioread32(R_STDOUT_FIFO(app))) != ~0 && off < pspin_block_size)
