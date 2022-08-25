@@ -15,10 +15,11 @@ hex_to_dec() {
 L2_BASE=$(hex_to_dec 1c000000)
 PROG_BASE=$(hex_to_dec 1d000000)
 
-# DEV="/dev/pspin0"
-DEV="./test-mem"
+DEV="/dev/pspin0"
+# DEV="./test-mem"
 REGS="/sys/devices/pci0000:00/0000:00:03.1/0000:1d:00.0/mqnic.app_12340100.0"
 RESET="$REGS/cl_rst"
+FETCH="$REGS/cl_fetch_en"
 
 # $1: addr
 addr_to_seek() {
@@ -51,8 +52,16 @@ if [[ $# != 1 ]]; then
     exit 1
 fi
 
+# bring out of reset (mandated by kernel module)
+echo -n 0 > $RESET
+
 # readelf -S ; sw/pulp-sdk/linker/link.ld
 write_section $1 .rodata            1c000000
 write_section $1 .l2_handler_data   1c0c0000
 write_section $1 .vectors           1d000000
 write_section $1 .text              1d000100
+
+# enable fetching - 2 clusters
+echo -n 11 > $FETCH
+
+echo All done!
