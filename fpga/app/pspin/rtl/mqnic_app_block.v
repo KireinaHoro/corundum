@@ -654,7 +654,7 @@ always @* begin
 end
 pspin_ctrl_regs #(
     .DATA_WIDTH(AXIL_APP_CTRL_DATA_WIDTH),
-    .ADDR_WIDTH(AXIL_APP_CTRL_ADDR_WIDTH),
+    .ADDR_WIDTH(16), // we only have 16 bits of addr
     .STRB_WIDTH(AXIL_APP_CTRL_STRB_WIDTH),
     .NUM_CLUSTERS(NUM_CLUSTERS)
 ) i_pspin_ctrl (

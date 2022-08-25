@@ -36,7 +36,7 @@ VERILOG_SOURCES += ../../lib/axi/rtl/axil_reg_if_rd.v
 
 # module parameters
 export PARAM_DATA_WIDTH ?= 32
-export PARAM_ADDR_WIDTH ?= 32
+export PARAM_ADDR_WIDTH ?= 16
 export PARAM_STRB_WIDTH ?= $(shell expr $(PARAM_DATA_WIDTH) / 8 )
 export PARAM_NUM_CLUSTERS ?= 2
 export PARAM_NUM_MPQ ?= 256
