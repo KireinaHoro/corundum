@@ -91,6 +91,8 @@ struct mqnic_app_pspin {
   void __iomem *nic_hw_addr;
   void __iomem *app_hw_addr;
   void __iomem *ram_hw_addr;
+
+  bool in_reset;
 };
 
 // NUM_CLUSTERS of 1 or 0
@@ -120,19 +122,17 @@ static ssize_t cl_rst_store(struct device *dev, struct device_attribute *attr,
                             const char *buf, size_t count) {
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
   u32 reg = 0;
-  int i;
 
-  if (count != PSPIN_NUM_CLUSTERS) {
-    dev_err(dev, "%s(): cluster count mismatch: expected %ld, got %ld\n",
-            __func__, PSPIN_NUM_CLUSTERS, count);
+  if (count != 1) {
+    dev_err(dev, "%s(): count mismatch: expected %ld, got %ld\n",
+            __func__, 1L, count);
     return -EINVAL;
   }
 
-  for (i = 0; i < PSPIN_NUM_CLUSTERS; ++i) {
-    if (buf[i] == '1')
-      reg |= 1 << i;
-  }
+  if (buf[0] == '1')
+    reg = 1;
   iowrite32(reg, R_CLUSTER_RESET(app));
+  app->in_reset = reg;
 
   return count;
 }
@@ -216,6 +216,12 @@ int pspin_open(struct inode *inode, struct file *filp) {
     return -ENODEV;
   }
 
+  // prevent operation on mem if in reset
+  if (dev->type == TY_MEM && dev->app->in_reset) {
+    printk(KERN_WARNING "PsPIN cluster in reset, rejecting\n");
+    return -EPERM;
+  }
+
   dev = &pspin_cdevs[mn];
   filp->private_data = dev;
   d = dev->dev;
@@ -245,6 +251,12 @@ ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
   struct mqnic_app_pspin *app = dev->app;
   ssize_t retval = 0;
   int i;
+
+  // prevent operation on mem if in reset
+  if (dev->type == TY_MEM && dev->app->in_reset) {
+    printk(KERN_WARNING "PsPIN cluster in reset, rejecting\n");
+    return -EPERM;
+  }
 
   if (mutex_lock_killable(&dev->pspin_mutex))
     return -EINTR;
@@ -302,6 +314,12 @@ ssize_t pspin_write(struct file *filp, const char __user *buf, size_t count,
     return -EINVAL;
   }
 
+  // prevent operation on mem if in reset
+  if (dev->type == TY_MEM && dev->app->in_reset) {
+    printk(KERN_WARNING "PsPIN cluster in reset, rejecting\n");
+    return -EPERM;
+  }
+
   if (mutex_lock_killable(&dev->pspin_mutex))
     return -EINTR;
 
@@ -339,6 +357,12 @@ loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
   if (dev->type == TY_FIFO) {
     dev_warn(dev->dev, "stdout FIFO does not support seeking\n");
     return -EINVAL;
+  }
+
+  // prevent operation on mem if in reset
+  if (dev->type == TY_MEM && dev->app->in_reset) {
+    printk(KERN_WARNING "PsPIN cluster in reset, rejecting\n");
+    return -EPERM;
   }
 
   switch (whence) {
@@ -461,6 +485,9 @@ static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
   app->nic_hw_addr = mdev->hw_addr;
   app->app_hw_addr = mdev->app_hw_addr;
   app->ram_hw_addr = mdev->ram_hw_addr;
+
+  // device started up in reset
+  app->in_reset = true;
 
   // setup character special devices
   if (pspin_ndevices <= 0) {
