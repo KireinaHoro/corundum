@@ -124,8 +124,8 @@ static ssize_t cl_rst_store(struct device *dev, struct device_attribute *attr,
   u32 reg = 0;
 
   if (count != 1) {
-    dev_err(dev, "%s(): count mismatch: expected %ld, got %ld\n",
-            __func__, 1L, count);
+    dev_err(dev, "%s(): count mismatch: expected %ld, got %ld\n", __func__, 1L,
+            count);
     return -EINVAL;
   }
 
@@ -279,7 +279,8 @@ ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
     u32 reg;
     uintptr_t off = 0;
     // read at least one first so we don't trigger EOF
-    retval = wait_event_interruptible(stdout_read_queue, (reg = ioread32(R_STDOUT_FIFO(app))) != ~0);
+    retval = wait_event_interruptible(
+        stdout_read_queue, (reg = ioread32(R_STDOUT_FIFO(app))) != ~0);
     if (retval < 0)
       goto out;
 
