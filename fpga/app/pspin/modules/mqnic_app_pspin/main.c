@@ -411,7 +411,6 @@ static void pspin_destroy_device(struct pspin_cdev *dev, int minor,
 
   device_destroy(class, MKDEV(pspin_major, minor));
   cdev_del(&dev->cdev);
-  kfree(dev->block_buffer);
   mutex_destroy(&dev->pspin_mutex);
 }
 
@@ -421,7 +420,6 @@ static void pspin_cleanup_chrdev(int devices_to_destroy) {
   if (pspin_cdevs) {
     for (i = 0; i < devices_to_destroy; ++i)
       pspin_destroy_device(&pspin_cdevs[i], i, pspin_class);
-    kfree(pspin_cdevs);
   }
 
   if (pspin_class)
