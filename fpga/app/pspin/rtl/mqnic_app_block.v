@@ -804,7 +804,7 @@ pspin_inst (
     .host_slave_w_data_i    (pspin_axil_wdata),
     .host_slave_w_strb_i    (pspin_axil_wstrb),
     .host_slave_w_user_i    (4'b0),
-    .host_slave_w_last_i    (1'b0),
+    .host_slave_w_last_i    (1'b1),
     .host_slave_w_valid_i   (pspin_axil_wvalid),
     .host_slave_w_ready_o   (pspin_axil_wready),
 
