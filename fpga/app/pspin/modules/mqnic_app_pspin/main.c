@@ -216,15 +216,15 @@ int pspin_open(struct inode *inode, struct file *filp) {
     return -ENODEV;
   }
 
-  // prevent operation on mem if in reset
-  if (dev->type == TY_MEM && dev->app->in_reset) {
-    printk(KERN_WARNING "PsPIN cluster in reset, rejecting\n");
-    return -EPERM;
-  }
-
   dev = &pspin_cdevs[mn];
   filp->private_data = dev;
   d = dev->dev;
+
+  // prevent operation on mem if in reset
+  if (dev->type == TY_MEM && dev->app->in_reset) {
+    dev_warn(dev->dev, "PsPIN cluster in reset, rejecting\n");
+    return -EPERM;
+  }
 
   if (inode->i_cdev != &dev->cdev) {
     dev_warn(d, "open: internal error\n");
@@ -254,7 +254,7 @@ ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
 
   // prevent operation on mem if in reset
   if (dev->type == TY_MEM && dev->app->in_reset) {
-    printk(KERN_WARNING "PsPIN cluster in reset, rejecting\n");
+    dev_warn(dev->dev, "PsPIN cluster in reset, rejecting\n");
     return -EPERM;
   }
 
@@ -317,7 +317,7 @@ ssize_t pspin_write(struct file *filp, const char __user *buf, size_t count,
 
   // prevent operation on mem if in reset
   if (dev->type == TY_MEM && dev->app->in_reset) {
-    printk(KERN_WARNING "PsPIN cluster in reset, rejecting\n");
+    dev_warn(dev->dev, "PsPIN cluster in reset, rejecting\n");
     return -EPERM;
   }
 
@@ -362,7 +362,7 @@ loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
 
   // prevent operation on mem if in reset
   if (dev->type == TY_MEM && dev->app->in_reset) {
-    printk(KERN_WARNING "PsPIN cluster in reset, rejecting\n");
+    dev_warn(dev->dev, "PsPIN cluster in reset, rejecting\n");
     return -EPERM;
   }
 
