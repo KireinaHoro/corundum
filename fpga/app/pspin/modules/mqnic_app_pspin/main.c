@@ -198,7 +198,9 @@ struct pspin_cdev {
 static int pspin_ndevices = 2;
 static unsigned long pspin_block_size = 512;
 // only checked for mem, stdout is assumed to be unbounded
-static unsigned long pspin_mem_size = 0x200000;
+// XXX: actually larger than memory!
+// TODO: check for holes
+static unsigned long pspin_mem_size = 0x800000;
 
 static unsigned int pspin_major = 0;
 static struct pspin_cdev *pspin_cdevs = NULL;
@@ -271,8 +273,7 @@ ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
 
   if (dev->type == TY_MEM) {
     for (i = 0; i < count; i += 4) {
-      *((u32 *)&dev->block_buffer[i]) =
-          ioread32(PSPIN_MEM(app, *f_pos + count));
+      *((u32 *)&dev->block_buffer[i]) = ioread32(PSPIN_MEM(app, *f_pos + i));
     }
     retval = count;
   } else {
@@ -341,7 +342,7 @@ ssize_t pspin_write(struct file *filp, const char __user *buf, size_t count,
   }
 
   for (i = 0; i < count; i += 4) {
-    iowrite32(*((u32 *)&dev->block_buffer[i]), PSPIN_MEM(app, count));
+    iowrite32(*((u32 *)&dev->block_buffer[i]), PSPIN_MEM(app, *f_pos + i));
   }
   *f_pos += count;
   retval = count;
@@ -379,8 +380,11 @@ loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
   default: // not supported
     return -EINVAL;
   }
-  if (newpos < 0 || newpos > pspin_mem_size)
+  if (newpos < 0 || newpos > pspin_mem_size) {
+    dev_warn(dev->dev, "seek outside bounds: newpos=%#x pspin_mem_size=%#x\n",
+             newpos, pspin_mem_size);
     return -EINVAL;
+  }
   filp->f_pos = newpos;
   return newpos;
 }
