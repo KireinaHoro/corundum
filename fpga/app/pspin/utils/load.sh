@@ -54,7 +54,11 @@ if [[ $# != 1 ]]; then
     exit 1
 fi
 
-# bring out of reset (mandated by kernel module)
+# cycle reset (mandated by kernel module)
+echo Disabling fetch...
+echo -n 00 > $FETCH
+echo Resetting...
+echo -n 1 > $RESET
 echo Bringing cluster out of reset...
 echo -n 0 > $RESET
 
