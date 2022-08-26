@@ -549,6 +549,78 @@ wire [1:0]                             pspin_axil_rresp;
 wire                                   pspin_axil_rvalid;
 wire                                   pspin_axil_rready;
 
+wire [31 : 0] pspin_axi_narrow_awaddr;
+wire [7 : 0] pspin_axi_narrow_awlen;
+wire [2 : 0] pspin_axi_narrow_awsize;
+wire [1 : 0] pspin_axi_narrow_awburst;
+wire [0 : 0] pspin_axi_narrow_awlock;
+wire [3 : 0] pspin_axi_narrow_awcache;
+wire [2 : 0] pspin_axi_narrow_awprot;
+wire [3 : 0] pspin_axi_narrow_awregion;
+wire [3 : 0] pspin_axi_narrow_awqos;
+wire pspin_axi_narrow_awvalid;
+wire pspin_axi_narrow_awready;
+wire [31 : 0] pspin_axi_narrow_wdata;
+wire [3 : 0] pspin_axi_narrow_wstrb;
+wire pspin_axi_narrow_wlast;
+wire pspin_axi_narrow_wvalid;
+wire pspin_axi_narrow_wready;
+wire [1 : 0] pspin_axi_narrow_bresp;
+wire pspin_axi_narrow_bvalid;
+wire pspin_axi_narrow_bready;
+wire [31 : 0] pspin_axi_narrow_araddr;
+wire [7 : 0] pspin_axi_narrow_arlen;
+wire [2 : 0] pspin_axi_narrow_arsize;
+wire [1 : 0] pspin_axi_narrow_arburst;
+wire [0 : 0] pspin_axi_narrow_arlock;
+wire [3 : 0] pspin_axi_narrow_arcache;
+wire [2 : 0] pspin_axi_narrow_arprot;
+wire [3 : 0] pspin_axi_narrow_arregion;
+wire [3 : 0] pspin_axi_narrow_arqos;
+wire pspin_axi_narrow_arvalid;
+wire pspin_axi_narrow_arready;
+wire [31 : 0] pspin_axi_narrow_rdata;
+wire [1 : 0] pspin_axi_narrow_rresp;
+wire pspin_axi_narrow_rlast;
+wire pspin_axi_narrow_rvalid;
+wire pspin_axi_narrow_rready;
+
+wire [31 : 0] pspin_axi_full_awaddr;
+wire [7 : 0] pspin_axi_full_awlen;
+wire [2 : 0] pspin_axi_full_awsize;
+wire [1 : 0] pspin_axi_full_awburst;
+wire [0 : 0] pspin_axi_full_awlock;
+wire [3 : 0] pspin_axi_full_awcache;
+wire [2 : 0] pspin_axi_full_awprot;
+wire [3 : 0] pspin_axi_full_awregion;
+wire [3 : 0] pspin_axi_full_awqos;
+wire pspin_axi_full_awvalid;
+wire pspin_axi_full_awready;
+wire [511 : 0] pspin_axi_full_wdata;
+wire [63 : 0] pspin_axi_full_wstrb;
+wire pspin_axi_full_wlast;
+wire pspin_axi_full_wvalid;
+wire pspin_axi_full_wready;
+wire [1 : 0] pspin_axi_full_bresp;
+wire pspin_axi_full_bvalid;
+wire pspin_axi_full_bready;
+wire [31 : 0] pspin_axi_full_araddr;
+wire [7 : 0] pspin_axi_full_arlen;
+wire [2 : 0] pspin_axi_full_arsize;
+wire [1 : 0] pspin_axi_full_arburst;
+wire [0 : 0] pspin_axi_full_arlock;
+wire [3 : 0] pspin_axi_full_arcache;
+wire [2 : 0] pspin_axi_full_arprot;
+wire [3 : 0] pspin_axi_full_arregion;
+wire [3 : 0] pspin_axi_full_arqos;
+wire pspin_axi_full_arvalid;
+wire pspin_axi_full_arready;
+wire [511 : 0] pspin_axi_full_rdata;
+wire [1 : 0] pspin_axi_full_rresp;
+wire pspin_axi_full_rlast;
+wire pspin_axi_full_rvalid;
+wire pspin_axi_full_rready;
+
 wire [31:0] pspin_mapped_axil_awaddr;
 wire [31:0] pspin_mapped_axil_araddr;
 assign pspin_mapped_axil_awaddr = l2_addr_gen(pspin_axil_awaddr);
@@ -758,6 +830,140 @@ proc_sys_reset_0 i_pspin_rst (
   .peripheral_aresetn()                // output wire [0 : 0] peripheral_aresetn
 );
 
+axi_protocol_converter_0 i_host_to_full (
+  .aclk(pspin_clk),                      // input wire aclk
+  .aresetn(!pspin_rst),                // input wire aresetn
+  .s_axi_awaddr(pspin_mapped_axil_awaddr),      // input wire [31 : 0] s_axi_awaddr
+  .s_axi_awprot(pspin_axil_awprot),      // input wire [2 : 0] s_axi_awprot
+  .s_axi_awvalid(pspin_axil_awvalid),    // input wire s_axi_awvalid
+  .s_axi_awready(pspin_axil_awready),    // output wire s_axi_awready
+  .s_axi_wdata(pspin_axil_wdata),        // input wire [31 : 0] s_axi_wdata
+  .s_axi_wstrb(pspin_axil_wstrb),        // input wire [3 : 0] s_axi_wstrb
+  .s_axi_wvalid(pspin_axil_wvalid),      // input wire s_axi_wvalid
+  .s_axi_wready(pspin_axil_wready),      // output wire s_axi_wready
+  .s_axi_bresp(pspin_axil_bresp),        // output wire [1 : 0] s_axi_bresp
+  .s_axi_bvalid(pspin_axil_bvalid),      // output wire s_axi_bvalid
+  .s_axi_bready(pspin_axil_bready),      // input wire s_axi_bready
+  .s_axi_araddr(pspin_mapped_axil_araddr),      // input wire [31 : 0] s_axi_araddr
+  .s_axi_arprot(pspin_axil_arprot),      // input wire [2 : 0] s_axi_arprot
+  .s_axi_arvalid(pspin_axil_arvalid),    // input wire s_axi_arvalid
+  .s_axi_arready(pspin_axil_arready),    // output wire s_axi_arready
+  .s_axi_rdata(pspin_axil_rdata),        // output wire [31 : 0] s_axi_rdata
+  .s_axi_rresp(pspin_axil_rresp),        // output wire [1 : 0] s_axi_rresp
+  .s_axi_rvalid(pspin_axil_rvalid),      // output wire s_axi_rvalid
+  .s_axi_rready(pspin_axil_rready),      // input wire s_axi_rready
+  .m_axi_awaddr(pspin_axi_narrow_awaddr),      // output wire [31 : 0] m_axi_awaddr
+  .m_axi_awlen(pspin_axi_narrow_awlen),        // output wire [7 : 0] m_axi_awlen
+  .m_axi_awsize(pspin_axi_narrow_awsize),      // output wire [2 : 0] m_axi_awsize
+  .m_axi_awburst(pspin_axi_narrow_awburst),    // output wire [1 : 0] m_axi_awburst
+  .m_axi_awlock(pspin_axi_narrow_awlock),      // output wire [0 : 0] m_axi_awlock
+  .m_axi_awcache(pspin_axi_narrow_awcache),    // output wire [3 : 0] m_axi_awcache
+  .m_axi_awprot(pspin_axi_narrow_awprot),      // output wire [2 : 0] m_axi_awprot
+  .m_axi_awregion(pspin_axi_narrow_awregion),  // output wire [3 : 0] m_axi_awregion
+  .m_axi_awqos(pspin_axi_narrow_awqos),        // output wire [3 : 0] m_axi_awqos
+  .m_axi_awvalid(pspin_axi_narrow_awvalid),    // output wire m_axi_awvalid
+  .m_axi_awready(pspin_axi_narrow_awready),    // input wire m_axi_awready
+  .m_axi_wdata(pspin_axi_narrow_wdata),        // output wire [31 : 0] m_axi_wdata
+  .m_axi_wstrb(pspin_axi_narrow_wstrb),        // output wire [3 : 0] m_axi_wstrb
+  .m_axi_wlast(pspin_axi_narrow_wlast),        // output wire m_axi_wlast
+  .m_axi_wvalid(pspin_axi_narrow_wvalid),      // output wire m_axi_wvalid
+  .m_axi_wready(pspin_axi_narrow_wready),      // input wire m_axi_wready
+  .m_axi_bresp(pspin_axi_narrow_bresp),        // input wire [1 : 0] m_axi_bresp
+  .m_axi_bvalid(pspin_axi_narrow_bvalid),      // input wire m_axi_bvalid
+  .m_axi_bready(pspin_axi_narrow_bready),      // output wire m_axi_bready
+  .m_axi_araddr(pspin_axi_narrow_araddr),      // output wire [31 : 0] m_axi_araddr
+  .m_axi_arlen(pspin_axi_narrow_arlen),        // output wire [7 : 0] m_axi_arlen
+  .m_axi_arsize(pspin_axi_narrow_arsize),      // output wire [2 : 0] m_axi_arsize
+  .m_axi_arburst(pspin_axi_narrow_arburst),    // output wire [1 : 0] m_axi_arburst
+  .m_axi_arlock(pspin_axi_narrow_arlock),      // output wire [0 : 0] m_axi_arlock
+  .m_axi_arcache(pspin_axi_narrow_arcache),    // output wire [3 : 0] m_axi_arcache
+  .m_axi_arprot(pspin_axi_narrow_arprot),      // output wire [2 : 0] m_axi_arprot
+  .m_axi_arregion(pspin_axi_narrow_arregion),  // output wire [3 : 0] m_axi_arregion
+  .m_axi_arqos(pspin_axi_narrow_arqos),        // output wire [3 : 0] m_axi_arqos
+  .m_axi_arvalid(pspin_axi_narrow_arvalid),    // output wire m_axi_arvalid
+  .m_axi_arready(pspin_axi_narrow_arready),    // input wire m_axi_arready
+  .m_axi_rdata(pspin_axi_narrow_rdata),        // input wire [31 : 0] m_axi_rdata
+  .m_axi_rresp(pspin_axi_narrow_rresp),        // input wire [1 : 0] m_axi_rresp
+  .m_axi_rlast(pspin_axi_narrow_rlast),        // input wire m_axi_rlast
+  .m_axi_rvalid(pspin_axi_narrow_rvalid),      // input wire m_axi_rvalid
+  .m_axi_rready(pspin_axi_narrow_rready)      // output wire m_axi_rready
+);
+
+axi_dwidth_converter_0 i_pspin_upsize (
+  .s_axi_aclk(pspin_clk),          // input wire s_axi_aclk
+  .s_axi_aresetn(!pspin_rst),    // input wire s_axi_aresetn
+  .s_axi_awaddr(pspin_axi_narrow_awaddr),      // input wire [31 : 0] s_axi_awaddr
+  .s_axi_awlen(pspin_axi_narrow_awlen),        // input wire [7 : 0] s_axi_awlen
+  .s_axi_awsize(pspin_axi_narrow_awsize),      // input wire [2 : 0] s_axi_awsize
+  .s_axi_awburst(pspin_axi_narrow_awburst),    // input wire [1 : 0] s_axi_awburst
+  .s_axi_awlock(pspin_axi_narrow_awlock),      // input wire [0 : 0] s_axi_awlock
+  .s_axi_awcache(pspin_axi_narrow_awcache),    // input wire [3 : 0] s_axi_awcache
+  .s_axi_awprot(pspin_axi_narrow_awprot),      // input wire [2 : 0] s_axi_awprot
+  .s_axi_awregion(pspin_axi_narrow_awregion),  // input wire [3 : 0] s_axi_awregion
+  .s_axi_awqos(pspin_axi_narrow_awqos),        // input wire [3 : 0] s_axi_awqos
+  .s_axi_awvalid(pspin_axi_narrow_awvalid),    // input wire s_axi_awvalid
+  .s_axi_awready(pspin_axi_narrow_awready),    // output wire s_axi_awready
+  .s_axi_wdata(pspin_axi_narrow_wdata),        // input wire [31 : 0] s_axi_wdata
+  .s_axi_wstrb(pspin_axi_narrow_wstrb),        // input wire [3 : 0] s_axi_wstrb
+  .s_axi_wlast(pspin_axi_narrow_wlast),        // input wire s_axi_wlast
+  .s_axi_wvalid(pspin_axi_narrow_wvalid),      // input wire s_axi_wvalid
+  .s_axi_wready(pspin_axi_narrow_wready),      // output wire s_axi_wready
+  .s_axi_bresp(pspin_axi_narrow_bresp),        // output wire [1 : 0] s_axi_bresp
+  .s_axi_bvalid(pspin_axi_narrow_bvalid),      // output wire s_axi_bvalid
+  .s_axi_bready(pspin_axi_narrow_bready),      // input wire s_axi_bready
+  .s_axi_araddr(pspin_axi_narrow_araddr),      // input wire [31 : 0] s_axi_araddr
+  .s_axi_arlen(pspin_axi_narrow_arlen),        // input wire [7 : 0] s_axi_arlen
+  .s_axi_arsize(pspin_axi_narrow_arsize),      // input wire [2 : 0] s_axi_arsize
+  .s_axi_arburst(pspin_axi_narrow_arburst),    // input wire [1 : 0] s_axi_arburst
+  .s_axi_arlock(pspin_axi_narrow_arlock),      // input wire [0 : 0] s_axi_arlock
+  .s_axi_arcache(pspin_axi_narrow_arcache),    // input wire [3 : 0] s_axi_arcache
+  .s_axi_arprot(pspin_axi_narrow_arprot),      // input wire [2 : 0] s_axi_arprot
+  .s_axi_arregion(pspin_axi_narrow_arregion),  // input wire [3 : 0] s_axi_arregion
+  .s_axi_arqos(pspin_axi_narrow_arqos),        // input wire [3 : 0] s_axi_arqos
+  .s_axi_arvalid(pspin_axi_narrow_arvalid),    // input wire s_axi_arvalid
+  .s_axi_arready(pspin_axi_narrow_arready),    // output wire s_axi_arready
+  .s_axi_rdata(pspin_axi_narrow_rdata),        // output wire [31 : 0] s_axi_rdata
+  .s_axi_rresp(pspin_axi_narrow_rresp),        // output wire [1 : 0] s_axi_rresp
+  .s_axi_rlast(pspin_axi_narrow_rlast),        // output wire s_axi_rlast
+  .s_axi_rvalid(pspin_axi_narrow_rvalid),      // output wire s_axi_rvalid
+  .s_axi_rready(pspin_axi_narrow_rready),      // input wire s_axi_rready
+  .m_axi_awaddr(pspin_axi_full_awaddr),      // output wire [31 : 0] m_axi_awaddr
+  .m_axi_awlen(pspin_axi_full_awlen),        // output wire [7 : 0] m_axi_awlen
+  .m_axi_awsize(pspin_axi_full_awsize),      // output wire [2 : 0] m_axi_awsize
+  .m_axi_awburst(pspin_axi_full_awburst),    // output wire [1 : 0] m_axi_awburst
+  .m_axi_awlock(pspin_axi_full_awlock),      // output wire [0 : 0] m_axi_awlock
+  .m_axi_awcache(pspin_axi_full_awcache),    // output wire [3 : 0] m_axi_awcache
+  .m_axi_awprot(pspin_axi_full_awprot),      // output wire [2 : 0] m_axi_awprot
+  .m_axi_awregion(pspin_axi_full_awregion),  // output wire [3 : 0] m_axi_awregion
+  .m_axi_awqos(pspin_axi_full_awqos),        // output wire [3 : 0] m_axi_awqos
+  .m_axi_awvalid(pspin_axi_full_awvalid),    // output wire m_axi_awvalid
+  .m_axi_awready(pspin_axi_full_awready),    // input wire m_axi_awready
+  .m_axi_wdata(pspin_axi_full_wdata),        // output wire [511 : 0] m_axi_wdata
+  .m_axi_wstrb(pspin_axi_full_wstrb),        // output wire [63 : 0] m_axi_wstrb
+  .m_axi_wlast(pspin_axi_full_wlast),        // output wire m_axi_wlast
+  .m_axi_wvalid(pspin_axi_full_wvalid),      // output wire m_axi_wvalid
+  .m_axi_wready(pspin_axi_full_wready),      // input wire m_axi_wready
+  .m_axi_bresp(pspin_axi_full_bresp),        // input wire [1 : 0] m_axi_bresp
+  .m_axi_bvalid(pspin_axi_full_bvalid),      // input wire m_axi_bvalid
+  .m_axi_bready(pspin_axi_full_bready),      // output wire m_axi_bready
+  .m_axi_araddr(pspin_axi_full_araddr),      // output wire [31 : 0] m_axi_araddr
+  .m_axi_arlen(pspin_axi_full_arlen),        // output wire [7 : 0] m_axi_arlen
+  .m_axi_arsize(pspin_axi_full_arsize),      // output wire [2 : 0] m_axi_arsize
+  .m_axi_arburst(pspin_axi_full_arburst),    // output wire [1 : 0] m_axi_arburst
+  .m_axi_arlock(pspin_axi_full_arlock),      // output wire [0 : 0] m_axi_arlock
+  .m_axi_arcache(pspin_axi_full_arcache),    // output wire [3 : 0] m_axi_arcache
+  .m_axi_arprot(pspin_axi_full_arprot),      // output wire [2 : 0] m_axi_arprot
+  .m_axi_arregion(pspin_axi_full_arregion),  // output wire [3 : 0] m_axi_arregion
+  .m_axi_arqos(pspin_axi_full_arqos),        // output wire [3 : 0] m_axi_arqos
+  .m_axi_arvalid(pspin_axi_full_arvalid),    // output wire m_axi_arvalid
+  .m_axi_arready(pspin_axi_full_arready),    // input wire m_axi_arready
+  .m_axi_rdata(pspin_axi_full_rdata),        // input wire [511 : 0] m_axi_rdata
+  .m_axi_rresp(pspin_axi_full_rresp),        // input wire [1 : 0] m_axi_rresp
+  .m_axi_rlast(pspin_axi_full_rlast),        // input wire m_axi_rlast
+  .m_axi_rvalid(pspin_axi_full_rvalid),      // input wire m_axi_rvalid
+  .m_axi_rready(pspin_axi_full_rready)      // output wire m_axi_rready
+);
+
 pspin_wrap #(
     .N_CLUSTERS(NUM_CLUSTERS), // pspin_cfg_pkg::NUM_CLUSTERS
     .N_MPQ(NUM_MPQ)     // pspin_cfg_pkg::NUM_MPQ
@@ -772,55 +978,55 @@ pspin_inst (
 
     .mpq_full_o(mpq_full),
 
-    .host_slave_aw_addr_i   (pspin_mapped_axil_awaddr),
-    .host_slave_aw_prot_i   (pspin_axil_awprot),
-    .host_slave_aw_region_i (4'b0),
-    .host_slave_aw_len_i    (3'b0),
-    .host_slave_aw_size_i   (3'b010), // 4-byte
-    .host_slave_aw_burst_i  (2'b1),
-    .host_slave_aw_lock_i   (1'b0),
+    .host_slave_aw_addr_i   (pspin_axi_full_awaddr),
+    .host_slave_aw_prot_i   (pspin_axi_full_awprot),
+    .host_slave_aw_region_i (pspin_axi_full_awregion),
+    .host_slave_aw_len_i    (pspin_axi_full_awlen),
+    .host_slave_aw_size_i   (pspin_axi_full_awsize),
+    .host_slave_aw_burst_i  (pspin_axi_full_awburst),
+    .host_slave_aw_lock_i   (pspin_axi_full_awlock),
     .host_slave_aw_atop_i   (5'b0),
-    .host_slave_aw_cache_i  (4'b0),
-    .host_slave_aw_qos_i    (4'b0),
+    .host_slave_aw_cache_i  (pspin_axi_full_awcache),
+    .host_slave_aw_qos_i    (pspin_axi_full_awqos),
     .host_slave_aw_id_i     (6'b0),
     .host_slave_aw_user_i   (4'b0),
-    .host_slave_aw_valid_i  (pspin_axil_awvalid),
-    .host_slave_aw_ready_o  (pspin_axil_awready),
+    .host_slave_aw_valid_i  (pspin_axi_full_awvalid),
+    .host_slave_aw_ready_o  (pspin_axi_full_awready),
 
-    .host_slave_ar_addr_i   (pspin_mapped_axil_araddr),
-    .host_slave_ar_prot_i   (pspin_axil_arprot),
-    .host_slave_ar_region_i (4'b0),
-    .host_slave_ar_len_i    (3'b0),
-    .host_slave_ar_size_i   (3'b010), // 4-byte
-    .host_slave_ar_burst_i  (2'b1),
-    .host_slave_ar_lock_i   (1'b0),
-    .host_slave_ar_cache_i  (4'b0),
-    .host_slave_ar_qos_i    (4'b0),
+    .host_slave_ar_addr_i   (pspin_axi_full_araddr),
+    .host_slave_ar_prot_i   (pspin_axi_full_arprot),
+    .host_slave_ar_region_i (pspin_axi_full_arregion),
+    .host_slave_ar_len_i    (pspin_axi_full_arlen),
+    .host_slave_ar_size_i   (pspin_axi_full_arsize),
+    .host_slave_ar_burst_i  (pspin_axi_full_arburst),
+    .host_slave_ar_lock_i   (pspin_axi_full_arlock),
+    .host_slave_ar_cache_i  (pspin_axi_full_arcache),
+    .host_slave_ar_qos_i    (pspin_axi_full_arqos),
     .host_slave_ar_id_i     (6'b0),
     .host_slave_ar_user_i   (4'b0),
-    .host_slave_ar_valid_i  (pspin_axil_arvalid),
-    .host_slave_ar_ready_o  (pspin_axil_arready),
+    .host_slave_ar_valid_i  (pspin_axi_full_arvalid),
+    .host_slave_ar_ready_o  (pspin_axi_full_arready),
 
-    .host_slave_w_data_i    (pspin_axil_wdata),
-    .host_slave_w_strb_i    (pspin_axil_wstrb),
+    .host_slave_w_data_i    (pspin_axi_full_wdata),
+    .host_slave_w_strb_i    (pspin_axi_full_wstrb),
     .host_slave_w_user_i    (4'b0),
-    .host_slave_w_last_i    (1'b1),
-    .host_slave_w_valid_i   (pspin_axil_wvalid),
-    .host_slave_w_ready_o   (pspin_axil_wready),
+    .host_slave_w_last_i    (pspin_axi_full_wlast),
+    .host_slave_w_valid_i   (pspin_axi_full_wvalid),
+    .host_slave_w_ready_o   (pspin_axi_full_wready),
 
-    .host_slave_r_data_o    (pspin_axil_rdata),
-    .host_slave_r_resp_o    (pspin_axil_rresp),
-    .host_slave_r_last_o    (),
+    .host_slave_r_data_o    (pspin_axi_full_rdata),
+    .host_slave_r_resp_o    (pspin_axi_full_rresp),
+    .host_slave_r_last_o    (pspin_axi_full_rlast),
     .host_slave_r_id_o      (),
     .host_slave_r_user_o    (),
-    .host_slave_r_valid_o   (pspin_axil_rvalid),
-    .host_slave_r_ready_i   (pspin_axil_rready),
+    .host_slave_r_valid_o   (pspin_axi_full_rvalid),
+    .host_slave_r_ready_i   (pspin_axi_full_rready),
 
-    .host_slave_b_resp_o    (pspin_axil_bresp),
+    .host_slave_b_resp_o    (pspin_axi_full_bresp),
     .host_slave_b_id_o      (),
     .host_slave_b_user_o    (),
-    .host_slave_b_valid_o   (pspin_axil_bvalid),
-    .host_slave_b_ready_i   (pspin_axil_bready)
+    .host_slave_b_valid_o   (pspin_axi_full_bvalid),
+    .host_slave_b_ready_i   (pspin_axi_full_bready)
 );
 
 /*
