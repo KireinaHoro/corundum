@@ -33,16 +33,18 @@ addr_to_seek() {
     echo $(($offset / 4))
 }
 
+padding="                    "
 # $1: file name
 # $2: section name
 # $3: addr to load into
 write_section() {
     tmpfile=$(mktemp /tmp/pspin-load.XXXXXX)
+    seek=$(addr_to_seek $3)
 
+    printf "Loading section %s%s to 0x$3 (pspin0 offset: %#x)...\n" "$2" "${padding:${#2}}" "$((seek*4))"
     $OBJCOPY -O binary --only-section="$2" "$1" "$tmpfile"
-    dd if=$tmpfile of=$DEV bs=4 seek=$(addr_to_seek $3) status=none
+    dd if=$tmpfile of=$DEV bs=4 seek=$seek status=none
     sync; sync
-    echo "Section $2 loaded successfully."
 
     rm "$tmpfile"
 }
@@ -53,6 +55,7 @@ if [[ $# != 1 ]]; then
 fi
 
 # bring out of reset (mandated by kernel module)
+echo Bringing cluster out of reset...
 echo -n 0 > $RESET
 
 # readelf -S ; sw/pulp-sdk/linker/link.ld
@@ -61,6 +64,7 @@ write_section $1 .l2_handler_data   1c0c0000
 write_section $1 .vectors           1d000000
 write_section $1 .text              1d000100
 
+echo Enabling fetch...
 # enable fetching - 2 clusters
 echo -n 11 > $FETCH
 
