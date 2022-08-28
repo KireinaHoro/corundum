@@ -487,6 +487,7 @@ wire interconnect_aresetn;
 wire mmcm_locked;
 
 // XXX: address space compressed but we don't actually need that much
+//      actual width: 22
 // L2       starts at 32'h1c00_0000 -> 24'h00_0000
 // prog mem starts at 32'h1d00_0000 -> 24'h40_0000
 function [31:0] l2_addr_gen;
@@ -494,7 +495,7 @@ function [31:0] l2_addr_gen;
     reg   [23:0] real_addr;
     begin
         l2_addr_gen = 32'h0000_0000;
-        real_addr = {1'b0, mqnic_addr[AXIL_APP_CTRL_ADDR_WIDTH-2:0]};
+        real_addr = {2'b0, mqnic_addr[AXIL_APP_CTRL_ADDR_WIDTH-3:0]};
         if (mqnic_addr < 24'h40_0000)
             l2_addr_gen = {8'h1c, real_addr};
         else if (mqnic_addr < 24'h80_0000)
