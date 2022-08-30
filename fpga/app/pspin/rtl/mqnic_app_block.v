@@ -647,6 +647,10 @@ wire [1:0]                             ctrl_reg_axil_rresp;
 wire                                   ctrl_reg_axil_rvalid;
 wire                                   ctrl_reg_axil_rready;
 
+wire stdout_rd_en;
+wire [31:0] stdout_dout;
+wire stdout_data_valid;
+
 axil_interconnect_wrap_1x2 #(
     .DATA_WIDTH(AXIL_APP_CTRL_DATA_WIDTH),
     .ADDR_WIDTH(AXIL_APP_CTRL_ADDR_WIDTH),
@@ -721,10 +725,6 @@ axil_interconnect_wrap_1x2 #(
     .m01_axil_rready        (ctrl_reg_axil_rready)
 );
 
-wire stdout_rd_en;
-always @* begin
-    pspin_inst.i_pspin.i_periphs.i_stdout.rd_en <= stdout_rd_en;
-end
 pspin_ctrl_regs #(
     .DATA_WIDTH(AXIL_APP_CTRL_DATA_WIDTH),
     .ADDR_WIDTH(16), // we only have 16 bits of addr
@@ -760,9 +760,9 @@ pspin_ctrl_regs #(
     .cl_busy_i              (cl_busy),
     .mpq_full_i             (mpq_full),
 
-    .stdout_rd_en           (stdout_rd_en),
-    .stdout_dout            (pspin_inst.i_pspin.i_periphs.i_stdout.dout),
-    .stdout_data_valid      (pspin_inst.i_pspin.i_periphs.i_stdout.data_valid)
+    .stdout_rd_en,
+    .stdout_dout,
+    .stdout_data_valid
 );
 
 pspin_clk_wiz i_pspin_clk_wiz (
@@ -1027,7 +1027,11 @@ pspin_inst (
     .host_slave_b_id_o      (),
     .host_slave_b_user_o    (),
     .host_slave_b_valid_o   (pspin_axi_full_bvalid),
-    .host_slave_b_ready_i   (pspin_axi_full_bready)
+    .host_slave_b_ready_i   (pspin_axi_full_bready),
+
+    .stdout_rd_en,
+    .stdout_dout,
+    .stdout_data_valid
 );
 
 /*

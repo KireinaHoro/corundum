@@ -299,12 +299,21 @@ module pspin_wrap #(
   output user_ptr_t                       nic_cmd_req_user_ptr_o,
   
   input logic                             nic_cmd_resp_valid_i,
-  input pspin_cmd_id_t                    nic_cmd_resp_id_i
+  input pspin_cmd_id_t                    nic_cmd_resp_id_i,
+
+  /** stdout */
+  input logic stdout_rd_en,
+  output logic [31:0] stdout_dout,
+  output logic stdout_data_valid
 );
 
 import pulp_cluster_cfg_pkg::N_TCDM_BANKS;
 import pulp_cluster_cfg_pkg::TCDM_WORDS_PER_BANK;
 import pspin_cfg_pkg::NUM_CLUSTERS;
+
+assign i_pspin.i_periphs.i_stdout.rd_en = stdout_rd_en;
+assign stdout_dout                      = i_pspin.i_periphs.i_stdout.dout;
+assign stdout_data_valid                = i_pspin.i_periphs.i_stdout.data_valid;
 
 AXI_BUS #(
     .AXI_ADDR_WIDTH (AXI_AW),
