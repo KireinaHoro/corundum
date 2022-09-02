@@ -196,7 +196,7 @@ struct pspin_cdev {
 };
 
 static int pspin_ndevices = 2;
-static unsigned long pspin_block_size = 512;
+static unsigned long pspin_block_size = 4096;
 // only checked for mem, stdout is assumed to be unbounded
 // XXX: actually larger than memory!
 // TODO: check for holes
@@ -279,16 +279,22 @@ ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
   } else {
     u32 reg;
     uintptr_t off = 0;
+
+    // TODO: demultiplex stdout stream in kernel (and use dedicated pspin_stdout device)
+    // with deferred work
+
     // read at least one first so we don't trigger EOF
     retval = wait_event_interruptible(
         stdout_read_queue, (reg = ioread32(R_STDOUT_FIFO(app))) != ~0);
     if (retval < 0)
       goto out;
+    *((u32 *)&dev->block_buffer[off]) = reg;
+    off += 4;
 
-    dev->block_buffer[off++] = (unsigned char)reg;
-
-    while ((reg = ioread32(R_STDOUT_FIFO(app))) != ~0 && off < pspin_block_size)
-      dev->block_buffer[off++] = (unsigned char)reg;
+    while ((reg = ioread32(R_STDOUT_FIFO(app))) != ~0 && off < pspin_block_size) {
+      *((u32 *)&dev->block_buffer[off]) = reg;
+      off += 4;
+    }
     retval = off;
   }
 
@@ -381,7 +387,7 @@ loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
     return -EINVAL;
   }
   if (newpos < 0 || newpos > pspin_mem_size) {
-    dev_warn(dev->dev, "seek outside bounds: newpos=%#x pspin_mem_size=%#x\n",
+    dev_warn(dev->dev, "seek outside bounds: newpos=%#llx pspin_mem_size=%#lx\n",
              newpos, pspin_mem_size);
     return -EINVAL;
   }
