@@ -284,9 +284,12 @@ ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
     // with deferred work
 
     // read at least one first so we don't trigger EOF
-    retval = wait_event_interruptible(
-        stdout_read_queue, (reg = ioread32(R_STDOUT_FIFO(app))) != ~0);
-    if (retval < 0)
+    do {
+      retval = wait_event_interruptible_timeout(
+          stdout_read_queue, (reg = ioread32(R_STDOUT_FIFO(app))) != ~0,
+          usecs_to_jiffies(50));
+    } while (!retval);
+    if (retval == -ERESTARTSYS)
       goto out;
     *((u32 *)&dev->block_buffer[off]) = reg;
     off += 4;
