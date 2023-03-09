@@ -385,6 +385,8 @@ IP_TCL_FILES += ip/cmac_usplus.tcl
 IP_TCL_FILES += ip/cmac_gty.tcl
 IP_TCL_FILES += ip/pspin_clk_wiz.tcl
 IP_TCL_FILES += ip/pspin_host_clk_converter.tcl
+IP_TCL_FILES += ip/pspin_host_protocol_converter.tcl
+IP_TCL_FILES += ip/pspin_host_dwidth_converter.tcl
 IP_TCL_FILES += ip/proc_sys_reset_0.tcl
 
 # Configuration
