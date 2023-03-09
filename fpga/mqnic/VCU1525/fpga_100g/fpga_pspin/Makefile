@@ -116,7 +116,7 @@ SYN_FILES += app/pspin/rtl/axil_interconnect_wrap_1x2.v
 SYN_FILES += app/pspin/rtl/bus_cdc_wrap.v
 SYN_FILES += app/pspin/rtl/mqnic_app_block.v
 SYN_FILES += app/pspin/rtl/pspin_wrap.sv
-SYN_FILES += app/pspin/rtl/pspin_ctrl_regs.sv
+SYN_FILES += app/pspin/rtl/pspin_ctrl_regs.v
 
 # PsPIN upstream
 SYN_FILES += app/pspin/deps/pspin/hw/deps/scm/fpga_scm/register_file_1r_1w.sv
@@ -368,7 +368,6 @@ XDC_FILES = fpga.xdc
 XDC_FILES += placement.xdc
 XDC_FILES += cfgmclk.xdc
 XDC_FILES += boot.xdc
-XDC_FILES += floorplan.xdc
 XDC_FILES += debug.xdc
 XDC_FILES += lib/axis/syn/vivado/axis_async_fifo.tcl
 XDC_FILES += lib/axis/syn/vivado/sync_reset.tcl
