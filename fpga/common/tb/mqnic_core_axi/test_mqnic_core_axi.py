@@ -328,6 +328,25 @@ async def run_test_nic(dut):
 
     tb.loopback_enable = False
 
+    tb.log.info("Multiple TX queues")
+
+    count = 1024
+
+    pkts = [bytearray([(x+k) % 256 for x in range(60)]) for k in range(count)]
+
+    tb.loopback_enable = True
+
+    for k in range(len(pkts)):
+        await tb.driver.interfaces[0].start_xmit(pkts[k], k % tb.driver.interfaces[0].tx_queue_count)
+
+    for k in range(count):
+        pkt = await tb.driver.interfaces[0].recv()
+
+        tb.log.info("Packet: %s", pkt)
+        assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+
+    tb.loopback_enable = False
+
     tb.log.info("Multiple large packets")
 
     count = 64
@@ -486,6 +505,7 @@ def test_mqnic_core_pcie_axi(request, if_count, ports_per_if, axi_data_width,
         os.path.join(rtl_dir, "mqnic_ptp.v"),
         os.path.join(rtl_dir, "mqnic_ptp_clock.v"),
         os.path.join(rtl_dir, "mqnic_ptp_perout.v"),
+        os.path.join(rtl_dir, "mqnic_rb_clk_info.v"),
         os.path.join(rtl_dir, "cpl_write.v"),
         os.path.join(rtl_dir, "cpl_op_mux.v"),
         os.path.join(rtl_dir, "desc_fetch.v"),
@@ -532,6 +552,7 @@ def test_mqnic_core_pcie_axi(request, if_count, ports_per_if, axi_data_width,
         os.path.join(axis_rtl_dir, "axis_fifo_adapter.v"),
         os.path.join(axis_rtl_dir, "axis_pipeline_fifo.v"),
         os.path.join(axis_rtl_dir, "axis_register.v"),
+        os.path.join(pcie_rtl_dir, "irq_rate_limit.v"),
         os.path.join(pcie_rtl_dir, "dma_if_axi.v"),
         os.path.join(pcie_rtl_dir, "dma_if_axi_rd.v"),
         os.path.join(pcie_rtl_dir, "dma_if_axi_wr.v"),
@@ -554,12 +575,17 @@ def test_mqnic_core_pcie_axi(request, if_count, ports_per_if, axi_data_width,
     parameters['PORTS_PER_IF'] = ports_per_if
     parameters['SCHED_PER_IF'] = ports_per_if
 
+    # Clock configuration
+    parameters['CLK_PERIOD_NS_NUM'] = 4
+    parameters['CLK_PERIOD_NS_DENOM'] = 1
+
     # PTP configuration
     parameters['PTP_CLK_PERIOD_NS_NUM'] = 32
     parameters['PTP_CLK_PERIOD_NS_DENOM'] = 5
     parameters['PTP_CLOCK_PIPELINE'] = 0
     parameters['PTP_CLOCK_CDC_PIPELINE'] = 0
     parameters['PTP_USE_SAMPLE_CLOCK'] = 1
+    parameters['PTP_SEPARATE_TX_CLOCK'] = 0
     parameters['PTP_SEPARATE_RX_CLOCK'] = 0
     parameters['PTP_PORT_CDC_PIPELINE'] = 0
     parameters['PTP_PEROUT_ENABLE'] = 0
@@ -597,7 +623,6 @@ def test_mqnic_core_pcie_axi(request, if_count, ports_per_if, axi_data_width,
     parameters['TX_CPL_FIFO_DEPTH'] = 32
     parameters['TX_TAG_WIDTH'] = 16
     parameters['TX_CHECKSUM_ENABLE'] = 1
-    parameters['RX_RSS_ENABLE'] = 1
     parameters['RX_HASH_ENABLE'] = 1
     parameters['RX_CHECKSUM_ENABLE'] = 1
     parameters['TX_FIFO_DEPTH'] = 32768

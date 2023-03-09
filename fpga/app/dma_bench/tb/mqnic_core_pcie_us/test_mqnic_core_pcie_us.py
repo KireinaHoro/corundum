@@ -64,7 +64,7 @@ except ImportError:
 
 
 class TB(object):
-    def __init__(self, dut):
+    def __init__(self, dut, msix_count=32):
         self.dut = dut
 
         self.log = SimLog("cocotb.tb")
@@ -82,9 +82,11 @@ class TB(object):
             # pcie_link_width=16,
             user_clk_frequency=250e6,
             alignment="dword",
-            cq_cc_straddle=False,
-            rq_rc_straddle=False,
-            rc_4tlp_straddle=False,
+            cq_straddle=len(dut.pcie_if_inst.pcie_us_if_cq_inst.rx_req_tlp_valid_reg) > 1,
+            cc_straddle=len(dut.pcie_if_inst.pcie_us_if_cc_inst.out_tlp_valid) > 1,
+            rq_straddle=len(dut.pcie_if_inst.pcie_us_if_rq_inst.out_tlp_valid) > 1,
+            rc_straddle=len(dut.pcie_if_inst.pcie_us_if_rc_inst.rx_cpl_tlp_valid_reg) > 1,
+            rc_4tlp_straddle=len(dut.pcie_if_inst.pcie_us_if_rc_inst.rx_cpl_tlp_valid_reg) > 2,
             pf_count=1,
             max_payload_size=1024,
             enable_client_tag=True,
@@ -94,7 +96,7 @@ class TB(object):
             enable_sriov=False,
             enable_extended_configuration=False,
 
-            pf0_msi_enable=True,
+            pf0_msi_enable=False,
             pf0_msi_count=32,
             pf1_msi_enable=False,
             pf1_msi_count=1,
@@ -102,12 +104,12 @@ class TB(object):
             pf2_msi_count=1,
             pf3_msi_enable=False,
             pf3_msi_count=1,
-            pf0_msix_enable=False,
-            pf0_msix_table_size=0,
+            pf0_msix_enable=True,
+            pf0_msix_table_size=msix_count-1,
             pf0_msix_table_bir=0,
-            pf0_msix_table_offset=0x00000000,
+            pf0_msix_table_offset=0x00010000,
             pf0_msix_pba_bir=0,
-            pf0_msix_pba_offset=0x00000000,
+            pf0_msix_pba_offset=0x00018000,
             pf1_msix_enable=False,
             pf1_msix_table_size=0,
             pf1_msix_table_bir=0,
@@ -251,33 +253,33 @@ class TB(object):
             # cfg_interrupt_int
             # cfg_interrupt_sent
             # cfg_interrupt_pending
-            cfg_interrupt_msi_enable=dut.cfg_interrupt_msi_enable,
-            cfg_interrupt_msi_mmenable=dut.cfg_interrupt_msi_mmenable,
-            cfg_interrupt_msi_mask_update=dut.cfg_interrupt_msi_mask_update,
-            cfg_interrupt_msi_data=dut.cfg_interrupt_msi_data,
-            # cfg_interrupt_msi_select=dut.cfg_interrupt_msi_select,
-            cfg_interrupt_msi_int=dut.cfg_interrupt_msi_int,
-            cfg_interrupt_msi_pending_status=dut.cfg_interrupt_msi_pending_status,
-            cfg_interrupt_msi_pending_status_data_enable=dut.cfg_interrupt_msi_pending_status_data_enable,
-            # cfg_interrupt_msi_pending_status_function_num=dut.cfg_interrupt_msi_pending_status_function_num,
-            cfg_interrupt_msi_sent=dut.cfg_interrupt_msi_sent,
-            cfg_interrupt_msi_fail=dut.cfg_interrupt_msi_fail,
-            # cfg_interrupt_msix_enable
-            # cfg_interrupt_msix_mask
-            # cfg_interrupt_msix_vf_enable
-            # cfg_interrupt_msix_vf_mask
-            # cfg_interrupt_msix_address
-            # cfg_interrupt_msix_data
-            # cfg_interrupt_msix_int
-            # cfg_interrupt_msix_vec_pending
-            # cfg_interrupt_msix_vec_pending_status
-            # cfg_interrupt_msix_sent
-            # cfg_interrupt_msix_fail
-            cfg_interrupt_msi_attr=dut.cfg_interrupt_msi_attr,
-            cfg_interrupt_msi_tph_present=dut.cfg_interrupt_msi_tph_present,
-            cfg_interrupt_msi_tph_type=dut.cfg_interrupt_msi_tph_type,
-            # cfg_interrupt_msi_tph_st_tag=dut.cfg_interrupt_msi_tph_st_tag,
-            # cfg_interrupt_msi_function_number=dut.cfg_interrupt_msi_function_number,
+            # cfg_interrupt_msi_enable
+            # cfg_interrupt_msi_mmenable
+            # cfg_interrupt_msi_mask_update
+            # cfg_interrupt_msi_data
+            # cfg_interrupt_msi_select
+            # cfg_interrupt_msi_int
+            # cfg_interrupt_msi_pending_status
+            # cfg_interrupt_msi_pending_status_data_enable
+            # cfg_interrupt_msi_pending_status_function_num
+            # cfg_interrupt_msi_sent
+            # cfg_interrupt_msi_fail
+            cfg_interrupt_msix_enable=dut.cfg_interrupt_msix_enable,
+            cfg_interrupt_msix_mask=dut.cfg_interrupt_msix_mask,
+            cfg_interrupt_msix_vf_enable=dut.cfg_interrupt_msix_vf_enable,
+            cfg_interrupt_msix_vf_mask=dut.cfg_interrupt_msix_vf_mask,
+            cfg_interrupt_msix_address=dut.cfg_interrupt_msix_address,
+            cfg_interrupt_msix_data=dut.cfg_interrupt_msix_data,
+            cfg_interrupt_msix_int=dut.cfg_interrupt_msix_int,
+            cfg_interrupt_msix_vec_pending=dut.cfg_interrupt_msix_vec_pending,
+            cfg_interrupt_msix_vec_pending_status=dut.cfg_interrupt_msix_vec_pending_status,
+            cfg_interrupt_msix_sent=dut.cfg_interrupt_msix_sent,
+            cfg_interrupt_msix_fail=dut.cfg_interrupt_msix_fail,
+            # cfg_interrupt_msi_attr
+            # cfg_interrupt_msi_tph_present
+            # cfg_interrupt_msi_tph_type
+            # cfg_interrupt_msi_tph_st_tag
+            cfg_interrupt_msi_function_number=dut.cfg_interrupt_msi_function_number,
 
             # Configuration Extend Interface
             # cfg_ext_read_received
@@ -409,7 +411,7 @@ class TB(object):
 @cocotb.test()
 async def run_test_nic(dut):
 
-    tb = TB(dut)
+    tb = TB(dut, msix_count=2**len(dut.core_pcie_inst.irq_index))
 
     await tb.init()
 
@@ -646,6 +648,11 @@ async def run_test_nic(dut):
             await block.schedulers[0].rb.write_dword(mqnic.MQNIC_RB_SCHED_RR_REG_CTRL, 0x00000000)
             await tb.driver.interfaces[0].set_rx_queue_map_offset(block.index, 0)
 
+    app_reg_blocks = mqnic.RegBlockList()
+    await app_reg_blocks.enumerate_reg_blocks(tb.driver.app_hw_regs)
+
+    dma_bench_rb = app_reg_blocks.find(0x12348101, 0x00000100)
+
     mem = tb.rc.mem_pool.alloc_region(16*1024*1024)
     mem_base = mem.get_absolute_address(0)
 
@@ -655,30 +662,30 @@ async def run_test_nic(dut):
     mem[0:1024] = bytearray([x % 256 for x in range(1024)])
 
     # write pcie read descriptor
-    await tb.driver.app_hw_regs.write_dword(0x000100, (mem_base+0x0000) & 0xffffffff)
-    await tb.driver.app_hw_regs.write_dword(0x000104, (mem_base+0x0000 >> 32) & 0xffffffff)
-    await tb.driver.app_hw_regs.write_dword(0x000108, 0x100)
-    await tb.driver.app_hw_regs.write_dword(0x000110, 0x400)
-    await tb.driver.app_hw_regs.write_dword(0x000114, 0xAA)
+    await dma_bench_rb.write_dword(0x100, (mem_base+0x0000) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x104, (mem_base+0x0000 >> 32) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x108, 0x100)
+    await dma_bench_rb.write_dword(0x110, 0x400)
+    await dma_bench_rb.write_dword(0x114, 0xAA)
 
     await Timer(2000, 'ns')
 
     # read status
-    val = await tb.driver.app_hw_regs.read_dword(0x000118)
+    val = await dma_bench_rb.read_dword(0x000118)
     tb.log.info("Status: 0x%x", val)
     assert val == 0x800000AA
 
     # write pcie write descriptor
-    await tb.driver.app_hw_regs.write_dword(0x000200, (mem_base+0x1000) & 0xffffffff)
-    await tb.driver.app_hw_regs.write_dword(0x000204, (mem_base+0x1000 >> 32) & 0xffffffff)
-    await tb.driver.app_hw_regs.write_dword(0x000208, 0x100)
-    await tb.driver.app_hw_regs.write_dword(0x000210, 0x400)
-    await tb.driver.app_hw_regs.write_dword(0x000214, 0x55)
+    await dma_bench_rb.write_dword(0x200, (mem_base+0x1000) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x204, (mem_base+0x1000 >> 32) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x208, 0x100)
+    await dma_bench_rb.write_dword(0x210, 0x400)
+    await dma_bench_rb.write_dword(0x214, 0x55)
 
     await Timer(2000, 'ns')
 
     # read status
-    val = await tb.driver.app_hw_regs.read_dword(0x000218)
+    val = await dma_bench_rb.read_dword(0x000218)
     tb.log.info("Status: 0x%x", val)
     assert val == 0x80000055
 
@@ -689,16 +696,16 @@ async def run_test_nic(dut):
     tb.log.info("Test immediate write")
 
     # write pcie write descriptor
-    await tb.driver.app_hw_regs.write_dword(0x000200, (mem_base+0x1000) & 0xffffffff)
-    await tb.driver.app_hw_regs.write_dword(0x000204, (mem_base+0x1000 >> 32) & 0xffffffff)
-    await tb.driver.app_hw_regs.write_dword(0x000208, 0x44332211)
-    await tb.driver.app_hw_regs.write_dword(0x000210, 0x4)
-    await tb.driver.app_hw_regs.write_dword(0x000214, 0x800000AA)
+    await dma_bench_rb.write_dword(0x200, (mem_base+0x1000) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x204, (mem_base+0x1000 >> 32) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x208, 0x44332211)
+    await dma_bench_rb.write_dword(0x210, 0x4)
+    await dma_bench_rb.write_dword(0x214, 0x800000AA)
 
     await Timer(2000, 'ns')
 
     # read status
-    val = await tb.driver.app_hw_regs.read_dword(0x000218)
+    val = await dma_bench_rb.read_dword(0x000218)
     tb.log.info("Status: 0x%x", val)
     assert val == 0x800000AA
 
@@ -719,91 +726,89 @@ async def run_test_nic(dut):
     # write packet data
     mem[src_offset:src_offset+region_len] = bytearray([x % 256 for x in range(region_len)])
 
-    # enable DMA
-    await tb.driver.app_hw_regs.write_dword(0x000000, 1)
     # disable interrupts
-    await tb.driver.app_hw_regs.write_dword(0x000008, 0)
+    await dma_bench_rb.write_dword(0x00C, 0)
 
     # configure operation (read)
     # DMA base address
-    await tb.driver.app_hw_regs.write_dword(0x001080, (mem_base+src_offset) & 0xffffffff)
-    await tb.driver.app_hw_regs.write_dword(0x001084, (mem_base+src_offset >> 32) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x380, (mem_base+src_offset) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x384, (mem_base+src_offset >> 32) & 0xffffffff)
     # DMA offset address
-    await tb.driver.app_hw_regs.write_dword(0x001088, 0)
-    await tb.driver.app_hw_regs.write_dword(0x00108c, 0)
+    await dma_bench_rb.write_dword(0x388, 0)
+    await dma_bench_rb.write_dword(0x38c, 0)
     # DMA offset mask
-    await tb.driver.app_hw_regs.write_dword(0x001090, region_len-1)
-    await tb.driver.app_hw_regs.write_dword(0x001094, 0)
+    await dma_bench_rb.write_dword(0x390, region_len-1)
+    await dma_bench_rb.write_dword(0x394, 0)
     # DMA stride
-    await tb.driver.app_hw_regs.write_dword(0x001098, block_stride)
-    await tb.driver.app_hw_regs.write_dword(0x00109c, 0)
+    await dma_bench_rb.write_dword(0x398, block_stride)
+    await dma_bench_rb.write_dword(0x39c, 0)
     # RAM base address
-    await tb.driver.app_hw_regs.write_dword(0x0010c0, 0)
-    await tb.driver.app_hw_regs.write_dword(0x0010c4, 0)
+    await dma_bench_rb.write_dword(0x3c0, 0)
+    await dma_bench_rb.write_dword(0x3c4, 0)
     # RAM offset address
-    await tb.driver.app_hw_regs.write_dword(0x0010c8, 0)
-    await tb.driver.app_hw_regs.write_dword(0x0010cc, 0)
+    await dma_bench_rb.write_dword(0x3c8, 0)
+    await dma_bench_rb.write_dword(0x3cc, 0)
     # RAM offset mask
-    await tb.driver.app_hw_regs.write_dword(0x0010d0, region_len-1)
-    await tb.driver.app_hw_regs.write_dword(0x0010d4, 0)
+    await dma_bench_rb.write_dword(0x3d0, region_len-1)
+    await dma_bench_rb.write_dword(0x3d4, 0)
     # RAM stride
-    await tb.driver.app_hw_regs.write_dword(0x0010d8, block_stride)
-    await tb.driver.app_hw_regs.write_dword(0x0010dc, 0)
+    await dma_bench_rb.write_dword(0x3d8, block_stride)
+    await dma_bench_rb.write_dword(0x3dc, 0)
     # clear cycle count
-    await tb.driver.app_hw_regs.write_dword(0x001008, 0)
-    await tb.driver.app_hw_regs.write_dword(0x00100c, 0)
+    await dma_bench_rb.write_dword(0x308, 0)
+    await dma_bench_rb.write_dword(0x30c, 0)
     # block length
-    await tb.driver.app_hw_regs.write_dword(0x001010, block_size)
+    await dma_bench_rb.write_dword(0x310, block_size)
     # block count
-    await tb.driver.app_hw_regs.write_dword(0x001018, block_count)
-    await tb.driver.app_hw_regs.write_dword(0x00101c, 0)
+    await dma_bench_rb.write_dword(0x318, block_count)
+    await dma_bench_rb.write_dword(0x31c, 0)
     # start
-    await tb.driver.app_hw_regs.write_dword(0x001000, 1)
+    await dma_bench_rb.write_dword(0x300, 1)
 
     for k in range(10):
-        cnt = await tb.driver.app_hw_regs.read_dword(0x001018)
+        cnt = await dma_bench_rb.read_dword(0x318)
         await Timer(1000, 'ns')
         if cnt == 0:
             break
 
     # configure operation (write)
     # DMA base address
-    await tb.driver.app_hw_regs.write_dword(0x001180, (mem_base+dest_offset) & 0xffffffff)
-    await tb.driver.app_hw_regs.write_dword(0x001184, (mem_base+dest_offset >> 32) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x480, (mem_base+dest_offset) & 0xffffffff)
+    await dma_bench_rb.write_dword(0x484, (mem_base+dest_offset >> 32) & 0xffffffff)
     # DMA offset address
-    await tb.driver.app_hw_regs.write_dword(0x001188, 0)
-    await tb.driver.app_hw_regs.write_dword(0x00118c, 0)
+    await dma_bench_rb.write_dword(0x488, 0)
+    await dma_bench_rb.write_dword(0x48c, 0)
     # DMA offset mask
-    await tb.driver.app_hw_regs.write_dword(0x001190, region_len-1)
-    await tb.driver.app_hw_regs.write_dword(0x001194, 0)
+    await dma_bench_rb.write_dword(0x490, region_len-1)
+    await dma_bench_rb.write_dword(0x494, 0)
     # DMA stride
-    await tb.driver.app_hw_regs.write_dword(0x001198, block_stride)
-    await tb.driver.app_hw_regs.write_dword(0x00119c, 0)
+    await dma_bench_rb.write_dword(0x498, block_stride)
+    await dma_bench_rb.write_dword(0x49c, 0)
     # RAM base address
-    await tb.driver.app_hw_regs.write_dword(0x0011c0, 0)
-    await tb.driver.app_hw_regs.write_dword(0x0011c4, 0)
+    await dma_bench_rb.write_dword(0x4c0, 0)
+    await dma_bench_rb.write_dword(0x4c4, 0)
     # RAM offset address
-    await tb.driver.app_hw_regs.write_dword(0x0011c8, 0)
-    await tb.driver.app_hw_regs.write_dword(0x0011cc, 0)
+    await dma_bench_rb.write_dword(0x4c8, 0)
+    await dma_bench_rb.write_dword(0x4cc, 0)
     # RAM offset mask
-    await tb.driver.app_hw_regs.write_dword(0x0011d0, region_len-1)
-    await tb.driver.app_hw_regs.write_dword(0x0011d4, 0)
+    await dma_bench_rb.write_dword(0x4d0, region_len-1)
+    await dma_bench_rb.write_dword(0x4d4, 0)
     # RAM stride
-    await tb.driver.app_hw_regs.write_dword(0x0011d8, block_stride)
-    await tb.driver.app_hw_regs.write_dword(0x0011dc, 0)
+    await dma_bench_rb.write_dword(0x4d8, block_stride)
+    await dma_bench_rb.write_dword(0x4dc, 0)
     # clear cycle count
-    await tb.driver.app_hw_regs.write_dword(0x001108, 0)
-    await tb.driver.app_hw_regs.write_dword(0x00110c, 0)
+    await dma_bench_rb.write_dword(0x408, 0)
+    await dma_bench_rb.write_dword(0x40c, 0)
     # block length
-    await tb.driver.app_hw_regs.write_dword(0x001110, block_size)
+    await dma_bench_rb.write_dword(0x410, block_size)
     # block count
-    await tb.driver.app_hw_regs.write_dword(0x001118, block_count)
-    await tb.driver.app_hw_regs.write_dword(0x00111c, 0)
+    await dma_bench_rb.write_dword(0x418, block_count)
+    await dma_bench_rb.write_dword(0x41c, 0)
     # start
-    await tb.driver.app_hw_regs.write_dword(0x001100, 1)
+    await dma_bench_rb.write_dword(0x400, 1)
 
     for k in range(10):
-        cnt = await tb.driver.app_hw_regs.read_dword(0x001118)
+        cnt = await dma_bench_rb.read_dword(0x418)
         await Timer(1000, 'ns')
         if cnt == 0:
             break
@@ -819,7 +824,7 @@ async def run_test_nic(dut):
     lst = []
 
     for k in range(64):
-        lst.append(await tb.driver.hw_regs.read_dword(0x010000+k*8))
+        lst.append(await tb.driver.hw_regs.read_dword(0x020000+k*8))
 
     print(lst)
 
@@ -873,6 +878,7 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
         os.path.join(rtl_dir, "common", "mqnic_ptp.v"),
         os.path.join(rtl_dir, "common", "mqnic_ptp_clock.v"),
         os.path.join(rtl_dir, "common", "mqnic_ptp_perout.v"),
+        os.path.join(rtl_dir, "common", "mqnic_rb_clk_info.v"),
         os.path.join(rtl_dir, "common", "cpl_write.v"),
         os.path.join(rtl_dir, "common", "cpl_op_mux.v"),
         os.path.join(rtl_dir, "common", "desc_fetch.v"),
@@ -897,6 +903,7 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
         os.path.join(rtl_dir, "common", "mqnic_tx_scheduler_block_rr.v"),
         os.path.join(rtl_dir, "common", "tx_scheduler_rr.v"),
         os.path.join(rtl_dir, "mqnic_app_block_dma_bench.v"),
+        os.path.join(rtl_dir, "dma_bench.v"),
         os.path.join(eth_rtl_dir, "ptp_clock.v"),
         os.path.join(eth_rtl_dir, "ptp_clock_cdc.v"),
         os.path.join(eth_rtl_dir, "ptp_perout.v"),
@@ -925,6 +932,10 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
         os.path.join(pcie_rtl_dir, "pcie_tlp_demux.v"),
         os.path.join(pcie_rtl_dir, "pcie_tlp_demux_bar.v"),
         os.path.join(pcie_rtl_dir, "pcie_tlp_mux.v"),
+        os.path.join(pcie_rtl_dir, "pcie_tlp_fifo.v"),
+        os.path.join(pcie_rtl_dir, "pcie_tlp_fifo_raw.v"),
+        os.path.join(pcie_rtl_dir, "pcie_msix.v"),
+        os.path.join(pcie_rtl_dir, "irq_rate_limit.v"),
         os.path.join(pcie_rtl_dir, "dma_if_pcie.v"),
         os.path.join(pcie_rtl_dir, "dma_if_pcie_rd.v"),
         os.path.join(pcie_rtl_dir, "dma_if_pcie_wr.v"),
@@ -943,7 +954,6 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
         os.path.join(pcie_rtl_dir, "pcie_us_if_cc.v"),
         os.path.join(pcie_rtl_dir, "pcie_us_if_cq.v"),
         os.path.join(pcie_rtl_dir, "pcie_us_cfg.v"),
-        os.path.join(pcie_rtl_dir, "pcie_us_msi.v"),
         os.path.join(pcie_rtl_dir, "pulse_merge.v"),
     ]
 
@@ -954,12 +964,17 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
     parameters['PORTS_PER_IF'] = ports_per_if
     parameters['SCHED_PER_IF'] = ports_per_if
 
+    # Clock configuration
+    parameters['CLK_PERIOD_NS_NUM'] = 4
+    parameters['CLK_PERIOD_NS_DENOM'] = 1
+
     # PTP configuration
     parameters['PTP_CLK_PERIOD_NS_NUM'] = 32
     parameters['PTP_CLK_PERIOD_NS_DENOM'] = 5
     parameters['PTP_CLOCK_PIPELINE'] = 0
     parameters['PTP_CLOCK_CDC_PIPELINE'] = 0
     parameters['PTP_USE_SAMPLE_CLOCK'] = 1
+    parameters['PTP_SEPARATE_TX_CLOCK'] = 0
     parameters['PTP_SEPARATE_RX_CLOCK'] = 0
     parameters['PTP_PORT_CDC_PIPELINE'] = 0
     parameters['PTP_PEROUT_ENABLE'] = 0
@@ -971,6 +986,7 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
     parameters['RX_QUEUE_OP_TABLE_SIZE'] = 32
     parameters['TX_CPL_QUEUE_OP_TABLE_SIZE'] = parameters['TX_QUEUE_OP_TABLE_SIZE']
     parameters['RX_CPL_QUEUE_OP_TABLE_SIZE'] = parameters['RX_QUEUE_OP_TABLE_SIZE']
+    parameters['EVENT_QUEUE_INDEX_WIDTH'] = 6
     parameters['TX_QUEUE_INDEX_WIDTH'] = 13
     parameters['RX_QUEUE_INDEX_WIDTH'] = 8
     parameters['TX_CPL_QUEUE_INDEX_WIDTH'] = parameters['TX_QUEUE_INDEX_WIDTH']
@@ -996,7 +1012,6 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
     parameters['TX_CPL_FIFO_DEPTH'] = 32
     parameters['TX_TAG_WIDTH'] = 16
     parameters['TX_CHECKSUM_ENABLE'] = 1
-    parameters['RX_RSS_ENABLE'] = 1
     parameters['RX_HASH_ENABLE'] = 1
     parameters['RX_CHECKSUM_ENABLE'] = 1
     parameters['TX_FIFO_DEPTH'] = 32768
@@ -1028,14 +1043,9 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
     parameters['AXIS_PCIE_DATA_WIDTH'] = axis_pcie_data_width
     parameters['PF_COUNT'] = 1
     parameters['VF_COUNT'] = 0
-    parameters['PCIE_TAG_COUNT'] = 64
-    parameters['PCIE_DMA_READ_OP_TABLE_SIZE'] = parameters['PCIE_TAG_COUNT']
-    parameters['PCIE_DMA_READ_TX_LIMIT'] = 16
-    parameters['PCIE_DMA_READ_TX_FC_ENABLE'] = 1
-    parameters['PCIE_DMA_WRITE_OP_TABLE_SIZE'] = 16
-    parameters['PCIE_DMA_WRITE_TX_LIMIT'] = 3
-    parameters['PCIE_DMA_WRITE_TX_FC_ENABLE'] = 1
-    parameters['MSI_COUNT'] = 32
+
+    # Interrupt configuration
+    parameters['IRQ_INDEX_WIDTH'] = parameters['EVENT_QUEUE_INDEX_WIDTH']
 
     # AXI lite interface configuration (control)
     parameters['AXIL_CTRL_DATA_WIDTH'] = 32

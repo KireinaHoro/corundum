@@ -90,7 +90,6 @@ module mqnic_interface #
     parameter TX_CPL_FIFO_DEPTH = 32,
     parameter TX_TAG_WIDTH = $clog2(TX_DESC_TABLE_SIZE)+1,
     parameter TX_CHECKSUM_ENABLE = 1,
-    parameter RX_RSS_ENABLE = 1,
     parameter RX_HASH_ENABLE = 1,
     parameter RX_CHECKSUM_ENABLE = 1,
     parameter TX_FIFO_DEPTH = 32768,
@@ -119,7 +118,8 @@ module mqnic_interface #
     parameter RAM_SEG_ADDR_WIDTH = RAM_ADDR_WIDTH-$clog2(RAM_SEG_COUNT*RAM_SEG_BE_WIDTH),
     parameter RAM_PIPELINE = 2,
 
-    parameter MSI_COUNT = 32,
+    // Interrupt configuration
+    parameter IRQ_INDEX_WIDTH = 8,
 
     // AXI lite interface configuration
     parameter AXIL_DATA_WIDTH = 32,
@@ -489,9 +489,11 @@ module mqnic_interface #
     input  wire                                         ptp_ts_step,
 
     /*
-     * MSI interrupts
+     * Interrupt request output
      */
-    output wire [MSI_COUNT-1:0]                         msi_irq
+    output wire [IRQ_INDEX_WIDTH-1:0]                   irq_index,
+    output wire                                         irq_valid,
+    input  wire                                         irq_ready
 );
 
 parameter DESC_SIZE = 16;
@@ -504,25 +506,25 @@ parameter AXIS_DESC_KEEP_WIDTH = AXIS_DESC_DATA_WIDTH/8;
 parameter EVENT_SOURCE_WIDTH = 16;
 parameter EVENT_TYPE_WIDTH = 16;
 
-parameter INT_WIDTH = $clog2(MSI_COUNT);
-
 parameter MAX_DESC_TABLE_SIZE = TX_DESC_TABLE_SIZE > RX_DESC_TABLE_SIZE ? TX_DESC_TABLE_SIZE : RX_DESC_TABLE_SIZE;
 
-parameter REQ_TAG_WIDTH = $clog2(MAX_DESC_TABLE_SIZE) + $clog2(SCHEDULERS);
-parameter REQ_TAG_WIDTH_INT = REQ_TAG_WIDTH - $clog2(SCHEDULERS);
+parameter REQ_TAG_WIDTH_INT = $clog2(MAX_DESC_TABLE_SIZE);
+parameter REQ_TAG_WIDTH = REQ_TAG_WIDTH_INT + $clog2(SCHEDULERS);
 
-parameter DESC_REQ_TAG_WIDTH = $clog2(MAX_DESC_TABLE_SIZE) + 1 + $clog2(PORTS+1);
+parameter DESC_REQ_TAG_WIDTH_INT = REQ_TAG_WIDTH;
+parameter DESC_REQ_TAG_WIDTH = DESC_REQ_TAG_WIDTH_INT + $clog2(2);
 
-parameter QUEUE_REQ_TAG_WIDTH = $clog2(MAX_DESC_TABLE_SIZE) + 1 + $clog2(PORTS+1);
+parameter CPL_REQ_TAG_WIDTH_INT = $clog2(MAX_DESC_TABLE_SIZE);
+parameter CPL_REQ_TAG_WIDTH = CPL_REQ_TAG_WIDTH_INT + $clog2(3);
+
+parameter QUEUE_REQ_TAG_WIDTH = DESC_REQ_TAG_WIDTH;
+parameter CPL_QUEUE_REQ_TAG_WIDTH = CPL_REQ_TAG_WIDTH;
 parameter QUEUE_OP_TAG_WIDTH = 6;
 
-parameter DMA_TAG_WIDTH_INT = DMA_TAG_WIDTH - $clog2(PORTS);
 parameter DMA_CLIENT_LEN_WIDTH = DMA_LEN_WIDTH;
 
 parameter QUEUE_INDEX_WIDTH = TX_QUEUE_INDEX_WIDTH > RX_QUEUE_INDEX_WIDTH ? TX_QUEUE_INDEX_WIDTH : RX_QUEUE_INDEX_WIDTH;
 parameter CPL_QUEUE_INDEX_WIDTH = TX_CPL_QUEUE_INDEX_WIDTH > RX_CPL_QUEUE_INDEX_WIDTH ? TX_CPL_QUEUE_INDEX_WIDTH : RX_CPL_QUEUE_INDEX_WIDTH;
-
-parameter DESC_REQ_TAG_WIDTH_INT = DESC_REQ_TAG_WIDTH - $clog2(3);
 
 parameter AXIL_CSR_ADDR_WIDTH = AXIL_ADDR_WIDTH-5-$clog2((SCHEDULERS+3)/8);
 parameter AXIL_CTRL_ADDR_WIDTH = AXIL_ADDR_WIDTH-5-$clog2((SCHEDULERS+3)/8);
@@ -705,12 +707,12 @@ wire [SCHEDULERS-1:0]                 axil_sched_rready;
 
 // Queue management
 wire [CPL_QUEUE_INDEX_WIDTH-1:0]    event_enqueue_req_queue;
-wire [QUEUE_REQ_TAG_WIDTH-1:0]      event_enqueue_req_tag;
+wire [CPL_QUEUE_REQ_TAG_WIDTH-1:0]  event_enqueue_req_tag;
 wire                                event_enqueue_req_valid;
 wire                                event_enqueue_req_ready;
 
 wire [DMA_ADDR_WIDTH-1:0]           event_enqueue_resp_addr;
-wire [QUEUE_REQ_TAG_WIDTH-1:0]      event_enqueue_resp_tag;
+wire [CPL_QUEUE_REQ_TAG_WIDTH-1:0]  event_enqueue_resp_tag;
 wire [QUEUE_OP_TAG_WIDTH-1:0]       event_enqueue_resp_op_tag;
 wire                                event_enqueue_resp_full;
 wire                                event_enqueue_resp_error;
@@ -746,12 +748,12 @@ wire [TX_QUEUE_INDEX_WIDTH-1:0]     tx_doorbell_queue;
 wire                                tx_doorbell_valid;
 
 wire [CPL_QUEUE_INDEX_WIDTH-1:0]    tx_cpl_enqueue_req_queue;
-wire [QUEUE_REQ_TAG_WIDTH-1:0]      tx_cpl_enqueue_req_tag;
+wire [CPL_QUEUE_REQ_TAG_WIDTH-1:0]  tx_cpl_enqueue_req_tag;
 wire                                tx_cpl_enqueue_req_valid;
 wire                                tx_cpl_enqueue_req_ready;
 
 wire [DMA_ADDR_WIDTH-1:0]           tx_cpl_enqueue_resp_addr;
-wire [QUEUE_REQ_TAG_WIDTH-1:0]      tx_cpl_enqueue_resp_tag;
+wire [CPL_QUEUE_REQ_TAG_WIDTH-1:0]  tx_cpl_enqueue_resp_tag;
 wire [QUEUE_OP_TAG_WIDTH-1:0]       tx_cpl_enqueue_resp_op_tag;
 wire                                tx_cpl_enqueue_resp_full;
 wire                                tx_cpl_enqueue_resp_error;
@@ -784,12 +786,12 @@ wire                                rx_desc_dequeue_commit_valid;
 wire                                rx_desc_dequeue_commit_ready;
 
 wire [CPL_QUEUE_INDEX_WIDTH-1:0]    rx_cpl_enqueue_req_queue;
-wire [QUEUE_REQ_TAG_WIDTH-1:0]      rx_cpl_enqueue_req_tag;
+wire [CPL_QUEUE_REQ_TAG_WIDTH-1:0]  rx_cpl_enqueue_req_tag;
 wire                                rx_cpl_enqueue_req_valid;
 wire                                rx_cpl_enqueue_req_ready;
 
 wire [DMA_ADDR_WIDTH-1:0]           rx_cpl_enqueue_resp_addr;
-wire [QUEUE_REQ_TAG_WIDTH-1:0]      rx_cpl_enqueue_resp_tag;
+wire [CPL_QUEUE_REQ_TAG_WIDTH-1:0]  rx_cpl_enqueue_resp_tag;
 wire [QUEUE_OP_TAG_WIDTH-1:0]       rx_cpl_enqueue_resp_op_tag;
 wire                                rx_cpl_enqueue_resp_full;
 wire                                rx_cpl_enqueue_resp_error;
@@ -870,48 +872,48 @@ wire                                tx_desc_tuser;
 // completions
 wire [1:0]                          cpl_req_sel;
 wire [QUEUE_INDEX_WIDTH-1:0]        cpl_req_queue;
-wire [DESC_REQ_TAG_WIDTH-1:0]       cpl_req_tag;
+wire [CPL_REQ_TAG_WIDTH-1:0]        cpl_req_tag;
 wire [CPL_SIZE*8-1:0]               cpl_req_data;
 wire                                cpl_req_valid;
 wire                                cpl_req_ready;
 
-wire [DESC_REQ_TAG_WIDTH-1:0]       cpl_req_status_tag;
+wire [CPL_REQ_TAG_WIDTH-1:0]        cpl_req_status_tag;
 wire                                cpl_req_status_full;
 wire                                cpl_req_status_error;
 wire                                cpl_req_status_valid;
 
 wire [1:0]                          event_cpl_req_sel = 2'd2;
 wire [QUEUE_INDEX_WIDTH-1:0]        event_cpl_req_queue;
-wire [DESC_REQ_TAG_WIDTH_INT-1:0]   event_cpl_req_tag;
+wire [CPL_REQ_TAG_WIDTH_INT-1:0]    event_cpl_req_tag;
 wire [CPL_SIZE*8-1:0]               event_cpl_req_data;
 wire                                event_cpl_req_valid;
 wire                                event_cpl_req_ready;
 
-wire [DESC_REQ_TAG_WIDTH_INT-1:0]   event_cpl_req_status_tag;
+wire [CPL_REQ_TAG_WIDTH_INT-1:0]    event_cpl_req_status_tag;
 wire                                event_cpl_req_status_full;
 wire                                event_cpl_req_status_error;
 wire                                event_cpl_req_status_valid;
 
 wire [1:0]                          rx_cpl_req_sel = 2'd1;
 wire [QUEUE_INDEX_WIDTH-1:0]        rx_cpl_req_queue;
-wire [DESC_REQ_TAG_WIDTH_INT-1:0]   rx_cpl_req_tag;
+wire [CPL_REQ_TAG_WIDTH_INT-1:0]    rx_cpl_req_tag;
 wire [CPL_SIZE*8-1:0]               rx_cpl_req_data;
 wire                                rx_cpl_req_valid;
 wire                                rx_cpl_req_ready;
 
-wire [DESC_REQ_TAG_WIDTH_INT-1:0]   rx_cpl_req_status_tag;
+wire [CPL_REQ_TAG_WIDTH_INT-1:0]    rx_cpl_req_status_tag;
 wire                                rx_cpl_req_status_full;
 wire                                rx_cpl_req_status_error;
 wire                                rx_cpl_req_status_valid;
 
 wire [1:0]                          tx_cpl_req_sel = 2'd0;
 wire [QUEUE_INDEX_WIDTH-1:0]        tx_cpl_req_queue;
-wire [DESC_REQ_TAG_WIDTH_INT-1:0]   tx_cpl_req_tag;
+wire [CPL_REQ_TAG_WIDTH_INT-1:0]    tx_cpl_req_tag;
 wire [CPL_SIZE*8-1:0]               tx_cpl_req_data;
 wire                                tx_cpl_req_valid;
 wire                                tx_cpl_req_ready;
 
-wire [DESC_REQ_TAG_WIDTH_INT-1:0]   tx_cpl_req_status_tag;
+wire [CPL_REQ_TAG_WIDTH_INT-1:0]    tx_cpl_req_status_tag;
 wire                                tx_cpl_req_status_full;
 wire                                tx_cpl_req_status_error;
 wire                                tx_cpl_req_status_valid;
@@ -939,27 +941,58 @@ wire [EVENT_QUEUE_INDEX_WIDTH-1:0]  tx_event;
 wire [EVENT_TYPE_WIDTH-1:0]         tx_event_type = 16'd0;
 wire [EVENT_SOURCE_WIDTH-1:0]       tx_event_source;
 wire                                tx_event_valid;
+wire                                tx_event_ready;
 
 wire [EVENT_QUEUE_INDEX_WIDTH-1:0]  rx_event;
 wire [EVENT_TYPE_WIDTH-1:0]         rx_event_type = 16'd1;
 wire [EVENT_SOURCE_WIDTH-1:0]       rx_event_source;
 wire                                rx_event_valid;
+wire                                rx_event_ready;
 
 // interrupts
-wire [INT_WIDTH-1:0] event_int;
-wire event_int_valid;
+wire [IRQ_INDEX_WIDTH-1:0]  event_irq_index;
+wire                        event_irq_valid;
+wire                        event_irq_ready;
 
-reg [31:0] msi_irq_reg = 0;
+axis_fifo #(
+    .DEPTH(128),
+    .DATA_WIDTH(IRQ_INDEX_WIDTH),
+    .KEEP_ENABLE(0),
+    .LAST_ENABLE(0),
+    .ID_ENABLE(0),
+    .DEST_ENABLE(0),
+    .USER_ENABLE(0),
+    .FRAME_FIFO(0)
+)
+irq_fifo (
+    .clk(clk),
+    .rst(rst),
 
-assign msi_irq = msi_irq_reg;
+    // AXI input
+    .s_axis_tdata(event_irq_index),
+    .s_axis_tkeep(0),
+    .s_axis_tvalid(event_irq_valid),
+    .s_axis_tready(event_irq_ready),
+    .s_axis_tlast(0),
+    .s_axis_tid(0),
+    .s_axis_tdest(0),
+    .s_axis_tuser(0),
 
-always @(posedge clk) begin
-    msi_irq_reg <= 0;
+    // AXI output
+    .m_axis_tdata(irq_index),
+    .m_axis_tkeep(),
+    .m_axis_tvalid(irq_valid),
+    .m_axis_tready(irq_ready),
+    .m_axis_tlast(),
+    .m_axis_tid(),
+    .m_axis_tdest(),
+    .m_axis_tuser(),
 
-    if (event_int_valid) begin
-        msi_irq_reg <= 1'b1 << event_int;
-    end
-end
+    // Status
+    .status_overflow(),
+    .status_bad_frame(),
+    .status_good_frame()
+);
 
 // control registers
 wire [REG_ADDR_WIDTH-1:0]  ctrl_reg_wr_addr;
@@ -1112,7 +1145,7 @@ always @(posedge clk) begin
             RBB+8'h08: ctrl_reg_rd_data_reg <= RB_BASE_ADDR+8'h40;          // IF ctrl: Next header
             RBB+8'h0C: begin
                 // IF ctrl: features
-                ctrl_reg_rd_data_reg[0] <= RX_RSS_ENABLE && RX_HASH_ENABLE;
+                ctrl_reg_rd_data_reg[0] <= RX_HASH_ENABLE;
                 ctrl_reg_rd_data_reg[4] <= PTP_TS_ENABLE;
                 ctrl_reg_rd_data_reg[8] <= TX_CHECKSUM_ENABLE;
                 ctrl_reg_rd_data_reg[9] <= RX_CHECKSUM_ENABLE;
@@ -1233,11 +1266,11 @@ axil_crossbar_inst (
 
 cpl_queue_manager #(
     .ADDR_WIDTH(DMA_ADDR_WIDTH),
-    .REQ_TAG_WIDTH(QUEUE_REQ_TAG_WIDTH),
+    .REQ_TAG_WIDTH(CPL_QUEUE_REQ_TAG_WIDTH),
     .OP_TABLE_SIZE(EVENT_QUEUE_OP_TABLE_SIZE),
     .OP_TAG_WIDTH(QUEUE_OP_TAG_WIDTH),
     .QUEUE_INDEX_WIDTH(EVENT_QUEUE_INDEX_WIDTH),
-    .EVENT_WIDTH(INT_WIDTH),
+    .EVENT_WIDTH(IRQ_INDEX_WIDTH),
     .QUEUE_PTR_WIDTH(QUEUE_PTR_WIDTH),
     .LOG_QUEUE_SIZE_WIDTH(LOG_QUEUE_SIZE_WIDTH),
     .CPL_SIZE(EVENT_SIZE),
@@ -1282,9 +1315,10 @@ event_queue_manager_inst (
     /*
      * Event output
      */
-    .m_axis_event(event_int),
+    .m_axis_event(event_irq_index),
     .m_axis_event_source(),
-    .m_axis_event_valid(event_int_valid),
+    .m_axis_event_valid(event_irq_valid),
+    .m_axis_event_ready(event_irq_ready),
 
     /*
      * AXI-Lite slave interface
@@ -1402,7 +1436,7 @@ tx_queue_manager_inst (
 
 cpl_queue_manager #(
     .ADDR_WIDTH(DMA_ADDR_WIDTH),
-    .REQ_TAG_WIDTH(QUEUE_REQ_TAG_WIDTH),
+    .REQ_TAG_WIDTH(CPL_QUEUE_REQ_TAG_WIDTH),
     .OP_TABLE_SIZE(TX_QUEUE_OP_TABLE_SIZE),
     .OP_TAG_WIDTH(QUEUE_OP_TAG_WIDTH),
     .QUEUE_INDEX_WIDTH(TX_CPL_QUEUE_INDEX_WIDTH),
@@ -1454,6 +1488,7 @@ tx_cpl_queue_manager_inst (
     .m_axis_event(tx_event),
     .m_axis_event_source(tx_event_source),
     .m_axis_event_valid(tx_event_valid),
+    .m_axis_event_ready(tx_event_ready),
 
     /*
      * AXI-Lite slave interface
@@ -1571,7 +1606,7 @@ rx_queue_manager_inst (
 
 cpl_queue_manager #(
     .ADDR_WIDTH(DMA_ADDR_WIDTH),
-    .REQ_TAG_WIDTH(QUEUE_REQ_TAG_WIDTH),
+    .REQ_TAG_WIDTH(CPL_QUEUE_REQ_TAG_WIDTH),
     .OP_TABLE_SIZE(RX_QUEUE_OP_TABLE_SIZE),
     .OP_TAG_WIDTH(QUEUE_OP_TAG_WIDTH),
     .QUEUE_INDEX_WIDTH(RX_CPL_QUEUE_INDEX_WIDTH),
@@ -1623,6 +1658,7 @@ rx_cpl_queue_manager_inst (
     .m_axis_event(rx_event),
     .m_axis_event_source(rx_event_source),
     .m_axis_event_valid(rx_event_valid),
+    .m_axis_event_ready(rx_event_ready),
 
     /*
      * AXI-Lite slave interface
@@ -1861,8 +1897,8 @@ cpl_op_mux #(
     .PORTS(3),
     .SELECT_WIDTH(2),
     .QUEUE_INDEX_WIDTH(QUEUE_INDEX_WIDTH),
-    .S_REQ_TAG_WIDTH(DESC_REQ_TAG_WIDTH_INT),
-    .M_REQ_TAG_WIDTH(DESC_REQ_TAG_WIDTH),
+    .S_REQ_TAG_WIDTH(CPL_REQ_TAG_WIDTH_INT),
+    .M_REQ_TAG_WIDTH(CPL_REQ_TAG_WIDTH),
     .CPL_SIZE(CPL_SIZE),
     .ARB_TYPE_ROUND_ROBIN(1),
     .ARB_LSB_HIGH_PRIORITY(1)
@@ -1920,8 +1956,8 @@ cpl_write #(
     .DMA_ADDR_WIDTH(DMA_ADDR_WIDTH),
     .DMA_LEN_WIDTH(DMA_LEN_WIDTH),
     .DMA_TAG_WIDTH(DMA_TAG_WIDTH),
-    .REQ_TAG_WIDTH(DESC_REQ_TAG_WIDTH),
-    .QUEUE_REQ_TAG_WIDTH(QUEUE_REQ_TAG_WIDTH),
+    .REQ_TAG_WIDTH(CPL_REQ_TAG_WIDTH),
+    .QUEUE_REQ_TAG_WIDTH(CPL_QUEUE_REQ_TAG_WIDTH),
     .QUEUE_OP_TAG_WIDTH(QUEUE_OP_TAG_WIDTH),
     .QUEUE_INDEX_WIDTH(QUEUE_INDEX_WIDTH),
     .CPL_SIZE(CPL_SIZE),
@@ -2052,7 +2088,7 @@ assign event_cpl_req_valid = axis_event_valid;
 assign axis_event_ready = event_cpl_req_ready;
 
 axis_fifo #(
-    .DEPTH(128),
+    .DEPTH(32),
     .DATA_WIDTH(EVENT_SOURCE_WIDTH+EVENT_TYPE_WIDTH+EVENT_QUEUE_INDEX_WIDTH),
     .KEEP_ENABLE(0),
     .LAST_ENABLE(0),
@@ -2069,7 +2105,7 @@ tx_event_fifo (
     .s_axis_tdata({tx_event_source, tx_event_type, tx_event}),
     .s_axis_tkeep(0),
     .s_axis_tvalid(tx_event_valid),
-    .s_axis_tready(),
+    .s_axis_tready(tx_event_ready),
     .s_axis_tlast(0),
     .s_axis_tid(0),
     .s_axis_tdest(0),
@@ -2092,7 +2128,7 @@ tx_event_fifo (
 );
 
 axis_fifo #(
-    .DEPTH(128),
+    .DEPTH(32),
     .DATA_WIDTH(EVENT_SOURCE_WIDTH+EVENT_TYPE_WIDTH+EVENT_QUEUE_INDEX_WIDTH),
     .KEEP_ENABLE(0),
     .LAST_ENABLE(0),
@@ -2109,7 +2145,7 @@ rx_event_fifo (
     .s_axis_tdata({rx_event_source, rx_event_type, rx_event}),
     .s_axis_tkeep(0),
     .s_axis_tvalid(rx_event_valid),
-    .s_axis_tready(),
+    .s_axis_tready(rx_event_ready),
     .s_axis_tlast(0),
     .s_axis_tid(0),
     .s_axis_tdest(0),
@@ -2366,9 +2402,8 @@ mqnic_interface_tx #(
     .AXIS_DESC_DATA_WIDTH(AXIS_DESC_DATA_WIDTH),
     .AXIS_DESC_KEEP_WIDTH(AXIS_DESC_KEEP_WIDTH),
     .REQ_TAG_WIDTH(REQ_TAG_WIDTH),
-    .DESC_REQ_TAG_WIDTH(DESC_REQ_TAG_WIDTH),
-    .QUEUE_REQ_TAG_WIDTH(QUEUE_REQ_TAG_WIDTH),
-    .QUEUE_OP_TAG_WIDTH(QUEUE_OP_TAG_WIDTH),
+    .DESC_REQ_TAG_WIDTH(DESC_REQ_TAG_WIDTH_INT),
+    .CPL_REQ_TAG_WIDTH(CPL_REQ_TAG_WIDTH_INT),
 
     // TX and RX engine configuration
     .TX_DESC_TABLE_SIZE(TX_DESC_TABLE_SIZE),
@@ -2555,9 +2590,8 @@ mqnic_interface_rx #(
     .CPL_SIZE(CPL_SIZE),
     .AXIS_DESC_DATA_WIDTH(AXIS_DESC_DATA_WIDTH),
     .AXIS_DESC_KEEP_WIDTH(AXIS_DESC_KEEP_WIDTH),
-    .DESC_REQ_TAG_WIDTH(DESC_REQ_TAG_WIDTH),
-    .QUEUE_REQ_TAG_WIDTH(QUEUE_REQ_TAG_WIDTH),
-    .QUEUE_OP_TAG_WIDTH(QUEUE_OP_TAG_WIDTH),
+    .DESC_REQ_TAG_WIDTH(DESC_REQ_TAG_WIDTH_INT),
+    .CPL_REQ_TAG_WIDTH(CPL_REQ_TAG_WIDTH_INT),
 
     // TX and RX engine configuration
     .RX_DESC_TABLE_SIZE(RX_DESC_TABLE_SIZE),
@@ -2565,7 +2599,6 @@ mqnic_interface_rx #(
 
     // Interface configuration
     .PTP_TS_ENABLE(PTP_TS_ENABLE),
-    .RX_RSS_ENABLE(RX_RSS_ENABLE),
     .RX_HASH_ENABLE(RX_HASH_ENABLE),
     .RX_CHECKSUM_ENABLE(RX_CHECKSUM_ENABLE),
     .MAX_RX_SIZE(MAX_RX_SIZE),
@@ -2875,7 +2908,7 @@ tx_fifo #(
     .M_DEST_WIDTH(AXIS_IF_TX_DEST_WIDTH),
     .USER_ENABLE(1),
     .USER_WIDTH(AXIS_IF_TX_USER_WIDTH),
-    .PIPELINE_OUTPUT(AXIS_TX_FIFO_PIPELINE)
+    .RAM_PIPELINE(AXIS_TX_FIFO_PIPELINE)
 )
 tx_fifo_inst (
     .clk(clk),
@@ -2946,7 +2979,7 @@ rx_fifo #(
     .DEST_WIDTH(AXIS_IF_RX_DEST_WIDTH),
     .USER_ENABLE(1),
     .USER_WIDTH(AXIS_IF_RX_USER_WIDTH),
-    .PIPELINE_OUTPUT(AXIS_RX_FIFO_PIPELINE)
+    .RAM_PIPELINE(AXIS_RX_FIFO_PIPELINE)
 )
 rx_fifo_inst (
     .clk(clk),

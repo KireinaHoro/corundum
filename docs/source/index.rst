@@ -10,7 +10,7 @@ Corundum has several unique architectural features.  First, transmit, receive, c
 
 Corundum also provides an application section for implementing custom logic.  The application section has a dedicated PCIe BAR for control and a number of interfaces that provide access to the core datapath and DMA infrastructure.
 
-The latest source code is available from the `Corundum GitHub repository <https://github.com/corundum/corundum>`_.  To stay up to date with the latest developments and get support, consider joining the `mailing list <https://groups.google.com/d/forum/corundum-nic>`_ and `Slack workspace <https://join.slack.com/t/corundumworkspace/shared_invite/zt-tj5azsbm-V9LV8L7ugSRDBpe2JiPKMA>`_.
+The latest source code is available from the `Corundum GitHub repository <https://github.com/corundum/corundum>`_.  To stay up to date with the latest developments and get support, consider joining the `mailing list <https://groups.google.com/d/forum/corundum-nic>`_ and `Zulip <https://corundum.zulipchat.com/>`_.
 
 Corundum currently supports devices from both Xilinx and Intel, on boards from several different manufacturers.  Designs are included for the following FPGA boards; see :ref:`device_list` for more details:
 
@@ -21,8 +21,11 @@ Corundum currently supports devices from both Xilinx and Intel, on boards from s
 *  Cisco Nexus K3P-Q (Xilinx Kintex UltraScale+ XCKU3P)
 *  Silicom fb2CG\@KU15P (Xilinx Kintex UltraScale+ XCKU15P)
 *  NetFPGA SUME (Xilinx Virtex 7 XC7V690T)
+*  BittWare 250-SoC (Xilinx Zynq UltraScale+ XCZU19EG)
 *  BittWare XUP-P3R (Xilinx Virtex UltraScale+ XCVU9P)
 *  Intel Stratix 10 MX dev kit (Intel Stratix 10 MX 2100)
+*  Intel Stratix 10 DX dev kit (Intel Stratix 10 DX 2800)
+*  Terasic DE10-Agilex (Intel Agilex F 014)
 *  Xilinx Alveo U50 (Xilinx Virtex UltraScale+ XCU50)
 *  Xilinx Alveo U200 (Xilinx Virtex UltraScale+ XCU200)
 *  Xilinx Alveo U250 (Xilinx Virtex UltraScale+ XCU250)
@@ -30,6 +33,7 @@ Corundum currently supports devices from both Xilinx and Intel, on boards from s
 *  Xilinx VCU108 (Xilinx Virtex UltraScale XCVU095)
 *  Xilinx VCU118 (Xilinx Virtex UltraScale+ XCVU9P)
 *  Xilinx VCU1525 (Xilinx Virtex UltraScale+ XCVU9P)
+*  Xilinx ZCU102 (Xilinx Zynq UltraScale+ XCZU9EG)
 *  Xilinx ZCU106 (Xilinx Zynq UltraScale+ XCZU7EV)
 
 Publications

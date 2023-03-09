@@ -65,8 +65,7 @@ module mqnic_interface_rx #
     parameter AXIS_DESC_DATA_WIDTH = DESC_SIZE*8,
     parameter AXIS_DESC_KEEP_WIDTH = AXIS_DESC_DATA_WIDTH/8,
     parameter DESC_REQ_TAG_WIDTH = 8,
-    parameter QUEUE_REQ_TAG_WIDTH = 8,
-    parameter QUEUE_OP_TAG_WIDTH = 8,
+    parameter CPL_REQ_TAG_WIDTH = 8,
 
     // TX and RX engine configuration
     parameter RX_DESC_TABLE_SIZE = 32,
@@ -74,7 +73,6 @@ module mqnic_interface_rx #
 
     // Interface configuration
     parameter PTP_TS_ENABLE = 1,
-    parameter RX_RSS_ENABLE = 1,
     parameter RX_HASH_ENABLE = 1,
     parameter RX_CHECKSUM_ENABLE = 1,
     parameter MAX_RX_SIZE = 9214,
@@ -158,7 +156,7 @@ module mqnic_interface_rx #
      * Completion request output
      */
     output wire [QUEUE_INDEX_WIDTH-1:0]                 m_axis_cpl_req_queue,
-    output wire [DESC_REQ_TAG_WIDTH-1:0]                m_axis_cpl_req_tag,
+    output wire [CPL_REQ_TAG_WIDTH-1:0]                 m_axis_cpl_req_tag,
     output wire [CPL_SIZE*8-1:0]                        m_axis_cpl_req_data,
     output wire                                         m_axis_cpl_req_valid,
     input  wire                                         m_axis_cpl_req_ready,
@@ -166,7 +164,7 @@ module mqnic_interface_rx #
     /*
      * Completion request status input
      */
-    input  wire [DESC_REQ_TAG_WIDTH-1:0]                s_axis_cpl_req_status_tag,
+    input  wire [CPL_REQ_TAG_WIDTH-1:0]                 s_axis_cpl_req_status_tag,
     input  wire                                         s_axis_cpl_req_status_full,
     input  wire                                         s_axis_cpl_req_status_error,
     input  wire                                         s_axis_cpl_req_status_valid,
@@ -245,7 +243,7 @@ axis_fifo #(
     .ID_WIDTH(DESC_REQ_TAG_WIDTH),
     .DEST_ENABLE(0),
     .USER_ENABLE(0),
-    .PIPELINE_OUTPUT(3),
+    .RAM_PIPELINE(2),
     .FRAME_FIFO(0)
 )
 rx_desc_fifo (
@@ -308,15 +306,18 @@ always @(posedge clk) begin
         rx_req_cnt_reg <= rx_req_cnt_reg - 1;
     end
 
-    if (s_axis_rx_tready && s_axis_rx_tvalid) begin
+    if (s_axis_rx_tvalid) begin
         if (!rx_frame_reg) begin
             if (rx_req_valid && rx_req_ready) begin
                 rx_req_cnt_reg <= rx_req_cnt_reg;
             end else begin
                 rx_req_cnt_reg <= rx_req_cnt_reg + 1;
             end
+            rx_frame_reg <= 1'b1;
         end
-        rx_frame_reg <= !s_axis_rx_tlast;
+        if (s_axis_rx_tready && s_axis_rx_tvalid && s_axis_rx_tlast) begin
+            rx_frame_reg <= 1'b0;
+        end
     end
 
     if (rst) begin
@@ -338,10 +339,9 @@ rx_engine #(
     .DMA_CLIENT_LEN_WIDTH(DMA_CLIENT_LEN_WIDTH),
     .REQ_TAG_WIDTH(REQ_TAG_WIDTH),
     .DESC_REQ_TAG_WIDTH(DESC_REQ_TAG_WIDTH),
+    .CPL_REQ_TAG_WIDTH(CPL_REQ_TAG_WIDTH),
     .DMA_TAG_WIDTH(DMA_TAG_WIDTH),
     .DMA_CLIENT_TAG_WIDTH(DMA_CLIENT_TAG_WIDTH),
-    .QUEUE_REQ_TAG_WIDTH(QUEUE_REQ_TAG_WIDTH),
-    .QUEUE_OP_TAG_WIDTH(QUEUE_OP_TAG_WIDTH),
     .QUEUE_INDEX_WIDTH(RX_QUEUE_INDEX_WIDTH),
     .QUEUE_PTR_WIDTH(QUEUE_PTR_WIDTH),
     .CPL_QUEUE_INDEX_WIDTH(RX_CPL_QUEUE_INDEX_WIDTH),
@@ -547,7 +547,6 @@ wire [INT_AXIS_RX_USER_WIDTH-1:0]  rx_axis_tuser_int;
 mqnic_ingress #(
     .REQ_TAG_WIDTH(REQ_TAG_WIDTH),
     .RX_QUEUE_INDEX_WIDTH(RX_QUEUE_INDEX_WIDTH),
-    .RX_RSS_ENABLE(RX_RSS_ENABLE),
     .RX_HASH_ENABLE(RX_HASH_ENABLE),
     .RX_CHECKSUM_ENABLE(RX_CHECKSUM_ENABLE),
     .AXIS_DATA_WIDTH(AXIS_DATA_WIDTH),

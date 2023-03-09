@@ -37,161 +37,302 @@ module pcie_s10_if_tx #
     parameter SEG_COUNT = 1,
     // H-Tile/L-Tile AVST segment data width
     parameter SEG_DATA_WIDTH = 256,
+    // TLP data width
+    parameter TLP_DATA_WIDTH = SEG_COUNT*SEG_DATA_WIDTH,
+    // TLP strobe width
+    parameter TLP_STRB_WIDTH = TLP_DATA_WIDTH/32,
+    // TLP header width
+    parameter TLP_HDR_WIDTH = 128,
     // TLP segment count
     parameter TLP_SEG_COUNT = 1,
-    // TLP segment data width
-    parameter TLP_SEG_DATA_WIDTH = (SEG_COUNT*SEG_DATA_WIDTH)/TLP_SEG_COUNT,
-    // TLP segment strobe width
-    parameter TLP_SEG_STRB_WIDTH = TLP_SEG_DATA_WIDTH/32,
-    // TLP segment header width
-    parameter TLP_SEG_HDR_WIDTH = 128,
     // TX sequence number width
     parameter TX_SEQ_NUM_WIDTH = 6
 )
 (
-    input  wire                                         clk,
-    input  wire                                         rst,
+    input  wire                                       clk,
+    input  wire                                       rst,
 
-    // H-Tile/L-Tile TX AVST interface
-    output wire [SEG_COUNT*SEG_DATA_WIDTH-1:0]          tx_st_data,
-    output wire [SEG_COUNT-1:0]                         tx_st_sop,
-    output wire [SEG_COUNT-1:0]                         tx_st_eop,
-    output wire [SEG_COUNT-1:0]                         tx_st_valid,
-    input  wire                                         tx_st_ready,
-    output wire [SEG_COUNT-1:0]                         tx_st_err,
+    /*
+     * H-Tile/L-Tile TX AVST interface
+     */
+    output wire [SEG_COUNT*SEG_DATA_WIDTH-1:0]        tx_st_data,
+    output wire [SEG_COUNT-1:0]                       tx_st_sop,
+    output wire [SEG_COUNT-1:0]                       tx_st_eop,
+    output wire [SEG_COUNT-1:0]                       tx_st_valid,
+    input  wire                                       tx_st_ready,
+    output wire [SEG_COUNT-1:0]                       tx_st_err,
+
+    /*
+     * H-Tile/L-Tile TX flow control
+     */
+    input  wire [7:0]                                 tx_ph_cdts,
+    input  wire [11:0]                                tx_pd_cdts,
+    input  wire [7:0]                                 tx_nph_cdts,
+    input  wire [11:0]                                tx_npd_cdts,
+    input  wire [7:0]                                 tx_cplh_cdts,
+    input  wire [11:0]                                tx_cpld_cdts,
+    input  wire [SEG_COUNT-1:0]                       tx_hdr_cdts_consumed,
+    input  wire [SEG_COUNT-1:0]                       tx_data_cdts_consumed,
+    input  wire [SEG_COUNT*2-1:0]                     tx_cdts_type,
+    input  wire [SEG_COUNT*1-1:0]                     tx_cdts_data_value,
 
     /*
      * TLP input (read request from DMA)
      */
-    input  wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]   tx_rd_req_tlp_hdr,
-    input  wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]    tx_rd_req_tlp_seq,
-    input  wire [TLP_SEG_COUNT-1:0]                     tx_rd_req_tlp_valid,
-    input  wire [TLP_SEG_COUNT-1:0]                     tx_rd_req_tlp_sop,
-    input  wire [TLP_SEG_COUNT-1:0]                     tx_rd_req_tlp_eop,
-    output wire                                         tx_rd_req_tlp_ready,
+    input  wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]     tx_rd_req_tlp_hdr,
+    input  wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]  tx_rd_req_tlp_seq,
+    input  wire [TLP_SEG_COUNT-1:0]                   tx_rd_req_tlp_valid,
+    input  wire [TLP_SEG_COUNT-1:0]                   tx_rd_req_tlp_sop,
+    input  wire [TLP_SEG_COUNT-1:0]                   tx_rd_req_tlp_eop,
+    output wire                                       tx_rd_req_tlp_ready,
 
     /*
      * Transmit sequence number output (DMA read request)
      */
-    output wire [SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]        m_axis_rd_req_tx_seq_num,
-    output wire [SEG_COUNT-1:0]                         m_axis_rd_req_tx_seq_num_valid,
+    output wire [SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]      m_axis_rd_req_tx_seq_num,
+    output wire [SEG_COUNT-1:0]                       m_axis_rd_req_tx_seq_num_valid,
 
     /*
      * TLP input (write request from DMA)
      */
-    input  wire [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0]  tx_wr_req_tlp_data,
-    input  wire [TLP_SEG_COUNT*TLP_SEG_STRB_WIDTH-1:0]  tx_wr_req_tlp_strb,
-    input  wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]   tx_wr_req_tlp_hdr,
-    input  wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]    tx_wr_req_tlp_seq,
-    input  wire [TLP_SEG_COUNT-1:0]                     tx_wr_req_tlp_valid,
-    input  wire [TLP_SEG_COUNT-1:0]                     tx_wr_req_tlp_sop,
-    input  wire [TLP_SEG_COUNT-1:0]                     tx_wr_req_tlp_eop,
-    output wire                                         tx_wr_req_tlp_ready,
+    input  wire [TLP_DATA_WIDTH-1:0]                  tx_wr_req_tlp_data,
+    input  wire [TLP_STRB_WIDTH-1:0]                  tx_wr_req_tlp_strb,
+    input  wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]     tx_wr_req_tlp_hdr,
+    input  wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]  tx_wr_req_tlp_seq,
+    input  wire [TLP_SEG_COUNT-1:0]                   tx_wr_req_tlp_valid,
+    input  wire [TLP_SEG_COUNT-1:0]                   tx_wr_req_tlp_sop,
+    input  wire [TLP_SEG_COUNT-1:0]                   tx_wr_req_tlp_eop,
+    output wire                                       tx_wr_req_tlp_ready,
 
     /*
      * Transmit sequence number output (DMA write request)
      */
-    output wire [SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]        m_axis_wr_req_tx_seq_num,
-    output wire [SEG_COUNT-1:0]                         m_axis_wr_req_tx_seq_num_valid,
+    output wire [SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]      m_axis_wr_req_tx_seq_num,
+    output wire [SEG_COUNT-1:0]                       m_axis_wr_req_tx_seq_num_valid,
 
     /*
      * TLP input (completion from BAR)
      */
-    input  wire [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0]  tx_cpl_tlp_data,
-    input  wire [TLP_SEG_COUNT*TLP_SEG_STRB_WIDTH-1:0]  tx_cpl_tlp_strb,
-    input  wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]   tx_cpl_tlp_hdr,
-    input  wire [TLP_SEG_COUNT-1:0]                     tx_cpl_tlp_valid,
-    input  wire [TLP_SEG_COUNT-1:0]                     tx_cpl_tlp_sop,
-    input  wire [TLP_SEG_COUNT-1:0]                     tx_cpl_tlp_eop,
-    output wire                                         tx_cpl_tlp_ready
+    input  wire [TLP_DATA_WIDTH-1:0]                  tx_cpl_tlp_data,
+    input  wire [TLP_STRB_WIDTH-1:0]                  tx_cpl_tlp_strb,
+    input  wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]     tx_cpl_tlp_hdr,
+    input  wire [TLP_SEG_COUNT-1:0]                   tx_cpl_tlp_valid,
+    input  wire [TLP_SEG_COUNT-1:0]                   tx_cpl_tlp_sop,
+    input  wire [TLP_SEG_COUNT-1:0]                   tx_cpl_tlp_eop,
+    output wire                                       tx_cpl_tlp_ready,
+
+    /*
+     * TLP input (write request from MSI)
+     */
+    input  wire [31:0]                                tx_msi_wr_req_tlp_data,
+    input  wire                                       tx_msi_wr_req_tlp_strb,
+    input  wire [TLP_HDR_WIDTH-1:0]                   tx_msi_wr_req_tlp_hdr,
+    input  wire                                       tx_msi_wr_req_tlp_valid,
+    input  wire                                       tx_msi_wr_req_tlp_sop,
+    input  wire                                       tx_msi_wr_req_tlp_eop,
+    output wire                                       tx_msi_wr_req_tlp_ready,
+
+    /*
+     * Flow control
+     */
+    output wire [7:0]                                 tx_fc_ph_av,
+    output wire [11:0]                                tx_fc_pd_av,
+    output wire [7:0]                                 tx_fc_nph_av,
+    output wire [11:0]                                tx_fc_npd_av,
+    output wire [7:0]                                 tx_fc_cplh_av,
+    output wire [11:0]                                tx_fc_cpld_av,
+
+    /*
+     * Configuration
+     */
+    input  wire [2:0]                                 max_payload_size
 );
 
-parameter TLP_DATA_WIDTH = TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH;
-parameter TLP_STRB_WIDTH = TLP_SEG_COUNT*TLP_SEG_STRB_WIDTH;
-parameter TLP_DATA_WIDTH_BYTES = TLP_DATA_WIDTH/8;
-parameter TLP_DATA_WIDTH_DWORDS = TLP_DATA_WIDTH/32;
+parameter SEG_STRB_WIDTH = SEG_DATA_WIDTH/32;
 
-parameter FIFO_ADDR_WIDTH = 5;
+parameter INT_TLP_SEG_COUNT = SEG_COUNT;
+parameter INT_TLP_SEG_DATA_WIDTH = TLP_DATA_WIDTH / INT_TLP_SEG_COUNT;
+parameter INT_TLP_SEG_STRB_WIDTH = TLP_STRB_WIDTH / INT_TLP_SEG_COUNT;
+
+parameter SEG_SEL_WIDTH = $clog2(INT_TLP_SEG_COUNT);
+
+parameter PORTS = 4;
+parameter CL_PORTS = $clog2(PORTS);
 
 // bus width assertions
 initial begin
-    if (SEG_COUNT != 1) begin
-        $error("Error: segment count must be 1 (instance %m)");
-        $finish;        
-    end
-
     if (SEG_DATA_WIDTH != 256) begin
         $error("Error: segment data width must be 256 (instance %m)");
         $finish;        
     end
 
-    if (TLP_SEG_COUNT != 1) begin
-        $error("Error: TLP segment count must be 1 (instance %m)");
-        $finish;
-    end
-
-    if (TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH != SEG_COUNT*SEG_DATA_WIDTH) begin
+    if (TLP_DATA_WIDTH != SEG_COUNT*SEG_DATA_WIDTH) begin
         $error("Error: Interface widths must match (instance %m)");
         $finish;
     end
 
-    if (TLP_SEG_HDR_WIDTH != 128) begin
+    if (TLP_HDR_WIDTH != 128) begin
         $error("Error: TLP segment header width must be 128 (instance %m)");
         $finish;
     end
 end
 
-localparam [0:0]
-    WR_REQ_STATE_IDLE = 1'd0,
-    WR_REQ_STATE_PAYLOAD = 1'd1;
+reg frame_reg = 1'b0, frame_next, frame_cyc;
+reg tlp_hdr_4dw_reg = 1'b0, tlp_hdr_4dw_next, tlp_hdr_4dw_cyc;
+reg tlp_hdr_cyc;
+reg tlp_split1_reg = 1'b0, tlp_split1_next, tlp_split1_cyc;
+reg tlp_split2_reg = 1'b0, tlp_split2_next, tlp_split2_cyc;
+reg [INT_TLP_SEG_COUNT-1:0] seg_cons_reg = 0, seg_cons_next, seg_cons_cyc;
+reg [SEG_SEL_WIDTH-1:0] seg_offset_cyc;
+reg [SEG_SEL_WIDTH+1-1:0] seg_count_cyc;
+reg valid, eop;
+reg frame, abort;
 
-reg [0:0] wr_req_state_reg = WR_REQ_STATE_IDLE, wr_req_state_next;
+reg [INT_TLP_SEG_COUNT-1:0] port_seg_valid;
+reg [INT_TLP_SEG_COUNT-1:0] port_seg_hdr_4dw;
+reg [INT_TLP_SEG_COUNT-1:0] port_seg_extra_3dw;
+reg [INT_TLP_SEG_COUNT-1:0] port_seg_extra_4dw;
+reg [INT_TLP_SEG_COUNT-1:0] port_seg_eop;
 
-localparam [0:0]
-    CPL_STATE_IDLE = 1'd0,
-    CPL_STATE_PAYLOAD = 1'd1;
+reg [INT_TLP_SEG_COUNT-1:0] out_sel_reg = 0, out_sel_next, out_sel_cyc;
+reg [INT_TLP_SEG_COUNT-1:0] out_sop_reg = 0, out_sop_next;
+reg [INT_TLP_SEG_COUNT-1:0] out_eop_reg = 0, out_eop_next;
+reg [INT_TLP_SEG_COUNT-1:0] out_tlp_hdr_4dw_reg = 0, out_tlp_hdr_4dw_next;
+reg [INT_TLP_SEG_COUNT-1:0] out_tlp_hdr_reg = 0, out_tlp_hdr_next;
+reg [INT_TLP_SEG_COUNT-1:0] out_tlp_split1_reg = 0, out_tlp_split1_next;
+reg [INT_TLP_SEG_COUNT-1:0] out_tlp_split2_reg = 0, out_tlp_split2_next;
+reg [SEG_SEL_WIDTH+1-1:0] out_sel_seg_reg[0:INT_TLP_SEG_COUNT-1], out_sel_seg_next[0:INT_TLP_SEG_COUNT-1];
 
-reg [0:0] cpl_state_reg = CPL_STATE_IDLE, cpl_state_next;
+reg [127:0] out_shift_tlp_data_reg = 0, out_shift_tlp_data_next;
 
-localparam [1:0]
-    TLP_OUTPUT_STATE_IDLE = 2'd0,
-    TLP_OUTPUT_STATE_WR_PAYLOAD = 2'd1,
-    TLP_OUTPUT_STATE_CPL_PAYLOAD = 2'd2;
-
-reg [1:0] tlp_output_state_reg = TLP_OUTPUT_STATE_IDLE, tlp_output_state_next;
-
-reg wr_req_payload_offset_reg = 1'b0, wr_req_payload_offset_next;
-
-reg [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0] wr_req_tlp_data_reg = 0, wr_req_tlp_data_next;
-reg [TLP_SEG_COUNT-1:0] wr_req_tlp_eop_reg = 0, wr_req_tlp_eop_next;
-
-reg [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0] cpl_tlp_data_reg = 0, cpl_tlp_data_next;
-reg [TLP_SEG_COUNT-1:0] cpl_tlp_eop_reg = 0, cpl_tlp_eop_next;
-
-reg tx_rd_req_tlp_ready_reg = 1'b0, tx_rd_req_tlp_ready_next;
-reg tx_wr_req_tlp_ready_reg = 1'b0, tx_wr_req_tlp_ready_next;
-reg tx_cpl_tlp_ready_reg = 1'b0, tx_cpl_tlp_ready_next;
-
-reg [SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]  m_axis_rd_req_tx_seq_num_reg = 0, m_axis_rd_req_tx_seq_num_next;
-reg [SEG_COUNT-1:0]                   m_axis_rd_req_tx_seq_num_valid_reg = 0, m_axis_rd_req_tx_seq_num_valid_next;
-reg [SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]  m_axis_wr_req_tx_seq_num_reg = 0, m_axis_wr_req_tx_seq_num_next;
-reg [SEG_COUNT-1:0]                   m_axis_wr_req_tx_seq_num_valid_reg = 0, m_axis_wr_req_tx_seq_num_valid_next;
-
-reg [SEG_COUNT*SEG_DATA_WIDTH-1:0]  tx_st_data_reg = 0, tx_st_data_next;
-reg [SEG_COUNT-1:0]                 tx_st_sop_reg = 0, tx_st_sop_next;
-reg [SEG_COUNT-1:0]                 tx_st_eop_reg = 0, tx_st_eop_next;
-reg [SEG_COUNT-1:0]                 tx_st_valid_reg = 0, tx_st_valid_next;
+reg [SEG_COUNT*SEG_DATA_WIDTH-1:0] tx_st_data_reg = 0, tx_st_data_next;
+reg [SEG_COUNT-1:0] tx_st_sop_reg = 0, tx_st_sop_next;
+reg [SEG_COUNT-1:0] tx_st_eop_reg = 0, tx_st_eop_next;
+reg [SEG_COUNT-1:0] tx_st_valid_reg = 0, tx_st_valid_next;
 
 reg [1:0] tx_st_ready_delay_reg = 0;
 
-assign tx_rd_req_tlp_ready = tx_rd_req_tlp_ready_reg;
-assign tx_wr_req_tlp_ready = tx_wr_req_tlp_ready_reg;
-assign tx_cpl_tlp_ready = tx_cpl_tlp_ready_reg;
+wire [PORTS*TLP_DATA_WIDTH-1:0] mux_in_tlp_data;
+wire [PORTS*TLP_STRB_WIDTH-1:0] mux_in_tlp_strb;
+wire [PORTS*TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0] mux_in_tlp_hdr;
+wire [PORTS*TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0] mux_in_tlp_seq;
+wire [PORTS*TLP_SEG_COUNT-1:0] mux_in_tlp_valid;
+wire [PORTS*TLP_SEG_COUNT-1:0] mux_in_tlp_sop;
+wire [PORTS*TLP_SEG_COUNT-1:0] mux_in_tlp_eop;
+wire [PORTS-1:0] mux_in_tlp_ready;
 
-assign m_axis_rd_req_tx_seq_num = m_axis_rd_req_tx_seq_num_reg;
-assign m_axis_rd_req_tx_seq_num_valid = m_axis_rd_req_tx_seq_num_valid_reg;
-assign m_axis_wr_req_tx_seq_num = m_axis_wr_req_tx_seq_num_reg;
-assign m_axis_wr_req_tx_seq_num_valid = m_axis_wr_req_tx_seq_num_valid_reg;
+wire [TLP_DATA_WIDTH-1:0] mux_out_tlp_data;
+wire [TLP_STRB_WIDTH-1:0] mux_out_tlp_strb;
+wire [INT_TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0] mux_out_tlp_hdr;
+wire [INT_TLP_SEG_COUNT-1:0] mux_out_tlp_valid;
+wire [INT_TLP_SEG_COUNT-1:0] mux_out_tlp_sop;
+wire [INT_TLP_SEG_COUNT-1:0] mux_out_tlp_eop;
+wire mux_out_tlp_ready;
+
+wire [PORTS-1:0] mux_pause;
+
+wire [PORTS*INT_TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0] mux_out_sel_tlp_seq;
+wire [PORTS*INT_TLP_SEG_COUNT-1:0] mux_out_sel_tlp_seq_valid;
+
+wire [TLP_DATA_WIDTH-1:0] fifo_tlp_data;
+wire [TLP_STRB_WIDTH-1:0] fifo_tlp_strb;
+wire [INT_TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0] fifo_tlp_hdr;
+wire [INT_TLP_SEG_COUNT-1:0] fifo_tlp_valid;
+wire [INT_TLP_SEG_COUNT-1:0] fifo_tlp_sop;
+wire [INT_TLP_SEG_COUNT-1:0] fifo_tlp_eop;
+wire [SEG_SEL_WIDTH-1:0] fifo_seg_offset;
+wire [SEG_SEL_WIDTH+1-1:0] fifo_seg_count;
+reg fifo_read_en_reg = 1'b0, fifo_read_en_next;
+reg [SEG_SEL_WIDTH+1-1:0] fifo_read_seg_count_reg, fifo_read_seg_count_next;
+
+wire [TLP_STRB_WIDTH-1:0] fifo_ctrl_tlp_strb;
+wire [INT_TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0] fifo_ctrl_tlp_hdr;
+wire [INT_TLP_SEG_COUNT-1:0] fifo_ctrl_tlp_valid;
+wire [INT_TLP_SEG_COUNT-1:0] fifo_ctrl_tlp_sop;
+wire [INT_TLP_SEG_COUNT-1:0] fifo_ctrl_tlp_eop;
+wire [SEG_SEL_WIDTH-1:0] fifo_ctrl_seg_offset;
+wire [SEG_SEL_WIDTH+1-1:0] fifo_ctrl_seg_count;
+reg fifo_ctrl_read_en;
+reg [SEG_SEL_WIDTH+1-1:0] fifo_ctrl_read_seg_count;
+
+reg [INT_TLP_SEG_COUNT-1:0] fifo_ctrl_tlp_hdr_4dw;
+reg [INT_TLP_SEG_COUNT-1:0] fifo_ctrl_tlp_extra_3dw;
+reg [INT_TLP_SEG_COUNT-1:0] fifo_ctrl_tlp_extra_4dw;
+
+wire [3:0] mux_tx_fc_ph, out_tx_fc_ph;
+wire [8:0] mux_tx_fc_pd, out_tx_fc_pd;
+wire [3:0] mux_tx_fc_nph, out_tx_fc_nph;
+wire [8:0] mux_tx_fc_npd, out_tx_fc_npd;
+wire [3:0] mux_tx_fc_cplh, out_tx_fc_cplh;
+wire [8:0] mux_tx_fc_cpld, out_tx_fc_cpld;
+
+reg [7:0] int_tx_fc_ph_reg = 0;
+reg [11:0] int_tx_fc_pd_reg = 0;
+reg [7:0] int_tx_fc_nph_reg = 0;
+reg [11:0] int_tx_fc_npd_reg = 0;
+reg [7:0] int_tx_fc_cplh_reg = 0;
+reg [11:0] int_tx_fc_cpld_reg = 0;
+
+reg [7:0] adj_tx_fc_ph_reg = 0;
+reg [11:0] adj_tx_fc_pd_reg = 0;
+reg [7:0] adj_tx_fc_nph_reg = 0;
+reg [11:0] adj_tx_fc_npd_reg = 0;
+reg [7:0] adj_tx_fc_cplh_reg = 0;
+reg [11:0] adj_tx_fc_cpld_reg = 0;
+
+reg [8:0] max_payload_size_fc_reg = 9'd0;
+reg have_p_credit_reg = 1'b0;
+reg have_np_credit_reg = 1'b0;
+reg have_cpl_credit_reg = 1'b0;
+
+assign mux_in_tlp_data[TLP_DATA_WIDTH*0 +: TLP_DATA_WIDTH] = tx_msi_wr_req_tlp_data;
+assign mux_in_tlp_strb[TLP_STRB_WIDTH*0 +: TLP_STRB_WIDTH] = tx_msi_wr_req_tlp_strb;
+assign mux_in_tlp_hdr[TLP_SEG_COUNT*TLP_HDR_WIDTH*0 +: TLP_SEG_COUNT*TLP_HDR_WIDTH] = tx_msi_wr_req_tlp_hdr;
+assign mux_in_tlp_seq[TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH*0 +: TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH] = 0;
+assign mux_in_tlp_valid[TLP_SEG_COUNT*0 +: TLP_SEG_COUNT] = tx_msi_wr_req_tlp_valid;
+assign mux_in_tlp_sop[TLP_SEG_COUNT*0 +: TLP_SEG_COUNT] = tx_msi_wr_req_tlp_sop;
+assign mux_in_tlp_eop[TLP_SEG_COUNT*0 +: TLP_SEG_COUNT] = tx_msi_wr_req_tlp_eop;
+assign tx_msi_wr_req_tlp_ready = mux_in_tlp_ready[0 +: 1];
+
+assign mux_pause[0] = !have_p_credit_reg;
+
+assign mux_in_tlp_data[TLP_DATA_WIDTH*1 +: TLP_DATA_WIDTH] = tx_cpl_tlp_data;
+assign mux_in_tlp_strb[TLP_STRB_WIDTH*1 +: TLP_STRB_WIDTH] = tx_cpl_tlp_strb;
+assign mux_in_tlp_hdr[TLP_SEG_COUNT*TLP_HDR_WIDTH*1 +: TLP_SEG_COUNT*TLP_HDR_WIDTH] = tx_cpl_tlp_hdr;
+assign mux_in_tlp_seq[TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH*1 +: TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH] = 0;
+assign mux_in_tlp_valid[TLP_SEG_COUNT*1 +: TLP_SEG_COUNT] = tx_cpl_tlp_valid;
+assign mux_in_tlp_sop[TLP_SEG_COUNT*1 +: TLP_SEG_COUNT] = tx_cpl_tlp_sop;
+assign mux_in_tlp_eop[TLP_SEG_COUNT*1 +: TLP_SEG_COUNT] = tx_cpl_tlp_eop;
+assign tx_cpl_tlp_ready = mux_in_tlp_ready[1 +: 1];
+
+assign mux_pause[1] = !have_cpl_credit_reg;
+
+assign mux_in_tlp_data[TLP_DATA_WIDTH*2 +: TLP_DATA_WIDTH] = 0;
+assign mux_in_tlp_strb[TLP_STRB_WIDTH*2 +: TLP_STRB_WIDTH] = 0;
+assign mux_in_tlp_hdr[TLP_SEG_COUNT*TLP_HDR_WIDTH*2 +: TLP_SEG_COUNT*TLP_HDR_WIDTH] = tx_rd_req_tlp_hdr;
+assign mux_in_tlp_seq[TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH*2 +: TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH] = tx_rd_req_tlp_seq;
+assign mux_in_tlp_valid[TLP_SEG_COUNT*2 +: TLP_SEG_COUNT] = tx_rd_req_tlp_valid;
+assign mux_in_tlp_sop[TLP_SEG_COUNT*2 +: TLP_SEG_COUNT] = {TLP_SEG_COUNT{1'b1}};
+assign mux_in_tlp_eop[TLP_SEG_COUNT*2 +: TLP_SEG_COUNT] = {TLP_SEG_COUNT{1'b1}};
+assign tx_rd_req_tlp_ready = mux_in_tlp_ready[2 +: 1];
+
+assign mux_pause[2] = !have_np_credit_reg;
+
+assign mux_in_tlp_data[TLP_DATA_WIDTH*3 +: TLP_DATA_WIDTH] = tx_wr_req_tlp_data;
+assign mux_in_tlp_strb[TLP_STRB_WIDTH*3 +: TLP_STRB_WIDTH] = tx_wr_req_tlp_strb;
+assign mux_in_tlp_hdr[TLP_SEG_COUNT*TLP_HDR_WIDTH*3 +: TLP_SEG_COUNT*TLP_HDR_WIDTH] = tx_wr_req_tlp_hdr;
+assign mux_in_tlp_seq[TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH*3 +: TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH] = tx_wr_req_tlp_seq;
+assign mux_in_tlp_valid[TLP_SEG_COUNT*3 +: TLP_SEG_COUNT] = tx_wr_req_tlp_valid;
+assign mux_in_tlp_sop[TLP_SEG_COUNT*3 +: TLP_SEG_COUNT] = tx_wr_req_tlp_sop;
+assign mux_in_tlp_eop[TLP_SEG_COUNT*3 +: TLP_SEG_COUNT] = tx_wr_req_tlp_eop;
+assign tx_wr_req_tlp_ready = mux_in_tlp_ready[3 +: 1];
+
+assign mux_pause[3] = !have_p_credit_reg;
+
+assign m_axis_rd_req_tx_seq_num = mux_out_sel_tlp_seq[INT_TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH*2 +: INT_TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH];
+assign m_axis_rd_req_tx_seq_num_valid = mux_out_sel_tlp_seq_valid[INT_TLP_SEG_COUNT*2 +: INT_TLP_SEG_COUNT];
+assign m_axis_wr_req_tx_seq_num = mux_out_sel_tlp_seq[INT_TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH*3 +: INT_TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH];
+assign m_axis_wr_req_tx_seq_num_valid = mux_out_sel_tlp_seq_valid[INT_TLP_SEG_COUNT*3 +: INT_TLP_SEG_COUNT];
 
 assign tx_st_data = tx_st_data_reg;
 assign tx_st_sop = tx_st_sop_reg;
@@ -199,445 +340,390 @@ assign tx_st_eop = tx_st_eop_reg;
 assign tx_st_valid = tx_st_valid_reg;
 assign tx_st_err = 0;
 
-// read request FIFO
-reg [FIFO_ADDR_WIDTH+1-1:0] rd_req_fifo_wr_ptr_reg = 0;
-reg [FIFO_ADDR_WIDTH+1-1:0] rd_req_fifo_rd_ptr_reg = 0, rd_req_fifo_rd_ptr_next;
+assign tx_fc_ph_av = adj_tx_fc_ph_reg;
+assign tx_fc_pd_av = adj_tx_fc_pd_reg;
+assign tx_fc_nph_av = adj_tx_fc_nph_reg;
+assign tx_fc_npd_av = adj_tx_fc_npd_reg;
+assign tx_fc_cplh_av = adj_tx_fc_cplh_reg;
+assign tx_fc_cpld_av = adj_tx_fc_cpld_reg;
 
-(* ramstyle = "no_rw_check, mlab" *)
-reg [SEG_DATA_WIDTH-1:0] rd_req_fifo_data[(2**FIFO_ADDR_WIDTH)-1:0];
-(* ramstyle = "no_rw_check, mlab" *)
-reg [TX_SEQ_NUM_WIDTH-1:0] rd_req_fifo_seq[(2**FIFO_ADDR_WIDTH)-1:0];
+pcie_tlp_fifo_mux #(
+    .PORTS(PORTS),
+    .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+    .TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+    .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
+    .SEQ_NUM_WIDTH(TX_SEQ_NUM_WIDTH),
+    .IN_TLP_SEG_COUNT(TLP_SEG_COUNT),
+    .OUT_TLP_SEG_COUNT(INT_TLP_SEG_COUNT),
+    .ARB_TYPE_ROUND_ROBIN(0),
+    .ARB_LSB_HIGH_PRIORITY(1),
+    .FIFO_DEPTH((1024/4)*2)
+)
+pcie_tlp_fifo_mux_inst (
+    .clk(clk),
+    .rst(rst),
 
-reg [SEG_DATA_WIDTH-1:0] rd_req_fifo_wr_data;
-reg [TX_SEQ_NUM_WIDTH-1:0] rd_req_fifo_wr_seq;
-reg rd_req_fifo_we;
+    /*
+     * TLP input
+     */
+    .in_tlp_data(mux_in_tlp_data),
+    .in_tlp_strb(mux_in_tlp_strb),
+    .in_tlp_hdr(mux_in_tlp_hdr),
+    .in_tlp_seq(mux_in_tlp_seq),
+    .in_tlp_bar_id(0),
+    .in_tlp_func_num(0),
+    .in_tlp_error(0),
+    .in_tlp_valid(mux_in_tlp_valid),
+    .in_tlp_sop(mux_in_tlp_sop),
+    .in_tlp_eop(mux_in_tlp_eop),
+    .in_tlp_ready(mux_in_tlp_ready),
 
-reg rd_req_fifo_watermark_reg = 1'b0;
-reg [SEG_DATA_WIDTH-1:0] rd_req_fifo_rd_data_reg = 0, rd_req_fifo_rd_data_next;
-reg rd_req_fifo_rd_valid_reg = 0, rd_req_fifo_rd_valid_next;
-reg [TX_SEQ_NUM_WIDTH-1:0] rd_req_fifo_rd_seq_reg = 0, rd_req_fifo_rd_seq_next;
+    /*
+     * TLP output
+     */
+    .out_tlp_data(mux_out_tlp_data),
+    .out_tlp_strb(mux_out_tlp_strb),
+    .out_tlp_hdr(mux_out_tlp_hdr),
+    .out_tlp_seq(),
+    .out_tlp_bar_id(),
+    .out_tlp_func_num(),
+    .out_tlp_error(),
+    .out_tlp_valid(mux_out_tlp_valid),
+    .out_tlp_sop(mux_out_tlp_sop),
+    .out_tlp_eop(mux_out_tlp_eop),
+    .out_tlp_ready(mux_out_tlp_ready),
 
-// write request FIFO
-reg [FIFO_ADDR_WIDTH+1-1:0] wr_req_fifo_wr_ptr_reg = 0;
-reg [FIFO_ADDR_WIDTH+1-1:0] wr_req_fifo_wr_ptr_cur_reg = 0;
-reg [FIFO_ADDR_WIDTH+1-1:0] wr_req_fifo_rd_ptr_reg = 0, wr_req_fifo_rd_ptr_next;
+    /*
+     * Flow control count output
+     */
+    .out_fc_ph(mux_tx_fc_ph),
+    .out_fc_pd(mux_tx_fc_pd),
+    .out_fc_nph(mux_tx_fc_nph),
+    .out_fc_npd(mux_tx_fc_npd),
+    .out_fc_cplh(mux_tx_fc_cplh),
+    .out_fc_cpld(mux_tx_fc_cpld),
 
-(* ramstyle = "no_rw_check, mlab" *)
-reg [SEG_COUNT*SEG_DATA_WIDTH-1:0] wr_req_fifo_data[(2**FIFO_ADDR_WIDTH)-1:0];
-(* ramstyle = "no_rw_check, mlab" *)
-reg [SEG_COUNT-1:0] wr_req_fifo_eop[(2**FIFO_ADDR_WIDTH)-1:0];
-(* ramstyle = "no_rw_check, mlab" *)
-reg [SEG_COUNT-1:0] wr_req_fifo_valid[(2**FIFO_ADDR_WIDTH)-1:0];
-(* ramstyle = "no_rw_check, mlab" *)
-reg [TX_SEQ_NUM_WIDTH-1:0] wr_req_fifo_seq[(2**FIFO_ADDR_WIDTH)-1:0];
+    /*
+     * Control
+     */
+    .pause(mux_pause),
 
-reg [SEG_COUNT*SEG_DATA_WIDTH-1:0] wr_req_fifo_wr_data;
-reg [SEG_COUNT-1:0] wr_req_fifo_wr_eop;
-reg [SEG_COUNT-1:0] wr_req_fifo_wr_valid;
-reg [TX_SEQ_NUM_WIDTH-1:0] wr_req_fifo_wr_seq;
-reg wr_req_fifo_we;
+    /*
+     * Status
+     */
+    .sel_tlp_seq(mux_out_sel_tlp_seq),
+    .sel_tlp_seq_valid(mux_out_sel_tlp_seq_valid),
+    .fifo_half_full(),
+    .fifo_watermark()
+);
 
-reg wr_req_fifo_watermark_reg = 1'b0;
-reg [SEG_COUNT*SEG_DATA_WIDTH-1:0] wr_req_fifo_rd_data_reg = 0, wr_req_fifo_rd_data_next;
-reg [SEG_COUNT-1:0] wr_req_fifo_rd_eop_reg = 0, wr_req_fifo_rd_eop_next;
-reg [SEG_COUNT-1:0] wr_req_fifo_rd_valid_reg = 0, wr_req_fifo_rd_valid_next;
-reg [TX_SEQ_NUM_WIDTH-1:0] wr_req_fifo_rd_seq_reg = 0, wr_req_fifo_rd_seq_next;
+pcie_tlp_fifo_raw #(
+    .DEPTH((1024/4)*2),
+    .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+    .TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+    .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
+    .SEQ_NUM_WIDTH(1),
+    .IN_TLP_SEG_COUNT(INT_TLP_SEG_COUNT),
+    .OUT_TLP_SEG_COUNT(INT_TLP_SEG_COUNT),
+    .CTRL_OUT_EN(1)
+)
+pcie_tlp_fifo_inst (
+    .clk(clk),
+    .rst(rst),
 
-// completion FIFO
-reg [FIFO_ADDR_WIDTH+1-1:0] cpl_fifo_wr_ptr_reg = 0;
-reg [FIFO_ADDR_WIDTH+1-1:0] cpl_fifo_wr_ptr_cur_reg = 0;
-reg [FIFO_ADDR_WIDTH+1-1:0] cpl_fifo_rd_ptr_reg = 0, cpl_fifo_rd_ptr_next;
+    /*
+     * TLP input
+     */
+    .in_tlp_data(mux_out_tlp_data),
+    .in_tlp_strb(mux_out_tlp_strb),
+    .in_tlp_hdr(mux_out_tlp_hdr),
+    .in_tlp_seq(0),
+    .in_tlp_bar_id(0),
+    .in_tlp_func_num(0),
+    .in_tlp_error(0),
+    .in_tlp_valid(mux_out_tlp_valid),
+    .in_tlp_sop(mux_out_tlp_sop),
+    .in_tlp_eop(mux_out_tlp_eop),
+    .in_tlp_ready(mux_out_tlp_ready),
 
-(* ramstyle = "no_rw_check, mlab" *)
-reg [SEG_COUNT*SEG_DATA_WIDTH-1:0] cpl_fifo_data[(2**FIFO_ADDR_WIDTH)-1:0];
-(* ramstyle = "no_rw_check, mlab" *)
-reg [SEG_COUNT-1:0] cpl_fifo_eop[(2**FIFO_ADDR_WIDTH)-1:0];
-(* ramstyle = "no_rw_check, mlab" *)
-reg [SEG_COUNT-1:0] cpl_fifo_valid[(2**FIFO_ADDR_WIDTH)-1:0];
+    /*
+     * TLP output
+     */
+    .out_tlp_data(fifo_tlp_data),
+    .out_tlp_strb(fifo_tlp_strb),
+    .out_tlp_hdr(fifo_tlp_hdr),
+    .out_tlp_seq(),
+    .out_tlp_bar_id(),
+    .out_tlp_func_num(),
+    .out_tlp_error(),
+    .out_tlp_valid(fifo_tlp_valid),
+    .out_tlp_sop(fifo_tlp_sop),
+    .out_tlp_eop(fifo_tlp_eop),
+    .out_seg_offset(fifo_seg_offset),
+    .out_seg_count(fifo_seg_count),
+    .out_read_en(fifo_read_en_reg),
+    .out_read_seg_count(fifo_read_seg_count_reg),
 
-reg [SEG_COUNT*SEG_DATA_WIDTH-1:0] cpl_fifo_wr_data;
-reg [SEG_COUNT-1:0] cpl_fifo_wr_eop;
-reg [SEG_COUNT-1:0] cpl_fifo_wr_valid;
-reg cpl_fifo_we;
+    .out_ctrl_tlp_strb(fifo_ctrl_tlp_strb),
+    .out_ctrl_tlp_hdr(fifo_ctrl_tlp_hdr),
+    .out_ctrl_tlp_valid(fifo_ctrl_tlp_valid),
+    .out_ctrl_tlp_sop(fifo_ctrl_tlp_sop),
+    .out_ctrl_tlp_eop(fifo_ctrl_tlp_eop),
+    .out_ctrl_seg_offset(fifo_ctrl_seg_offset),
+    .out_ctrl_seg_count(fifo_ctrl_seg_count),
+    .out_ctrl_read_en(fifo_ctrl_read_en),
+    .out_ctrl_read_seg_count(fifo_ctrl_read_seg_count),
 
-reg cpl_fifo_watermark_reg = 1'b0;
-reg [SEG_COUNT*SEG_DATA_WIDTH-1:0] cpl_fifo_rd_data_reg = 0, cpl_fifo_rd_data_next;
-reg [SEG_COUNT-1:0] cpl_fifo_rd_eop_reg = 0, cpl_fifo_rd_eop_next;
-reg [SEG_COUNT-1:0] cpl_fifo_rd_valid_reg = 0, cpl_fifo_rd_valid_next;
+    /*
+     * Status
+     */
+    .half_full(),
+    .watermark()
+);
 
-// Read request processing
-always @* begin
-    tx_rd_req_tlp_ready_next = 1'b0;
+reg [INT_TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0] fc_delay_fifo_hdr_mem[31:0];
+reg [INT_TLP_SEG_COUNT-1:0] fc_delay_fifo_valid_mem[31:0];
+reg [4:0] fc_delay_fifo_wr_ptr_reg = 0;
+reg [4:0] fc_delay_fifo_rd_ptr_reg = 0;
 
-    rd_req_fifo_wr_data[31:0] = tx_rd_req_tlp_hdr[127:96];
-    rd_req_fifo_wr_data[63:32] = tx_rd_req_tlp_hdr[95:64];
-    rd_req_fifo_wr_data[95:64] = tx_rd_req_tlp_hdr[63:32];
-    rd_req_fifo_wr_data[127:96] = tx_rd_req_tlp_hdr[31:0];
-    rd_req_fifo_wr_data[SEG_COUNT*SEG_DATA_WIDTH-1:128] = 0;
-    rd_req_fifo_wr_seq = tx_rd_req_tlp_seq;
-    rd_req_fifo_we = 0;
+always @(posedge clk) begin
+    fc_delay_fifo_hdr_mem[fc_delay_fifo_wr_ptr_reg] <= fifo_tlp_hdr;
+    fc_delay_fifo_valid_mem[fc_delay_fifo_wr_ptr_reg] <= seg_cons_reg & fifo_tlp_sop;
 
-    tx_rd_req_tlp_ready_next = !cpl_fifo_watermark_reg;
+    fc_delay_fifo_wr_ptr_reg <= fc_delay_fifo_wr_ptr_reg + 1;
+    if (fc_delay_fifo_wr_ptr_reg - fc_delay_fifo_rd_ptr_reg >= 23) begin
+        fc_delay_fifo_rd_ptr_reg <= fc_delay_fifo_rd_ptr_reg + 1;
+    end
 
-    if (tx_rd_req_tlp_valid && tx_rd_req_tlp_ready) begin
-        // send complete header (read request)
-        rd_req_fifo_we = 1;
+    if (rst) begin
+        fc_delay_fifo_wr_ptr_reg <= 0;
+        fc_delay_fifo_rd_ptr_reg <= 0;
     end
 end
 
-// Write request processing
+pcie_tlp_fc_count #(
+    .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
+    .TLP_SEG_COUNT(INT_TLP_SEG_COUNT)
+)
+fc_count_inst (
+    .clk(clk),
+    .rst(rst),
+
+    /*
+     * TLP monitor
+     */
+    .tlp_hdr(fc_delay_fifo_hdr_mem[fc_delay_fifo_rd_ptr_reg]),
+    .tlp_valid(fc_delay_fifo_valid_mem[fc_delay_fifo_rd_ptr_reg]),
+    .tlp_sop({INT_TLP_SEG_COUNT{1'b1}}),
+    .tlp_ready(1'b1),
+
+    /*
+     * Flow control count output
+     */
+    .out_fc_ph(out_tx_fc_ph),
+    .out_fc_pd(out_tx_fc_pd),
+    .out_fc_nph(out_tx_fc_nph),
+    .out_fc_npd(out_tx_fc_npd),
+    .out_fc_cplh(out_tx_fc_cplh),
+    .out_fc_cpld(out_tx_fc_cpld)
+);
+
+integer seg, cur_seg;
+
 always @* begin
-    wr_req_state_next = WR_REQ_STATE_IDLE;
-
-    wr_req_payload_offset_next = wr_req_payload_offset_reg;
-
-    wr_req_tlp_data_next = wr_req_tlp_data_reg;
-    wr_req_tlp_eop_next = wr_req_tlp_eop_reg;
-
-    tx_wr_req_tlp_ready_next = 1'b0;
-
-    if (wr_req_payload_offset_reg) begin
-        wr_req_fifo_wr_data = {tx_wr_req_tlp_data, wr_req_tlp_data_reg[TLP_DATA_WIDTH-1:TLP_DATA_WIDTH-128]};
-    end else begin
-        wr_req_fifo_wr_data = {tx_wr_req_tlp_data, wr_req_tlp_data_reg[TLP_DATA_WIDTH-1:TLP_DATA_WIDTH-96]};
-    end
-    wr_req_fifo_wr_eop = 0;
-    wr_req_fifo_wr_valid = 1;
-    wr_req_fifo_wr_seq = tx_wr_req_tlp_seq;
-    wr_req_fifo_we = 0;
-
-    // combine header and payload, merge in read request TLPs
-    case (wr_req_state_reg)
-        WR_REQ_STATE_IDLE: begin
-            // idle state
-            tx_wr_req_tlp_ready_next = !wr_req_fifo_watermark_reg;
-
-            wr_req_payload_offset_next = tx_wr_req_tlp_hdr[125];
-
-            wr_req_fifo_wr_data[31:0] = tx_wr_req_tlp_hdr[127:96];
-            wr_req_fifo_wr_data[63:32] = tx_wr_req_tlp_hdr[95:64];
-            wr_req_fifo_wr_data[95:64] = tx_wr_req_tlp_hdr[63:32];
-            if (wr_req_payload_offset_next) begin
-                wr_req_fifo_wr_data[127:96] = tx_wr_req_tlp_hdr[31:0];
-                wr_req_fifo_wr_data[SEG_COUNT*SEG_DATA_WIDTH-1:128] = tx_wr_req_tlp_data;
-            end else begin
-                wr_req_fifo_wr_data[SEG_COUNT*SEG_DATA_WIDTH-1:96] = tx_wr_req_tlp_data;
-            end
-            wr_req_fifo_wr_eop = 0;
-            wr_req_fifo_wr_valid = 1;
-            wr_req_fifo_wr_seq = tx_wr_req_tlp_seq;
-
-            if (tx_wr_req_tlp_valid && tx_wr_req_tlp_ready) begin
-                // send complete header and start of payload (completion)
-                wr_req_fifo_we = 1;
-
-                wr_req_tlp_data_next = tx_wr_req_tlp_data;
-                wr_req_tlp_eop_next = tx_wr_req_tlp_eop;
-
-                if (tx_wr_req_tlp_eop && wr_req_payload_offset_next && ((tx_wr_req_tlp_strb >> (TLP_DATA_WIDTH_DWORDS-4)) == 0)) begin
-                    wr_req_fifo_wr_eop = 1;
-                    tx_wr_req_tlp_ready_next = !wr_req_fifo_watermark_reg;
-                    wr_req_state_next = WR_REQ_STATE_IDLE;
-                end else if (tx_wr_req_tlp_eop && !wr_req_payload_offset_next && ((tx_wr_req_tlp_strb >> (TLP_DATA_WIDTH_DWORDS-3)) == 0)) begin
-                    wr_req_fifo_wr_eop = 1;
-                    tx_wr_req_tlp_ready_next = !wr_req_fifo_watermark_reg;
-                    wr_req_state_next = WR_REQ_STATE_IDLE;
-                end else begin
-                    tx_wr_req_tlp_ready_next = !wr_req_fifo_watermark_reg && !wr_req_tlp_eop_next;
-                    wr_req_state_next = WR_REQ_STATE_PAYLOAD;
-                end
-            end else begin
-                wr_req_state_next = WR_REQ_STATE_IDLE;
-            end
-        end
-        WR_REQ_STATE_PAYLOAD: begin
-            // transfer payload (completion)
-            tx_wr_req_tlp_ready_next = !wr_req_fifo_watermark_reg && !wr_req_tlp_eop_reg;
-
-            if (wr_req_payload_offset_reg) begin
-                wr_req_fifo_wr_data = {tx_wr_req_tlp_data, wr_req_tlp_data_reg[TLP_DATA_WIDTH-1:TLP_DATA_WIDTH-128]};
-            end else begin
-                wr_req_fifo_wr_data = {tx_wr_req_tlp_data, wr_req_tlp_data_reg[TLP_DATA_WIDTH-1:TLP_DATA_WIDTH-96]};
-            end
-            wr_req_fifo_wr_eop = 0;
-            wr_req_fifo_wr_valid = 1;
-            wr_req_fifo_wr_seq = tx_wr_req_tlp_seq;
-
-            if ((tx_wr_req_tlp_valid && tx_wr_req_tlp_ready) || (wr_req_tlp_eop_reg && !wr_req_fifo_watermark_reg)) begin
-                wr_req_fifo_we = 1;
-
-                wr_req_tlp_data_next = tx_wr_req_tlp_data;
-                wr_req_tlp_eop_next = tx_wr_req_tlp_eop;
-
-                if (wr_req_tlp_eop_reg || (tx_wr_req_tlp_eop && wr_req_payload_offset_reg && ((tx_wr_req_tlp_strb >> (TLP_DATA_WIDTH_DWORDS-4)) == 0))) begin
-                    wr_req_fifo_wr_eop = 1;
-                    tx_wr_req_tlp_ready_next = !wr_req_fifo_watermark_reg;
-                    wr_req_state_next = WR_REQ_STATE_IDLE;
-                end else if (wr_req_tlp_eop_reg || (tx_wr_req_tlp_eop && !wr_req_payload_offset_reg && ((tx_wr_req_tlp_strb >> (TLP_DATA_WIDTH_DWORDS-3)) == 0))) begin
-                    wr_req_fifo_wr_eop = 1;
-                    tx_wr_req_tlp_ready_next = !wr_req_fifo_watermark_reg;
-                    wr_req_state_next = WR_REQ_STATE_IDLE;
-                end else begin
-                    tx_wr_req_tlp_ready_next = !wr_req_fifo_watermark_reg && !wr_req_tlp_eop_next;
-                    wr_req_state_next = WR_REQ_STATE_PAYLOAD;
-                end
-            end else begin
-                wr_req_state_next = WR_REQ_STATE_PAYLOAD;
-            end
-        end
-    endcase
-end
-
-// Completion processing
-always @* begin
-    cpl_state_next = CPL_STATE_IDLE;
-
-    cpl_tlp_data_next = cpl_tlp_data_reg;
-    cpl_tlp_eop_next = cpl_tlp_eop_reg;
-
-    tx_cpl_tlp_ready_next = 1'b0;
-
-    cpl_fifo_wr_data = {tx_cpl_tlp_data, cpl_tlp_data_reg[TLP_DATA_WIDTH-1:TLP_DATA_WIDTH-96]};
-    cpl_fifo_wr_eop = 0;
-    cpl_fifo_wr_valid = 1;
-    cpl_fifo_we = 0;
-
-    // combine header and payload, merge in read request TLPs
-    case (cpl_state_reg)
-        CPL_STATE_IDLE: begin
-            // idle state
-            tx_cpl_tlp_ready_next = !cpl_fifo_watermark_reg;
-
-            cpl_fifo_wr_data[31:0] = tx_cpl_tlp_hdr[127:96];
-            cpl_fifo_wr_data[63:32] = tx_cpl_tlp_hdr[95:64];
-            cpl_fifo_wr_data[95:64] = tx_cpl_tlp_hdr[63:32];
-            cpl_fifo_wr_data[SEG_COUNT*SEG_DATA_WIDTH-1:96] = tx_cpl_tlp_data;
-            cpl_fifo_wr_eop = 0;
-            cpl_fifo_wr_valid = 1;
-
-            if (tx_cpl_tlp_valid && tx_cpl_tlp_ready) begin
-                // send complete header and start of payload (completion)
-                cpl_fifo_we = 1;
-
-                cpl_tlp_data_next = tx_cpl_tlp_data;
-                cpl_tlp_eop_next = tx_cpl_tlp_eop;
-
-                if (tx_cpl_tlp_eop && ((tx_cpl_tlp_strb >> (TLP_DATA_WIDTH_DWORDS-3)) == 0)) begin
-                    cpl_fifo_wr_eop = 1;
-                    tx_cpl_tlp_ready_next = !cpl_fifo_watermark_reg;
-                    cpl_state_next = CPL_STATE_IDLE;
-                end else begin
-                    tx_cpl_tlp_ready_next = !cpl_fifo_watermark_reg && !cpl_tlp_eop_next;
-                    cpl_state_next = CPL_STATE_PAYLOAD;
-                end
-            end else begin
-                cpl_state_next = CPL_STATE_IDLE;
-            end
-        end
-        CPL_STATE_PAYLOAD: begin
-            // transfer payload (completion)
-            tx_cpl_tlp_ready_next = !cpl_fifo_watermark_reg && !cpl_tlp_eop_reg;
-
-            cpl_fifo_wr_data = {tx_cpl_tlp_data, cpl_tlp_data_reg[TLP_DATA_WIDTH-1:TLP_DATA_WIDTH-96]};
-            cpl_fifo_wr_eop = 0;
-            cpl_fifo_wr_valid = 1;
-
-            if ((tx_cpl_tlp_valid && tx_cpl_tlp_ready) || (cpl_tlp_eop_reg && !cpl_fifo_watermark_reg)) begin
-                cpl_fifo_we = 1;
-
-                cpl_tlp_data_next = tx_cpl_tlp_data;
-                cpl_tlp_eop_next = tx_cpl_tlp_eop;
-
-                if (cpl_tlp_eop_reg || (tx_cpl_tlp_eop && ((tx_cpl_tlp_strb >> (TLP_DATA_WIDTH_DWORDS-3)) == 0))) begin
-                    cpl_fifo_wr_eop = 1;
-                    tx_cpl_tlp_ready_next = !cpl_fifo_watermark_reg;
-                    cpl_state_next = CPL_STATE_IDLE;
-                end else begin
-                    tx_cpl_tlp_ready_next = !cpl_fifo_watermark_reg && !cpl_tlp_eop_next;
-                    cpl_state_next = CPL_STATE_PAYLOAD;
-                end
-            end else begin
-                cpl_state_next = CPL_STATE_PAYLOAD;
-            end
-        end
-    endcase
-end
-
-// Output arbitration
-always @* begin
-    tlp_output_state_next = TLP_OUTPUT_STATE_IDLE;
-
-    m_axis_rd_req_tx_seq_num_next = 0;
-    m_axis_rd_req_tx_seq_num_valid_next = 0;
-    m_axis_wr_req_tx_seq_num_next = 0;
-    m_axis_wr_req_tx_seq_num_valid_next = 0;
+    frame_next = frame_reg;
+    tlp_hdr_4dw_next = tlp_hdr_4dw_reg;
+    tlp_split1_next = tlp_split1_reg;
+    tlp_split2_next = tlp_split2_reg;
 
     tx_st_data_next = 0;
     tx_st_sop_next = 0;
     tx_st_eop_next = 0;
     tx_st_valid_next = 0;
 
-    rd_req_fifo_rd_data_next = rd_req_fifo_rd_data_reg;
-    rd_req_fifo_rd_valid_next = rd_req_fifo_rd_valid_reg;
-    rd_req_fifo_rd_seq_next = rd_req_fifo_rd_seq_reg;
+    fifo_read_en_next = 0;
+    fifo_read_seg_count_next = 0;
+    fifo_ctrl_read_en = 0;
+    fifo_ctrl_read_seg_count = 0;
 
-    wr_req_fifo_rd_data_next = wr_req_fifo_rd_data_reg;
-    wr_req_fifo_rd_eop_next = wr_req_fifo_rd_eop_reg;
-    wr_req_fifo_rd_valid_next = wr_req_fifo_rd_valid_reg;
-    wr_req_fifo_rd_seq_next = wr_req_fifo_rd_seq_reg;
+    frame_cyc = frame_reg;
+    tlp_hdr_4dw_cyc = tlp_hdr_4dw_reg;
+    tlp_hdr_cyc = 1'b0;
+    tlp_split1_cyc = tlp_split1_reg;
+    tlp_split2_cyc = tlp_split2_reg;
+    seg_cons_cyc = 0;
+    seg_cons_next = 0;
+    seg_offset_cyc = fifo_ctrl_seg_offset;
+    seg_count_cyc = 0;
+    valid = 0;
+    eop = 0;
+    frame = frame_cyc;
+    abort = 0;
 
-    cpl_fifo_rd_data_next = cpl_fifo_rd_data_reg;
-    cpl_fifo_rd_eop_next = cpl_fifo_rd_eop_reg;
-    cpl_fifo_rd_valid_next = cpl_fifo_rd_valid_reg;
-
-    // combine header and payload, merge in read request TLPs
-    case (tlp_output_state_reg)
-        TLP_OUTPUT_STATE_IDLE: begin
-            // idle state
-
-            if (cpl_fifo_rd_valid_reg && tx_st_ready_delay_reg[1]) begin
-                // transfer completion
-                tx_st_data_next = cpl_fifo_rd_data_reg;
-                tx_st_sop_next = 1;
-                tx_st_eop_next = cpl_fifo_rd_eop_reg;
-                tx_st_valid_next = cpl_fifo_rd_valid_reg;
-
-                cpl_fifo_rd_valid_next = 0;
-
-                if (cpl_fifo_rd_eop_reg) begin
-                    tlp_output_state_next = TLP_OUTPUT_STATE_IDLE;
-                end else begin
-                    tlp_output_state_next = TLP_OUTPUT_STATE_CPL_PAYLOAD;
-                end
-            end else if (rd_req_fifo_rd_valid_reg && tx_st_ready_delay_reg[1]) begin
-                // transfer read request
-                tx_st_data_next = rd_req_fifo_rd_data_reg;
-                tx_st_sop_next = 1;
-                tx_st_eop_next = 1;
-                tx_st_valid_next = 1;
-
-                rd_req_fifo_rd_valid_next = 0;
-
-                // return read request sequence number
-                m_axis_rd_req_tx_seq_num_next = rd_req_fifo_rd_seq_reg;
-                m_axis_rd_req_tx_seq_num_valid_next = 1'b1;
-            end else if (wr_req_fifo_rd_valid_reg && tx_st_ready_delay_reg[1]) begin
-                // transfer write request
-                tx_st_data_next = wr_req_fifo_rd_data_reg;
-                tx_st_sop_next = 1;
-                tx_st_eop_next = wr_req_fifo_rd_eop_reg;
-                tx_st_valid_next = wr_req_fifo_rd_valid_reg;
-
-                wr_req_fifo_rd_valid_next = 0;
-
-                // return write request sequence number
-                m_axis_wr_req_tx_seq_num_next = wr_req_fifo_rd_seq_reg;
-                m_axis_wr_req_tx_seq_num_valid_next = 1'b1;
-
-                if (wr_req_fifo_rd_eop_reg) begin
-                    tlp_output_state_next = TLP_OUTPUT_STATE_IDLE;
-                end else begin
-                    tlp_output_state_next = TLP_OUTPUT_STATE_WR_PAYLOAD;
-                end
-            end else begin
-                tlp_output_state_next = TLP_OUTPUT_STATE_IDLE;
-            end
-        end
-        TLP_OUTPUT_STATE_WR_PAYLOAD: begin
-            // transfer payload (write request)
-            tx_st_data_next = wr_req_fifo_rd_data_reg;
-            tx_st_sop_next = 0;
-            tx_st_eop_next = wr_req_fifo_rd_eop_reg;
-
-            if (wr_req_fifo_rd_valid_reg && tx_st_ready_delay_reg[1]) begin
-                tx_st_valid_next = wr_req_fifo_rd_valid_reg;
-
-                wr_req_fifo_rd_valid_next = 0;
-
-                if (wr_req_fifo_rd_eop_reg) begin
-                    tlp_output_state_next = TLP_OUTPUT_STATE_IDLE;
-                end else begin
-                    tlp_output_state_next = TLP_OUTPUT_STATE_WR_PAYLOAD;
-                end
-            end else begin
-                tlp_output_state_next = TLP_OUTPUT_STATE_WR_PAYLOAD;
-            end
-        end
-        TLP_OUTPUT_STATE_CPL_PAYLOAD: begin
-            // transfer payload (completion)
-            tx_st_data_next = cpl_fifo_rd_data_reg;
-            tx_st_sop_next = 0;
-            tx_st_eop_next = cpl_fifo_rd_eop_reg;
-
-            if (cpl_fifo_rd_valid_reg && tx_st_ready_delay_reg[1]) begin
-                tx_st_valid_next = cpl_fifo_rd_valid_reg;
-
-                cpl_fifo_rd_valid_next = 0;
-
-                if (cpl_fifo_rd_eop_reg) begin
-                    tlp_output_state_next = TLP_OUTPUT_STATE_IDLE;
-                end else begin
-                    tlp_output_state_next = TLP_OUTPUT_STATE_CPL_PAYLOAD;
-                end
-            end else begin
-                tlp_output_state_next = TLP_OUTPUT_STATE_CPL_PAYLOAD;
-            end
-        end
-    endcase
-
-    rd_req_fifo_rd_ptr_next = rd_req_fifo_rd_ptr_reg;
-
-    if (!rd_req_fifo_rd_valid_next && rd_req_fifo_rd_ptr_reg != rd_req_fifo_wr_ptr_reg) begin
-        // read request FIFO not empty
-        rd_req_fifo_rd_data_next = rd_req_fifo_data[rd_req_fifo_rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
-        rd_req_fifo_rd_valid_next = 1;
-        rd_req_fifo_rd_seq_next = rd_req_fifo_seq[rd_req_fifo_rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
-        rd_req_fifo_rd_ptr_next = rd_req_fifo_rd_ptr_reg + 1;
+    out_sel_next = 0;
+    out_sel_cyc = 0;
+    out_sop_next = 0;
+    out_eop_next = 0;
+    out_tlp_hdr_4dw_next = 0;
+    out_tlp_hdr_next = 0;
+    out_tlp_split1_next = 0;
+    out_tlp_split2_next = 0;
+    for (seg = 0; seg < INT_TLP_SEG_COUNT; seg = seg + 1) begin
+        out_sel_seg_next[seg] = 0;
     end
 
-    wr_req_fifo_rd_ptr_next = wr_req_fifo_rd_ptr_reg;
+    out_shift_tlp_data_next = out_shift_tlp_data_reg;
 
-    if (!wr_req_fifo_rd_valid_next && wr_req_fifo_rd_ptr_reg != wr_req_fifo_wr_ptr_reg) begin
-        // write request FIFO not empty
-        wr_req_fifo_rd_data_next = wr_req_fifo_data[wr_req_fifo_rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
-        wr_req_fifo_rd_eop_next = wr_req_fifo_eop[wr_req_fifo_rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
-        wr_req_fifo_rd_valid_next = wr_req_fifo_valid[wr_req_fifo_rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
-        wr_req_fifo_rd_seq_next = wr_req_fifo_seq[wr_req_fifo_rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
-        wr_req_fifo_rd_ptr_next = wr_req_fifo_rd_ptr_reg + 1;
+    // pre-compute
+    for (seg = 0; seg < INT_TLP_SEG_COUNT; seg = seg + 1) begin
+        fifo_ctrl_tlp_hdr_4dw[seg] = fifo_ctrl_tlp_hdr[seg*TLP_HDR_WIDTH+125];
+        fifo_ctrl_tlp_extra_3dw[seg] = fifo_ctrl_tlp_eop[seg] && fifo_ctrl_tlp_strb[seg*INT_TLP_SEG_STRB_WIDTH +: INT_TLP_SEG_STRB_WIDTH] >> (INT_TLP_SEG_STRB_WIDTH-3);
+        fifo_ctrl_tlp_extra_4dw[seg] = fifo_ctrl_tlp_eop[seg] && fifo_ctrl_tlp_strb[seg*INT_TLP_SEG_STRB_WIDTH +: INT_TLP_SEG_STRB_WIDTH] >> (INT_TLP_SEG_STRB_WIDTH-4);
     end
 
-    cpl_fifo_rd_ptr_next = cpl_fifo_rd_ptr_reg;
+    // compute mux settings
+    port_seg_valid = {2{fifo_ctrl_tlp_valid}} >> fifo_ctrl_seg_offset;
+    port_seg_hdr_4dw = {2{fifo_ctrl_tlp_hdr_4dw}} >> fifo_ctrl_seg_offset;
+    port_seg_eop = {2{fifo_ctrl_tlp_eop}} >> fifo_ctrl_seg_offset;
+    port_seg_extra_3dw = {2{fifo_ctrl_tlp_extra_3dw}} >> fifo_ctrl_seg_offset;
+    port_seg_extra_4dw = {2{fifo_ctrl_tlp_extra_4dw}} >> fifo_ctrl_seg_offset;
 
-    if (!cpl_fifo_rd_valid_next && cpl_fifo_rd_ptr_reg != cpl_fifo_wr_ptr_reg) begin
-        // completion FIFO not empty
-        cpl_fifo_rd_data_next = cpl_fifo_data[cpl_fifo_rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
-        cpl_fifo_rd_eop_next = cpl_fifo_eop[cpl_fifo_rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
-        cpl_fifo_rd_valid_next = cpl_fifo_valid[cpl_fifo_rd_ptr_reg[FIFO_ADDR_WIDTH-1:0]];
-        cpl_fifo_rd_ptr_next = cpl_fifo_rd_ptr_reg + 1;
+    for (seg = 0; seg < INT_TLP_SEG_COUNT; seg = seg + 1) begin
+        if (!frame_cyc && !abort) begin
+            tlp_hdr_cyc = 1'b1;
+            tlp_split1_cyc = 1'b0;
+            tlp_split2_cyc = 1'b0;
+            if (port_seg_valid[0]) begin
+                frame_cyc = 1'b1;
+                tlp_hdr_4dw_cyc = port_seg_hdr_4dw[0];
+            end
+        end
+
+        // route segment
+        valid = port_seg_valid[0];
+        eop = port_seg_eop[0];
+        frame = frame_cyc;
+
+        out_sel_cyc[seg] = 1'b1;
+        out_sop_next[seg] = tlp_hdr_cyc;
+        out_tlp_hdr_4dw_next[seg] = tlp_hdr_4dw_cyc;
+        out_tlp_hdr_next[seg] = tlp_hdr_cyc;
+        out_sel_seg_next[seg] = seg_offset_cyc;
+
+        if (tlp_hdr_4dw_cyc ? port_seg_extra_4dw[0] : port_seg_extra_3dw[0]) begin
+            // extra cycle
+            tlp_hdr_cyc = 1'b0;
+            if (tlp_split1_cyc) begin
+                frame_cyc = 0;
+                out_eop_next[seg] = 1'b1;
+                tlp_split1_cyc = 1'b0;
+                tlp_split2_cyc = 1'b1;
+                seg_cons_cyc[seg_offset_cyc] = 1'b1;
+                seg_offset_cyc = seg_offset_cyc + 1;
+                seg_count_cyc = seg_count_cyc + 1;
+                port_seg_valid = port_seg_valid >> 1;
+                port_seg_hdr_4dw = port_seg_hdr_4dw >> 1;
+                port_seg_eop = port_seg_eop >> 1;
+                port_seg_extra_3dw = port_seg_extra_3dw >> 1;
+                port_seg_extra_4dw = port_seg_extra_4dw >> 1;
+            end else begin
+                tlp_split1_cyc = 1'b1;
+            end
+        end else begin
+            tlp_hdr_cyc = 1'b0;
+            if (eop) begin
+                // end of packet
+                frame_cyc = 0;
+                out_eop_next[seg] = 1'b1;
+            end
+            seg_cons_cyc[seg_offset_cyc] = 1'b1;
+            seg_offset_cyc = seg_offset_cyc + 1;
+            seg_count_cyc = seg_count_cyc + 1;
+            port_seg_valid = port_seg_valid >> 1;
+            port_seg_hdr_4dw = port_seg_hdr_4dw >> 1;
+            port_seg_eop = port_seg_eop >> 1;
+            port_seg_extra_3dw = port_seg_extra_3dw >> 1;
+            port_seg_extra_4dw = port_seg_extra_4dw >> 1;
+        end
+
+        out_tlp_split1_next[seg] = tlp_split1_cyc;
+        out_tlp_split2_next[seg] = tlp_split2_cyc;
+
+        if (frame && !abort) begin
+            if (valid) begin
+                if (eop || seg == INT_TLP_SEG_COUNT-1) begin
+                    // end of packet or end of cycle, commit
+                    fifo_ctrl_read_seg_count = seg_count_cyc;
+                    fifo_read_seg_count_next = seg_count_cyc;
+                    if (tx_st_ready_delay_reg[0]) begin
+                        frame_next = frame_cyc;
+                        tlp_hdr_4dw_next = tlp_hdr_4dw_cyc;
+                        tlp_split1_next = tlp_split1_cyc;
+                        tlp_split2_next = tlp_split2_cyc;
+                        out_sel_next = out_sel_cyc;
+                        fifo_ctrl_read_en = seg_count_cyc != 0;
+                        fifo_read_en_next = seg_count_cyc != 0;
+                        seg_cons_next = seg_cons_cyc;
+                    end
+                end
+            end else begin
+                // input has stalled, wait
+                abort = 1;
+            end
+        end
+    end
+
+    // mux for output segments
+    for (seg = 0; seg < INT_TLP_SEG_COUNT; seg = seg + 1) begin
+        if (out_tlp_hdr_4dw_reg[seg]) begin
+            tx_st_data_next[seg*SEG_DATA_WIDTH +: SEG_DATA_WIDTH] = out_shift_tlp_data_next;
+            tx_st_data_next[seg*SEG_DATA_WIDTH+128 +: SEG_DATA_WIDTH-128] = fifo_tlp_data[out_sel_seg_reg[seg]*INT_TLP_SEG_DATA_WIDTH +: INT_TLP_SEG_DATA_WIDTH-128];
+        end else begin
+            tx_st_data_next[seg*SEG_DATA_WIDTH +: SEG_DATA_WIDTH] = out_shift_tlp_data_next >> 32;
+            tx_st_data_next[seg*SEG_DATA_WIDTH+96 +: SEG_DATA_WIDTH-96] = fifo_tlp_data[out_sel_seg_reg[seg]*INT_TLP_SEG_DATA_WIDTH +: INT_TLP_SEG_DATA_WIDTH-96];
+        end
+        if (out_tlp_hdr_reg[seg]) begin
+            tx_st_data_next[seg*SEG_DATA_WIDTH+0 +: 32] = fifo_tlp_hdr[out_sel_seg_reg[seg]*TLP_HDR_WIDTH+96 +: 32];
+            tx_st_data_next[seg*SEG_DATA_WIDTH+32 +: 32] = fifo_tlp_hdr[out_sel_seg_reg[seg]*TLP_HDR_WIDTH+64 +: 32];
+            tx_st_data_next[seg*SEG_DATA_WIDTH+64 +: 32] = fifo_tlp_hdr[out_sel_seg_reg[seg]*TLP_HDR_WIDTH+32 +: 32];
+            if (out_tlp_hdr_4dw_reg[seg]) begin
+                tx_st_data_next[seg*SEG_DATA_WIDTH+96 +: 32] = fifo_tlp_hdr[out_sel_seg_reg[seg]*TLP_HDR_WIDTH+0 +: 32];
+            end
+        end
+        tx_st_valid_next[seg +: 1] = out_sel_reg[seg];
+        tx_st_sop_next[seg +: 1] = out_sop_reg[seg];
+        tx_st_eop_next[seg +: 1] = out_eop_reg[seg];
+
+        if (out_sel_reg[seg]) begin
+            out_shift_tlp_data_next = fifo_tlp_data[(out_sel_seg_reg[seg]+1)*INT_TLP_SEG_DATA_WIDTH-128 +: 128];
+        end
     end
 end
 
+integer i;
+
 always @(posedge clk) begin
-    wr_req_state_reg <= wr_req_state_next;
-    cpl_state_reg <= cpl_state_next;
-    tlp_output_state_reg <= tlp_output_state_next;
+    frame_reg <= frame_next;
+    tlp_hdr_4dw_reg <= tlp_hdr_4dw_next;
+    tlp_split1_reg <= tlp_split1_next;
+    tlp_split2_reg <= tlp_split2_next;
+    seg_cons_reg <= seg_cons_next;
 
-    wr_req_payload_offset_reg <= wr_req_payload_offset_next;
+    out_sel_reg <= out_sel_next;
+    out_sop_reg <= out_sop_next;
+    out_eop_reg <= out_eop_next;
+    out_tlp_hdr_4dw_reg <= out_tlp_hdr_4dw_next;
+    out_tlp_hdr_reg <= out_tlp_hdr_next;
+    out_tlp_split1_reg <= out_tlp_split1_next;
+    out_tlp_split2_reg <= out_tlp_split2_next;
+    for (i = 0; i < INT_TLP_SEG_COUNT; i = i + 1) begin
+        out_sel_seg_reg[i] <= out_sel_seg_next[i];
+    end
 
-    wr_req_tlp_data_reg <= wr_req_tlp_data_next;
-    wr_req_tlp_eop_reg <= wr_req_tlp_eop_next;
+    fifo_read_en_reg <= fifo_read_en_next;
+    fifo_read_seg_count_reg <= fifo_read_seg_count_next;
 
-    cpl_tlp_data_reg <= cpl_tlp_data_next;
-    cpl_tlp_eop_reg <= cpl_tlp_eop_next;
-
-    tx_rd_req_tlp_ready_reg <= tx_rd_req_tlp_ready_next;
-    tx_wr_req_tlp_ready_reg <= tx_wr_req_tlp_ready_next;
-    tx_cpl_tlp_ready_reg <= tx_cpl_tlp_ready_next;
-
-    m_axis_rd_req_tx_seq_num_reg <= m_axis_rd_req_tx_seq_num_next;
-    m_axis_rd_req_tx_seq_num_valid_reg <= m_axis_rd_req_tx_seq_num_valid_next;
-    m_axis_wr_req_tx_seq_num_reg <= m_axis_wr_req_tx_seq_num_next;
-    m_axis_wr_req_tx_seq_num_valid_reg <= m_axis_wr_req_tx_seq_num_valid_next;
+    out_shift_tlp_data_reg <= out_shift_tlp_data_next;
 
     tx_st_data_reg <= tx_st_data_next;
     tx_st_sop_reg <= tx_st_sop_next;
@@ -646,85 +732,49 @@ always @(posedge clk) begin
 
     tx_st_ready_delay_reg <= {tx_st_ready_delay_reg, tx_st_ready};
 
-    if (rd_req_fifo_we) begin
-        rd_req_fifo_data[rd_req_fifo_wr_ptr_reg[FIFO_ADDR_WIDTH-1:0]] <= rd_req_fifo_wr_data;
-        rd_req_fifo_seq[rd_req_fifo_wr_ptr_reg[FIFO_ADDR_WIDTH-1:0]] <= rd_req_fifo_wr_seq;
-        rd_req_fifo_wr_ptr_reg <= rd_req_fifo_wr_ptr_reg + 1;
-    end
-    rd_req_fifo_rd_ptr_reg <= rd_req_fifo_rd_ptr_next;
+    // flow control
+    int_tx_fc_ph_reg <= int_tx_fc_ph_reg + mux_tx_fc_ph - out_tx_fc_ph;
+    int_tx_fc_pd_reg <= int_tx_fc_pd_reg + mux_tx_fc_pd - out_tx_fc_pd;
+    int_tx_fc_nph_reg <= int_tx_fc_nph_reg + mux_tx_fc_nph - out_tx_fc_nph;
+    int_tx_fc_npd_reg <= int_tx_fc_npd_reg + mux_tx_fc_npd - out_tx_fc_npd;
+    int_tx_fc_cplh_reg <= int_tx_fc_cplh_reg + mux_tx_fc_cplh - out_tx_fc_cplh;
+    int_tx_fc_cpld_reg <= int_tx_fc_cpld_reg + mux_tx_fc_cpld - out_tx_fc_cpld;
 
-    rd_req_fifo_rd_data_reg <= rd_req_fifo_rd_data_next;
-    rd_req_fifo_rd_valid_reg <= rd_req_fifo_rd_valid_next;
-    rd_req_fifo_rd_seq_reg <= rd_req_fifo_rd_seq_next;
+    adj_tx_fc_ph_reg <= tx_ph_cdts > int_tx_fc_ph_reg ? tx_ph_cdts - int_tx_fc_ph_reg : 0;
+    adj_tx_fc_pd_reg <= tx_pd_cdts > int_tx_fc_pd_reg ? tx_pd_cdts - int_tx_fc_pd_reg : 0;
+    adj_tx_fc_nph_reg <= tx_nph_cdts > int_tx_fc_nph_reg ? tx_nph_cdts - int_tx_fc_nph_reg : 0;
+    adj_tx_fc_npd_reg <= tx_npd_cdts > int_tx_fc_npd_reg ? tx_npd_cdts - int_tx_fc_npd_reg : 0;
+    adj_tx_fc_cplh_reg <= tx_cplh_cdts > int_tx_fc_cplh_reg ? tx_cplh_cdts - int_tx_fc_cplh_reg : 0;
+    adj_tx_fc_cpld_reg <= tx_cpld_cdts > int_tx_fc_cpld_reg ? tx_cpld_cdts - int_tx_fc_cpld_reg : 0;
 
-    rd_req_fifo_watermark_reg <= $unsigned(rd_req_fifo_wr_ptr_reg - rd_req_fifo_rd_ptr_reg) >= 2**FIFO_ADDR_WIDTH-4;
-
-    if (wr_req_fifo_we) begin
-        wr_req_fifo_data[wr_req_fifo_wr_ptr_cur_reg[FIFO_ADDR_WIDTH-1:0]] <= wr_req_fifo_wr_data;
-        wr_req_fifo_eop[wr_req_fifo_wr_ptr_cur_reg[FIFO_ADDR_WIDTH-1:0]] <= wr_req_fifo_wr_eop;
-        wr_req_fifo_valid[wr_req_fifo_wr_ptr_cur_reg[FIFO_ADDR_WIDTH-1:0]] <= wr_req_fifo_wr_valid;
-        wr_req_fifo_seq[wr_req_fifo_wr_ptr_cur_reg[FIFO_ADDR_WIDTH-1:0]] <= wr_req_fifo_wr_seq;
-        wr_req_fifo_wr_ptr_cur_reg <= wr_req_fifo_wr_ptr_cur_reg + 1;
-        if (wr_req_fifo_wr_eop) begin
-            // update write pointer at end of frame
-            wr_req_fifo_wr_ptr_reg <= wr_req_fifo_wr_ptr_cur_reg + 1;
-        end
-    end
-    wr_req_fifo_rd_ptr_reg <= wr_req_fifo_rd_ptr_next;
-
-    wr_req_fifo_rd_data_reg <= wr_req_fifo_rd_data_next;
-    wr_req_fifo_rd_eop_reg <= wr_req_fifo_rd_eop_next;
-    wr_req_fifo_rd_valid_reg <= wr_req_fifo_rd_valid_next;
-    wr_req_fifo_rd_seq_reg <= wr_req_fifo_rd_seq_next;
-
-    wr_req_fifo_watermark_reg <= $unsigned(wr_req_fifo_wr_ptr_cur_reg - wr_req_fifo_rd_ptr_reg) >= 2**FIFO_ADDR_WIDTH-4;
-
-    if (cpl_fifo_we) begin
-        cpl_fifo_data[cpl_fifo_wr_ptr_cur_reg[FIFO_ADDR_WIDTH-1:0]] <= cpl_fifo_wr_data;
-        cpl_fifo_eop[cpl_fifo_wr_ptr_cur_reg[FIFO_ADDR_WIDTH-1:0]] <= cpl_fifo_wr_eop;
-        cpl_fifo_valid[cpl_fifo_wr_ptr_cur_reg[FIFO_ADDR_WIDTH-1:0]] <= cpl_fifo_wr_valid;
-        cpl_fifo_wr_ptr_cur_reg <= cpl_fifo_wr_ptr_cur_reg + 1;
-        if (cpl_fifo_wr_eop) begin
-            // update write pointer at end of frame
-            cpl_fifo_wr_ptr_reg <= cpl_fifo_wr_ptr_cur_reg + 1;
-        end
-    end
-    cpl_fifo_rd_ptr_reg <= cpl_fifo_rd_ptr_next;
-
-    cpl_fifo_rd_data_reg <= cpl_fifo_rd_data_next;
-    cpl_fifo_rd_eop_reg <= cpl_fifo_rd_eop_next;
-    cpl_fifo_rd_valid_reg <= cpl_fifo_rd_valid_next;
-
-    cpl_fifo_watermark_reg <= $unsigned(cpl_fifo_wr_ptr_cur_reg - cpl_fifo_rd_ptr_reg) >= 2**FIFO_ADDR_WIDTH-4;
+    max_payload_size_fc_reg <= 9'd8 << (max_payload_size > 5 ? 5 : max_payload_size);
+    have_p_credit_reg <= (adj_tx_fc_ph_reg > 4) && (adj_tx_fc_pd_reg > (max_payload_size_fc_reg << 1));
+    have_np_credit_reg <= adj_tx_fc_nph_reg > 4;
+    have_cpl_credit_reg <= (adj_tx_fc_cplh_reg > 4) && (adj_tx_fc_cpld_reg > (max_payload_size_fc_reg << 1));
 
     if (rst) begin
-        wr_req_state_reg <= WR_REQ_STATE_IDLE;
-        cpl_state_reg <= CPL_STATE_IDLE;
-        tlp_output_state_reg <= TLP_OUTPUT_STATE_IDLE;
+        frame_reg <= 1'b0;
 
-        tx_rd_req_tlp_ready_reg <= 1'b0;
-        tx_wr_req_tlp_ready_reg <= 1'b0;
-        tx_cpl_tlp_ready_reg <= 1'b0;
+        out_sel_reg <= 0;
 
-        m_axis_rd_req_tx_seq_num_valid_reg <= 0;
-        m_axis_wr_req_tx_seq_num_valid_reg <= 0;
+        fifo_read_en_reg <= 1'b0;
 
         tx_st_valid_reg <= 0;
         tx_st_ready_delay_reg <= 0;
 
-        rd_req_fifo_wr_ptr_reg <= 0;
-        rd_req_fifo_rd_ptr_reg <= 0;
-        rd_req_fifo_rd_valid_reg <= 1'b0;
+        int_tx_fc_ph_reg <= 0;
+        int_tx_fc_pd_reg <= 0;
+        int_tx_fc_nph_reg <= 0;
+        int_tx_fc_npd_reg <= 0;
+        int_tx_fc_cplh_reg <= 0;
+        int_tx_fc_cpld_reg <= 0;
 
-        wr_req_fifo_wr_ptr_reg <= 0;
-        wr_req_fifo_wr_ptr_cur_reg <= 0;
-        wr_req_fifo_rd_ptr_reg <= 0;
-        wr_req_fifo_rd_valid_reg <= 0;
-
-        cpl_fifo_wr_ptr_reg <= 0;
-        cpl_fifo_wr_ptr_cur_reg <= 0;
-        cpl_fifo_rd_ptr_reg <= 0;
-        cpl_fifo_rd_valid_reg <= 0;
+        adj_tx_fc_ph_reg <= 0;
+        adj_tx_fc_pd_reg <= 0;
+        adj_tx_fc_nph_reg <= 0;
+        adj_tx_fc_npd_reg <= 0;
+        adj_tx_fc_cplh_reg <= 0;
+        adj_tx_fc_cpld_reg <= 0;
     end
 end
 

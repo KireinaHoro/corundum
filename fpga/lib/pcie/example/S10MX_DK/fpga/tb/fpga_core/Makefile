@@ -38,7 +38,6 @@ VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_s10_if.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_s10_if_rx.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_s10_if_tx.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_s10_cfg.v
-VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_s10_msi.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_axil_master.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_axi_master.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_axi_master_rd.v
@@ -46,22 +45,27 @@ VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_axi_master_wr.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_tlp_demux_bar.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_tlp_demux.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_tlp_mux.v
+VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_tlp_fc_count.v
+VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_tlp_fifo.v
+VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_tlp_fifo_raw.v
+VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_tlp_fifo_mux.v
+VERILOG_SOURCES += ../../lib/pcie/rtl/pcie_msix.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/dma_if_pcie.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/dma_if_pcie_rd.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/dma_if_pcie_wr.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/dma_psdpram.v
-VERILOG_SOURCES += ../../lib/pcie/rtl/arbiter.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/priority_encoder.v
 VERILOG_SOURCES += ../../lib/pcie/rtl/pulse_merge.v
 
 # module parameters
-export PARAM_SEG_COUNT ?= 1
+export PARAM_SEG_COUNT ?= 2
 export PARAM_SEG_DATA_WIDTH ?= 256
 export PARAM_SEG_EMPTY_WIDTH ?= $(shell python -c "print((($(PARAM_SEG_DATA_WIDTH)//32)-1).bit_length())" )
 export PARAM_TX_SEQ_NUM_WIDTH ?= 6
 export PARAM_PCIE_TAG_COUNT ?= 64
 export PARAM_BAR0_APERTURE ?= 24
 export PARAM_BAR2_APERTURE ?= 24
+export PARAM_BAR4_APERTURE ?= 16
 
 ifeq ($(SIM), icarus)
 	PLUSARGS += -fst
@@ -73,6 +77,7 @@ ifeq ($(SIM), icarus)
 	COMPILE_ARGS += -P $(TOPLEVEL).PCIE_TAG_COUNT=$(PARAM_PCIE_TAG_COUNT)
 	COMPILE_ARGS += -P $(TOPLEVEL).BAR0_APERTURE=$(PARAM_BAR0_APERTURE)
 	COMPILE_ARGS += -P $(TOPLEVEL).BAR2_APERTURE=$(PARAM_BAR2_APERTURE)
+	COMPILE_ARGS += -P $(TOPLEVEL).BAR4_APERTURE=$(PARAM_BAR4_APERTURE)
 
 	ifeq ($(WAVES), 1)
 		VERILOG_SOURCES += iverilog_dump.v
@@ -88,6 +93,7 @@ else ifeq ($(SIM), verilator)
 	COMPILE_ARGS += -GPCIE_TAG_COUNT=$(PARAM_PCIE_TAG_COUNT)
 	COMPILE_ARGS += -GBAR0_APERTURE=$(PARAM_BAR0_APERTURE)
 	COMPILE_ARGS += -GBAR2_APERTURE=$(PARAM_BAR2_APERTURE)
+	COMPILE_ARGS += -GBAR4_APERTURE=$(PARAM_BAR4_APERTURE)
 
 	ifeq ($(WAVES), 1)
 		COMPILE_ARGS += --trace-fst

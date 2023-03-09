@@ -61,6 +61,10 @@ module fpga_core #
     parameter SCHED_PER_IF = PORTS_PER_IF,
     parameter PORT_MASK = 0,
 
+    // Clock configuration
+    parameter CLK_PERIOD_NS_NUM = 4,
+    parameter CLK_PERIOD_NS_DENOM = 1,
+
     // PTP configuration
     parameter PTP_CLK_PERIOD_NS_NUM = 1024,
     parameter PTP_CLK_PERIOD_NS_DENOM = 165,
@@ -105,7 +109,6 @@ module fpga_core #
     parameter TX_CPL_FIFO_DEPTH = 32,
     parameter TX_TAG_WIDTH = 16,
     parameter TX_CHECKSUM_ENABLE = 1,
-    parameter RX_RSS_ENABLE = 1,
     parameter RX_HASH_ENABLE = 1,
     parameter RX_CHECKSUM_ENABLE = 1,
     parameter ENABLE_PADDING = 1,
@@ -143,17 +146,17 @@ module fpga_core #
     parameter AXIS_PCIE_RQ_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 62 : 137,
     parameter AXIS_PCIE_CQ_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 85 : 183,
     parameter AXIS_PCIE_CC_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 33 : 81,
+    parameter RC_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 256,
+    parameter RQ_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
+    parameter CQ_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
+    parameter CC_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
     parameter RQ_SEQ_NUM_WIDTH = AXIS_PCIE_RQ_USER_WIDTH == 60 ? 4 : 6,
     parameter PF_COUNT = 1,
     parameter VF_COUNT = 0,
-    parameter PCIE_TAG_COUNT = 64,
-    parameter PCIE_DMA_READ_OP_TABLE_SIZE = PCIE_TAG_COUNT,
-    parameter PCIE_DMA_READ_TX_LIMIT = 16,
-    parameter PCIE_DMA_READ_TX_FC_ENABLE = 1,
-    parameter PCIE_DMA_WRITE_OP_TABLE_SIZE = 16,
-    parameter PCIE_DMA_WRITE_TX_LIMIT = 3,
-    parameter PCIE_DMA_WRITE_TX_FC_ENABLE = 1,
-    parameter MSI_COUNT = 32,
+    parameter PCIE_TAG_COUNT = 256,
+
+    // Interrupt configuration
+    parameter IRQ_INDEX_WIDTH = EVENT_QUEUE_INDEX_WIDTH,
 
     // AXI lite interface configuration (control)
     parameter AXIL_CTRL_DATA_WIDTH = 32,
@@ -270,22 +273,18 @@ module fpga_core #
     input  wire [11:0]                        cfg_fc_cpld,
     output wire [2:0]                         cfg_fc_sel,
 
-    input  wire [3:0]                         cfg_interrupt_msi_enable,
-    input  wire [11:0]                        cfg_interrupt_msi_mmenable,
-    input  wire                               cfg_interrupt_msi_mask_update,
-    input  wire [31:0]                        cfg_interrupt_msi_data,
-    output wire [3:0]                         cfg_interrupt_msi_select,
-    output wire [31:0]                        cfg_interrupt_msi_int,
-    output wire [31:0]                        cfg_interrupt_msi_pending_status,
-    output wire                               cfg_interrupt_msi_pending_status_data_enable,
-    output wire [3:0]                         cfg_interrupt_msi_pending_status_function_num,
-    input  wire                               cfg_interrupt_msi_sent,
-    input  wire                               cfg_interrupt_msi_fail,
-    output wire [2:0]                         cfg_interrupt_msi_attr,
-    output wire                               cfg_interrupt_msi_tph_present,
-    output wire [1:0]                         cfg_interrupt_msi_tph_type,
-    output wire [8:0]                         cfg_interrupt_msi_tph_st_tag,
-    output wire [3:0]                         cfg_interrupt_msi_function_number,
+    input  wire [3:0]                         cfg_interrupt_msix_enable,
+    input  wire [3:0]                         cfg_interrupt_msix_mask,
+    input  wire [251:0]                       cfg_interrupt_msix_vf_enable,
+    input  wire [251:0]                       cfg_interrupt_msix_vf_mask,
+    output wire [63:0]                        cfg_interrupt_msix_address,
+    output wire [31:0]                        cfg_interrupt_msix_data,
+    output wire                               cfg_interrupt_msix_int,
+    output wire [1:0]                         cfg_interrupt_msix_vec_pending,
+    input  wire                               cfg_interrupt_msix_vec_pending_status,
+    input  wire                               cfg_interrupt_msix_sent,
+    input  wire                               cfg_interrupt_msix_fail,
+    output wire [7:0]                         cfg_interrupt_msi_function_number,
 
     output wire                               status_error_cor,
     output wire                               status_error_uncor,
@@ -415,6 +414,7 @@ wire                             axil_csr_rready;
 wire [PTP_TS_WIDTH-1:0]     ptp_ts_96;
 wire                        ptp_ts_step;
 wire                        ptp_pps;
+wire                        ptp_pps_str;
 wire [PTP_TS_WIDTH-1:0]     ptp_sync_ts_96;
 wire                        ptp_sync_ts_step;
 wire                        ptp_sync_pps;
@@ -735,19 +735,6 @@ sfp_rb_drp_inst (
     .drp_rdy(sfp_drp_rdy)
 );
 
-reg [26:0] pps_led_counter_reg = 0;
-reg pps_led_reg = 0;
-
-always @(posedge ptp_clk) begin
-    if (ptp_pps) begin
-        pps_led_counter_reg <= 80566406;
-    end else if (pps_led_counter_reg > 0) begin
-        pps_led_counter_reg <= pps_led_counter_reg - 1;
-    end
-
-    pps_led_reg <= pps_led_counter_reg > 0;
-end
-
 generate
 
 if (TDMA_BER_ENABLE) begin
@@ -817,7 +804,7 @@ assign sma_term_en = 1'b0;
 
 assign sfp_1_led = 2'b00;
 assign sfp_2_led = 2'b00;
-assign sma_led[0] = pps_led_reg;
+assign sma_led[0] = ptp_pps_str;
 assign sma_led[1] = 1'b0;
 
 wire [PORT_COUNT-1:0]                         eth_tx_clk;
@@ -992,6 +979,10 @@ mqnic_core_pcie_us #(
 
     .PORT_COUNT(PORT_COUNT),
 
+    // Clock configuration
+    .CLK_PERIOD_NS_NUM(CLK_PERIOD_NS_NUM),
+    .CLK_PERIOD_NS_DENOM(CLK_PERIOD_NS_DENOM),
+
     // PTP configuration
     .PTP_CLK_PERIOD_NS_NUM(PTP_CLK_PERIOD_NS_NUM),
     .PTP_CLK_PERIOD_NS_DENOM(PTP_CLK_PERIOD_NS_DENOM),
@@ -999,6 +990,7 @@ mqnic_core_pcie_us #(
     .PTP_CLOCK_PIPELINE(PTP_CLOCK_PIPELINE),
     .PTP_CLOCK_CDC_PIPELINE(PTP_CLOCK_CDC_PIPELINE),
     .PTP_USE_SAMPLE_CLOCK(PTP_USE_SAMPLE_CLOCK),
+    .PTP_SEPARATE_TX_CLOCK(0),
     .PTP_SEPARATE_RX_CLOCK(0),
     .PTP_PORT_CDC_PIPELINE(PTP_PORT_CDC_PIPELINE),
     .PTP_PEROUT_ENABLE(PTP_PEROUT_ENABLE),
@@ -1036,7 +1028,6 @@ mqnic_core_pcie_us #(
     .TX_CPL_FIFO_DEPTH(TX_CPL_FIFO_DEPTH),
     .TX_TAG_WIDTH(TX_TAG_WIDTH),
     .TX_CHECKSUM_ENABLE(TX_CHECKSUM_ENABLE),
-    .RX_RSS_ENABLE(RX_RSS_ENABLE),
     .RX_HASH_ENABLE(RX_HASH_ENABLE),
     .RX_CHECKSUM_ENABLE(RX_CHECKSUM_ENABLE),
     .TX_FIFO_DEPTH(TX_FIFO_DEPTH),
@@ -1045,6 +1036,10 @@ mqnic_core_pcie_us #(
     .MAX_RX_SIZE(MAX_RX_SIZE),
     .TX_RAM_SIZE(TX_RAM_SIZE),
     .RX_RAM_SIZE(RX_RAM_SIZE),
+
+    // RAM configuration
+    .DDR_ENABLE(0),
+    .HBM_ENABLE(0),
 
     // Application block configuration
     .APP_ID(APP_ID),
@@ -1073,18 +1068,18 @@ mqnic_core_pcie_us #(
     .AXIS_PCIE_RQ_USER_WIDTH(AXIS_PCIE_RQ_USER_WIDTH),
     .AXIS_PCIE_CQ_USER_WIDTH(AXIS_PCIE_CQ_USER_WIDTH),
     .AXIS_PCIE_CC_USER_WIDTH(AXIS_PCIE_CC_USER_WIDTH),
+    .RC_STRADDLE(RC_STRADDLE),
+    .RQ_STRADDLE(RQ_STRADDLE),
+    .CQ_STRADDLE(CQ_STRADDLE),
+    .CC_STRADDLE(CC_STRADDLE),
     .RQ_SEQ_NUM_WIDTH(RQ_SEQ_NUM_WIDTH),
     .PF_COUNT(PF_COUNT),
     .VF_COUNT(VF_COUNT),
     .F_COUNT(F_COUNT),
     .PCIE_TAG_COUNT(PCIE_TAG_COUNT),
-    .PCIE_DMA_READ_OP_TABLE_SIZE(PCIE_DMA_READ_OP_TABLE_SIZE),
-    .PCIE_DMA_READ_TX_LIMIT(PCIE_DMA_READ_TX_LIMIT),
-    .PCIE_DMA_READ_TX_FC_ENABLE(PCIE_DMA_READ_TX_FC_ENABLE),
-    .PCIE_DMA_WRITE_OP_TABLE_SIZE(PCIE_DMA_WRITE_OP_TABLE_SIZE),
-    .PCIE_DMA_WRITE_TX_LIMIT(PCIE_DMA_WRITE_TX_LIMIT),
-    .PCIE_DMA_WRITE_TX_FC_ENABLE(PCIE_DMA_WRITE_TX_FC_ENABLE),
-    .MSI_COUNT(MSI_COUNT),
+
+    // Interrupt configuration
+    .IRQ_INDEX_WIDTH(IRQ_INDEX_WIDTH),
 
     // AXI lite interface configuration (control)
     .AXIL_CTRL_DATA_WIDTH(AXIL_CTRL_DATA_WIDTH),
@@ -1203,22 +1198,17 @@ core_inst (
     /*
      * Interrupt interface
      */
-    .cfg_interrupt_msi_enable(cfg_interrupt_msi_enable),
-    .cfg_interrupt_msi_vf_enable(8'd0),
-    .cfg_interrupt_msi_mmenable(cfg_interrupt_msi_mmenable),
-    .cfg_interrupt_msi_mask_update(cfg_interrupt_msi_mask_update),
-    .cfg_interrupt_msi_data(cfg_interrupt_msi_data),
-    .cfg_interrupt_msi_select(cfg_interrupt_msi_select),
-    .cfg_interrupt_msi_int(cfg_interrupt_msi_int),
-    .cfg_interrupt_msi_pending_status(cfg_interrupt_msi_pending_status),
-    .cfg_interrupt_msi_pending_status_data_enable(cfg_interrupt_msi_pending_status_data_enable),
-    .cfg_interrupt_msi_pending_status_function_num(cfg_interrupt_msi_pending_status_function_num),
-    .cfg_interrupt_msi_sent(cfg_interrupt_msi_sent),
-    .cfg_interrupt_msi_fail(cfg_interrupt_msi_fail),
-    .cfg_interrupt_msi_attr(cfg_interrupt_msi_attr),
-    .cfg_interrupt_msi_tph_present(cfg_interrupt_msi_tph_present),
-    .cfg_interrupt_msi_tph_type(cfg_interrupt_msi_tph_type),
-    .cfg_interrupt_msi_tph_st_tag(cfg_interrupt_msi_tph_st_tag),
+    .cfg_interrupt_msix_enable(cfg_interrupt_msix_enable),
+    .cfg_interrupt_msix_mask(cfg_interrupt_msix_mask),
+    .cfg_interrupt_msix_vf_enable(cfg_interrupt_msix_vf_enable),
+    .cfg_interrupt_msix_vf_mask(cfg_interrupt_msix_vf_mask),
+    .cfg_interrupt_msix_address(cfg_interrupt_msix_address),
+    .cfg_interrupt_msix_data(cfg_interrupt_msix_data),
+    .cfg_interrupt_msix_int(cfg_interrupt_msix_int),
+    .cfg_interrupt_msix_vec_pending(cfg_interrupt_msix_vec_pending),
+    .cfg_interrupt_msix_vec_pending_status(cfg_interrupt_msix_vec_pending_status),
+    .cfg_interrupt_msix_sent(cfg_interrupt_msix_sent),
+    .cfg_interrupt_msix_fail(cfg_interrupt_msix_fail),
     .cfg_interrupt_msi_function_number(cfg_interrupt_msi_function_number),
 
     /*
@@ -1272,6 +1262,7 @@ core_inst (
     .ptp_rst(ptp_rst),
     .ptp_sample_clk(ptp_sample_clk),
     .ptp_pps(ptp_pps),
+    .ptp_pps_str(ptp_pps_str),
     .ptp_ts_96(ptp_ts_96),
     .ptp_ts_step(ptp_ts_step),
     .ptp_sync_pps(ptp_sync_pps),
@@ -1287,6 +1278,8 @@ core_inst (
     .eth_tx_clk(eth_tx_clk),
     .eth_tx_rst(eth_tx_rst),
 
+    .eth_tx_ptp_clk(0),
+    .eth_tx_ptp_rst(0),
     .eth_tx_ptp_ts_96(eth_tx_ptp_ts_96),
     .eth_tx_ptp_ts_step(eth_tx_ptp_ts_step),
 
@@ -1320,6 +1313,108 @@ core_inst (
     .s_axis_eth_rx_tuser(axis_eth_rx_tuser),
 
     .eth_rx_status(eth_rx_status),
+
+    /*
+     * DDR
+     */
+    .ddr_clk(0),
+    .ddr_rst(0),
+
+    .m_axi_ddr_awid(),
+    .m_axi_ddr_awaddr(),
+    .m_axi_ddr_awlen(),
+    .m_axi_ddr_awsize(),
+    .m_axi_ddr_awburst(),
+    .m_axi_ddr_awlock(),
+    .m_axi_ddr_awcache(),
+    .m_axi_ddr_awprot(),
+    .m_axi_ddr_awqos(),
+    .m_axi_ddr_awuser(),
+    .m_axi_ddr_awvalid(),
+    .m_axi_ddr_awready(0),
+    .m_axi_ddr_wdata(),
+    .m_axi_ddr_wstrb(),
+    .m_axi_ddr_wlast(),
+    .m_axi_ddr_wuser(),
+    .m_axi_ddr_wvalid(),
+    .m_axi_ddr_wready(0),
+    .m_axi_ddr_bid(0),
+    .m_axi_ddr_bresp(0),
+    .m_axi_ddr_buser(0),
+    .m_axi_ddr_bvalid(0),
+    .m_axi_ddr_bready(),
+    .m_axi_ddr_arid(),
+    .m_axi_ddr_araddr(),
+    .m_axi_ddr_arlen(),
+    .m_axi_ddr_arsize(),
+    .m_axi_ddr_arburst(),
+    .m_axi_ddr_arlock(),
+    .m_axi_ddr_arcache(),
+    .m_axi_ddr_arprot(),
+    .m_axi_ddr_arqos(),
+    .m_axi_ddr_aruser(),
+    .m_axi_ddr_arvalid(),
+    .m_axi_ddr_arready(0),
+    .m_axi_ddr_rid(0),
+    .m_axi_ddr_rdata(0),
+    .m_axi_ddr_rresp(0),
+    .m_axi_ddr_rlast(0),
+    .m_axi_ddr_ruser(0),
+    .m_axi_ddr_rvalid(0),
+    .m_axi_ddr_rready(),
+
+    .ddr_status(0),
+
+    /*
+     * HBM
+     */
+    .hbm_clk(0),
+    .hbm_rst(0),
+
+    .m_axi_hbm_awid(),
+    .m_axi_hbm_awaddr(),
+    .m_axi_hbm_awlen(),
+    .m_axi_hbm_awsize(),
+    .m_axi_hbm_awburst(),
+    .m_axi_hbm_awlock(),
+    .m_axi_hbm_awcache(),
+    .m_axi_hbm_awprot(),
+    .m_axi_hbm_awqos(),
+    .m_axi_hbm_awuser(),
+    .m_axi_hbm_awvalid(),
+    .m_axi_hbm_awready(0),
+    .m_axi_hbm_wdata(),
+    .m_axi_hbm_wstrb(),
+    .m_axi_hbm_wlast(),
+    .m_axi_hbm_wuser(),
+    .m_axi_hbm_wvalid(),
+    .m_axi_hbm_wready(0),
+    .m_axi_hbm_bid(0),
+    .m_axi_hbm_bresp(0),
+    .m_axi_hbm_buser(0),
+    .m_axi_hbm_bvalid(0),
+    .m_axi_hbm_bready(),
+    .m_axi_hbm_arid(),
+    .m_axi_hbm_araddr(),
+    .m_axi_hbm_arlen(),
+    .m_axi_hbm_arsize(),
+    .m_axi_hbm_arburst(),
+    .m_axi_hbm_arlock(),
+    .m_axi_hbm_arcache(),
+    .m_axi_hbm_arprot(),
+    .m_axi_hbm_arqos(),
+    .m_axi_hbm_aruser(),
+    .m_axi_hbm_arvalid(),
+    .m_axi_hbm_arready(0),
+    .m_axi_hbm_rid(0),
+    .m_axi_hbm_rdata(0),
+    .m_axi_hbm_rresp(0),
+    .m_axi_hbm_rlast(0),
+    .m_axi_hbm_ruser(0),
+    .m_axi_hbm_rvalid(0),
+    .m_axi_hbm_rready(),
+
+    .hbm_status(0),
 
     /*
      * Statistics input

@@ -52,6 +52,9 @@ struct mqnic_app_dma_bench {
 	void __iomem *app_hw_addr;
 	void __iomem *ram_hw_addr;
 
+	struct mqnic_reg_block *rb_list;
+	struct mqnic_reg_block *dma_bench_rb;
+
 	// DMA buffer
 	size_t dma_region_len;
 	void *dma_region;
@@ -103,9 +106,9 @@ const char *dma_bench_stats_names[] = {
 	"dma_rd_req_timeout",      // index 6
 	"dma_rd_op_table_full",    // index 7
 	"dma_rd_no_tags",          // index 8
-	"dma_rd_tx_no_credit",     // index 9
-	"dma_rd_tx_limit",         // index 10
-	"dma_rd_tx_stall",         // index 11
+	"dma_rd_tx_limit",         // index 9
+	"dma_rd_tx_stall",         // index 10
+	"",                        // index 11
 	"",                        // index 12
 	"",                        // index 13
 	"",                        // index 14
@@ -119,24 +122,15 @@ const char *dma_bench_stats_names[] = {
 	"",                        // index 22
 	"dma_wr_op_table_full",    // index 23
 	"",                        // index 24
-	"dma_wr_tx_no_credit",     // index 25
-	"dma_wr_tx_limit",         // index 26
-	"dma_wr_tx_stall",         // index 27
+	"dma_wr_tx_limit",         // index 25
+	"dma_wr_tx_stall",         // index 26
+	"",                        // index 27
 	"",                        // index 28
 	"",                        // index 29
 	"",                        // index 30
 	"",                        // index 31
 	0
 };
-
-static u64 read_stat_counter(struct mqnic_app_dma_bench *app, int index)
-{
-	u64 val;
-
-	val = (u64) ioread32(app->nic_hw_addr + 0x010000 + index * 8 + 0);
-	val |= (u64) ioread32(app->nic_hw_addr + 0x010000 + index * 8 + 4) << 32;
-	return val;
-}
 
 static void print_counters(struct mqnic_app_dma_bench *app)
 {
@@ -147,7 +141,7 @@ static void print_counters(struct mqnic_app_dma_bench *app)
 
 	while (dma_bench_stats_names[index]) {
 		if (strlen(dma_bench_stats_names[index]) > 0) {
-			val = read_stat_counter(app, index);
+			val = mqnic_stats_read(app->mdev, index);
 			dev_info(dev, "%s: %lld", dma_bench_stats_names[index], val);
 		}
 		index++;
@@ -161,19 +155,19 @@ static void dma_read(struct mqnic_app_dma_bench *app,
 	int new_tag = 0;
 	unsigned long t;
 
-	tag = ioread32(app->app_hw_addr + 0x000118); // dummy read
-	tag = (ioread32(app->app_hw_addr + 0x000118) & 0x7f) + 1;
-	iowrite32(dma_addr & 0xffffffff, app->app_hw_addr + 0x000100);
-	iowrite32((dma_addr >> 32) & 0xffffffff, app->app_hw_addr + 0x000104);
-	iowrite32(ram_addr, app->app_hw_addr + 0x000108);
-	iowrite32(0, app->app_hw_addr + 0x00010C);
-	iowrite32(len, app->app_hw_addr + 0x000110);
-	iowrite32(tag, app->app_hw_addr + 0x000114);
+	tag = ioread32(app->dma_bench_rb->regs + 0x118); // dummy read
+	tag = (ioread32(app->dma_bench_rb->regs + 0x118) & 0x7f) + 1;
+	iowrite32(dma_addr & 0xffffffff, app->dma_bench_rb->regs + 0x100);
+	iowrite32((dma_addr >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x104);
+	iowrite32(ram_addr, app->dma_bench_rb->regs + 0x108);
+	iowrite32(0, app->dma_bench_rb->regs + 0x10C);
+	iowrite32(len, app->dma_bench_rb->regs + 0x110);
+	iowrite32(tag, app->dma_bench_rb->regs + 0x114);
 
 	// wait for transfer to complete
 	t = jiffies + msecs_to_jiffies(200);
 	while (time_before(jiffies, t)) {
-		new_tag = (ioread32(app->app_hw_addr + 0x000118) & 0xff);
+		new_tag = (ioread32(app->dma_bench_rb->regs + 0x118) & 0xff);
 		if (new_tag == tag)
 			break;
 	}
@@ -189,19 +183,19 @@ static void dma_write(struct mqnic_app_dma_bench *app,
 	int new_tag = 0;
 	unsigned long t;
 
-	tag = ioread32(app->app_hw_addr + 0x000218); // dummy read
-	tag = (ioread32(app->app_hw_addr + 0x000218) & 0x7f) + 1;
-	iowrite32(dma_addr & 0xffffffff, app->app_hw_addr + 0x000200);
-	iowrite32((dma_addr >> 32) & 0xffffffff, app->app_hw_addr + 0x000204);
-	iowrite32(ram_addr, app->app_hw_addr + 0x000208);
-	iowrite32(0, app->app_hw_addr + 0x00020C);
-	iowrite32(len, app->app_hw_addr + 0x000210);
-	iowrite32(tag, app->app_hw_addr + 0x000214);
+	tag = ioread32(app->dma_bench_rb->regs + 0x218); // dummy read
+	tag = (ioread32(app->dma_bench_rb->regs + 0x218) & 0x7f) + 1;
+	iowrite32(dma_addr & 0xffffffff, app->dma_bench_rb->regs + 0x200);
+	iowrite32((dma_addr >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x204);
+	iowrite32(ram_addr, app->dma_bench_rb->regs + 0x208);
+	iowrite32(0, app->dma_bench_rb->regs + 0x20C);
+	iowrite32(len, app->dma_bench_rb->regs + 0x210);
+	iowrite32(tag, app->dma_bench_rb->regs + 0x214);
 
 	// wait for transfer to complete
 	t = jiffies + msecs_to_jiffies(200);
 	while (time_before(jiffies, t)) {
-		new_tag = (ioread32(app->app_hw_addr + 0x000218) & 0xff);
+		new_tag = (ioread32(app->dma_bench_rb->regs + 0x218) & 0xff);
 		if (new_tag == tag)
 			break;
 	}
@@ -220,47 +214,47 @@ static void dma_block_read(struct mqnic_app_dma_bench *app,
 	unsigned long t;
 
 	// DMA base address
-	iowrite32(dma_addr & 0xffffffff, app->app_hw_addr + 0x001080);
-	iowrite32((dma_addr >> 32) & 0xffffffff, app->app_hw_addr + 0x001084);
+	iowrite32(dma_addr & 0xffffffff, app->dma_bench_rb->regs + 0x380);
+	iowrite32((dma_addr >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x384);
 	// DMA offset address
-	iowrite32(dma_offset & 0xffffffff, app->app_hw_addr + 0x001088);
-	iowrite32((dma_offset >> 32) & 0xffffffff, app->app_hw_addr + 0x00108c);
+	iowrite32(dma_offset & 0xffffffff, app->dma_bench_rb->regs + 0x388);
+	iowrite32((dma_offset >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x38c);
 	// DMA offset mask
-	iowrite32(dma_offset_mask & 0xffffffff, app->app_hw_addr + 0x001090);
-	iowrite32((dma_offset_mask >> 32) & 0xffffffff, app->app_hw_addr + 0x001094);
+	iowrite32(dma_offset_mask & 0xffffffff, app->dma_bench_rb->regs + 0x390);
+	iowrite32((dma_offset_mask >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x394);
 	// DMA stride
-	iowrite32(dma_stride & 0xffffffff, app->app_hw_addr + 0x001098);
-	iowrite32((dma_stride >> 32) & 0xffffffff, app->app_hw_addr + 0x00109c);
+	iowrite32(dma_stride & 0xffffffff, app->dma_bench_rb->regs + 0x398);
+	iowrite32((dma_stride >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x39c);
 	// RAM base address
-	iowrite32(ram_addr & 0xffffffff, app->app_hw_addr + 0x0010c0);
-	iowrite32((ram_addr >> 32) & 0xffffffff, app->app_hw_addr + 0x0010c4);
+	iowrite32(ram_addr & 0xffffffff, app->dma_bench_rb->regs + 0x3c0);
+	iowrite32((ram_addr >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x3c4);
 	// RAM offset address
-	iowrite32(ram_offset & 0xffffffff, app->app_hw_addr + 0x0010c8);
-	iowrite32((ram_offset >> 32) & 0xffffffff, app->app_hw_addr + 0x0010cc);
+	iowrite32(ram_offset & 0xffffffff, app->dma_bench_rb->regs + 0x3c8);
+	iowrite32((ram_offset >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x3cc);
 	// RAM offset mask
-	iowrite32(ram_offset_mask & 0xffffffff, app->app_hw_addr + 0x0010d0);
-	iowrite32((ram_offset_mask >> 32) & 0xffffffff, app->app_hw_addr + 0x0010d4);
+	iowrite32(ram_offset_mask & 0xffffffff, app->dma_bench_rb->regs + 0x3d0);
+	iowrite32((ram_offset_mask >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x3d4);
 	// RAM stride
-	iowrite32(ram_stride & 0xffffffff, app->app_hw_addr + 0x0010d8);
-	iowrite32((ram_stride >> 32) & 0xffffffff, app->app_hw_addr + 0x0010dc);
+	iowrite32(ram_stride & 0xffffffff, app->dma_bench_rb->regs + 0x3d8);
+	iowrite32((ram_stride >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x3dc);
 	// clear cycle count
-	iowrite32(0, app->app_hw_addr + 0x001008);
-	iowrite32(0, app->app_hw_addr + 0x00100c);
+	iowrite32(0, app->dma_bench_rb->regs + 0x308);
+	iowrite32(0, app->dma_bench_rb->regs + 0x30c);
 	// block length
-	iowrite32(block_len, app->app_hw_addr + 0x001010);
+	iowrite32(block_len, app->dma_bench_rb->regs + 0x310);
 	// block count
-	iowrite32(block_count, app->app_hw_addr + 0x001018);
+	iowrite32(block_count, app->dma_bench_rb->regs + 0x318);
 	// start
-	iowrite32(1, app->app_hw_addr + 0x001000);
+	iowrite32(1, app->dma_bench_rb->regs + 0x300);
 
 	// wait for transfer to complete
 	t = jiffies + msecs_to_jiffies(20000);
 	while (time_before(jiffies, t)) {
-		if ((ioread32(app->app_hw_addr + 0x001000) & 1) == 0)
+		if ((ioread32(app->dma_bench_rb->regs + 0x300) & 1) == 0)
 			break;
 	}
 
-	if ((ioread32(app->app_hw_addr + 0x001000) & 1) != 0)
+	if ((ioread32(app->dma_bench_rb->regs + 0x300) & 1) != 0)
 		dev_warn(app->dev, "%s: operation timed out", __func__);
 }
 
@@ -274,54 +268,54 @@ static void dma_block_write(struct mqnic_app_dma_bench *app,
 	unsigned long t;
 
 	// DMA base address
-	iowrite32(dma_addr & 0xffffffff, app->app_hw_addr + 0x001180);
-	iowrite32((dma_addr >> 32) & 0xffffffff, app->app_hw_addr + 0x001184);
+	iowrite32(dma_addr & 0xffffffff, app->dma_bench_rb->regs + 0x480);
+	iowrite32((dma_addr >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x484);
 	// DMA offset address
-	iowrite32(dma_offset & 0xffffffff, app->app_hw_addr + 0x001188);
-	iowrite32((dma_offset >> 32) & 0xffffffff, app->app_hw_addr + 0x00118c);
+	iowrite32(dma_offset & 0xffffffff, app->dma_bench_rb->regs + 0x488);
+	iowrite32((dma_offset >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x48c);
 	// DMA offset mask
-	iowrite32(dma_offset_mask & 0xffffffff, app->app_hw_addr + 0x001190);
-	iowrite32((dma_offset_mask >> 32) & 0xffffffff, app->app_hw_addr + 0x001194);
+	iowrite32(dma_offset_mask & 0xffffffff, app->dma_bench_rb->regs + 0x490);
+	iowrite32((dma_offset_mask >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x494);
 	// DMA stride
-	iowrite32(dma_stride & 0xffffffff, app->app_hw_addr + 0x001198);
-	iowrite32((dma_stride >> 32) & 0xffffffff, app->app_hw_addr + 0x00119c);
+	iowrite32(dma_stride & 0xffffffff, app->dma_bench_rb->regs + 0x498);
+	iowrite32((dma_stride >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x49c);
 	// RAM base address
-	iowrite32(ram_addr & 0xffffffff, app->app_hw_addr + 0x0011c0);
-	iowrite32((ram_addr >> 32) & 0xffffffff, app->app_hw_addr + 0x0011c4);
+	iowrite32(ram_addr & 0xffffffff, app->dma_bench_rb->regs + 0x4c0);
+	iowrite32((ram_addr >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x4c4);
 	// RAM offset address
-	iowrite32(ram_offset & 0xffffffff, app->app_hw_addr + 0x0011c8);
-	iowrite32((ram_offset >> 32) & 0xffffffff, app->app_hw_addr + 0x0011cc);
+	iowrite32(ram_offset & 0xffffffff, app->dma_bench_rb->regs + 0x4c8);
+	iowrite32((ram_offset >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x4cc);
 	// RAM offset mask
-	iowrite32(ram_offset_mask & 0xffffffff, app->app_hw_addr + 0x0011d0);
-	iowrite32((ram_offset_mask >> 32) & 0xffffffff, app->app_hw_addr + 0x0011d4);
+	iowrite32(ram_offset_mask & 0xffffffff, app->dma_bench_rb->regs + 0x4d0);
+	iowrite32((ram_offset_mask >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x4d4);
 	// RAM stride
-	iowrite32(ram_stride & 0xffffffff, app->app_hw_addr + 0x0011d8);
-	iowrite32((ram_stride >> 32) & 0xffffffff, app->app_hw_addr + 0x0011dc);
+	iowrite32(ram_stride & 0xffffffff, app->dma_bench_rb->regs + 0x4d8);
+	iowrite32((ram_stride >> 32) & 0xffffffff, app->dma_bench_rb->regs + 0x4dc);
 	// clear cycle count
-	iowrite32(0, app->app_hw_addr + 0x001108);
-	iowrite32(0, app->app_hw_addr + 0x00110c);
+	iowrite32(0, app->dma_bench_rb->regs + 0x408);
+	iowrite32(0, app->dma_bench_rb->regs + 0x40c);
 	// block length
-	iowrite32(block_len, app->app_hw_addr + 0x001110);
+	iowrite32(block_len, app->dma_bench_rb->regs + 0x410);
 	// block count
-	iowrite32(block_count, app->app_hw_addr + 0x001118);
+	iowrite32(block_count, app->dma_bench_rb->regs + 0x418);
 	// start
-	iowrite32(1, app->app_hw_addr + 0x001100);
+	iowrite32(1, app->dma_bench_rb->regs + 0x400);
 
 	// wait for transfer to complete
 	t = jiffies + msecs_to_jiffies(20000);
 	while (time_before(jiffies, t)) {
-		if ((ioread32(app->app_hw_addr + 0x001100) & 1) == 0)
+		if ((ioread32(app->dma_bench_rb->regs + 0x400) & 1) == 0)
 			break;
 	}
 
-	if ((ioread32(app->app_hw_addr + 0x001100) & 1) != 0)
+	if ((ioread32(app->dma_bench_rb->regs + 0x400) & 1) != 0)
 		dev_warn(app->dev, "%s: operation timed out", __func__);
 }
 
 static void dma_block_read_bench(struct mqnic_app_dma_bench *app,
 		dma_addr_t dma_addr, u64 size, u64 stride, u64 count)
 {
-	u64 cycles;
+	u64 time;
 	u64 op_count;
 	u64 op_latency;
 	u64 req_count;
@@ -329,32 +323,32 @@ static void dma_block_read_bench(struct mqnic_app_dma_bench *app,
 
 	udelay(5);
 
-	op_count = read_stat_counter(app, 32);
-	op_latency = read_stat_counter(app, 34);
-	req_count = read_stat_counter(app, 36);
-	req_latency = read_stat_counter(app, 37);
+	op_count = mqnic_stats_read(app->mdev, 32);
+	op_latency = mqnic_stats_read(app->mdev, 34);
+	req_count = mqnic_stats_read(app->mdev, 36);
+	req_latency = mqnic_stats_read(app->mdev, 37);
 
 	dma_block_read(app, dma_addr, 0, 0x3fff, stride,
 			0, 0, 0x3fff, stride, size, count);
 
-	cycles = ioread32(app->app_hw_addr + 0x001008);
+	time = mqnic_core_clk_cycles_to_ns(app->mdev, ioread32(app->dma_bench_rb->regs + 0x308));
 
 	udelay(5);
 
-	op_count = read_stat_counter(app, 32) - op_count;
-	op_latency = read_stat_counter(app, 34) - op_latency;
-	req_count = read_stat_counter(app, 36) - req_count;
-	req_latency = read_stat_counter(app, 37) - req_latency;
+	op_count = mqnic_stats_read(app->mdev, 32) - op_count;
+	op_latency = mqnic_core_clk_cycles_to_ns(app->mdev, mqnic_stats_read(app->mdev, 34) - op_latency);
+	req_count = mqnic_stats_read(app->mdev, 36) - req_count;
+	req_latency = mqnic_core_clk_cycles_to_ns(app->mdev, mqnic_stats_read(app->mdev, 37) - req_latency);
 
 	dev_info(app->dev, "read %lld blocks of %lld bytes (stride %lld) in %lld ns (%lld ns/op, %lld req, %lld ns/req): %lld Mbps",
-			count, size, stride, cycles * 4, (op_latency * 4) / op_count, req_count,
-			(req_latency * 4) / req_count, size * count * 8 * 1000 / (cycles * 4));
+			count, size, stride, time, op_latency / op_count, req_count,
+			req_latency / req_count, size * count * 8 * 1000 / time);
 }
 
 static void dma_block_write_bench(struct mqnic_app_dma_bench *app,
 		dma_addr_t dma_addr, u64 size, u64 stride, u64 count)
 {
-	u64 cycles;
+	u64 time;
 	u64 op_count;
 	u64 op_latency;
 	u64 req_count;
@@ -362,34 +356,38 @@ static void dma_block_write_bench(struct mqnic_app_dma_bench *app,
 
 	udelay(5);
 
-	op_count = read_stat_counter(app, 48);
-	op_latency = read_stat_counter(app, 50);
-	req_count = read_stat_counter(app, 52);
-	req_latency = read_stat_counter(app, 53);
+	op_count = mqnic_stats_read(app->mdev, 48);
+	op_latency = mqnic_stats_read(app->mdev, 50);
+	req_count = mqnic_stats_read(app->mdev, 52);
+	req_latency = mqnic_stats_read(app->mdev, 53);
 
 	dma_block_write(app, dma_addr, 0, 0x3fff, stride,
 			0, 0, 0x3fff, stride, size, count);
 
-	cycles = ioread32(app->app_hw_addr + 0x001108);
+	time = mqnic_core_clk_cycles_to_ns(app->mdev, ioread32(app->dma_bench_rb->regs + 0x408));
 
 	udelay(5);
 
-	op_count = read_stat_counter(app, 48) - op_count;
-	op_latency = read_stat_counter(app, 50) - op_latency;
-	req_count = read_stat_counter(app, 52) - req_count;
-	req_latency = read_stat_counter(app, 53) - req_latency;
+	op_count = mqnic_stats_read(app->mdev, 48) - op_count;
+	op_latency = mqnic_core_clk_cycles_to_ns(app->mdev, mqnic_stats_read(app->mdev, 50) - op_latency);
+	req_count = mqnic_stats_read(app->mdev, 52) - req_count;
+	req_latency = mqnic_core_clk_cycles_to_ns(app->mdev, mqnic_stats_read(app->mdev, 53) - req_latency);
 
 	dev_info(app->dev, "wrote %lld blocks of %lld bytes (stride %lld) in %lld ns (%lld ns/op, %lld req, %lld ns/req): %lld Mbps",
-			count, size, stride, cycles * 4, (op_latency * 4) / op_count, req_count,
-			(req_latency * 4) / req_count, size * count * 8 * 1000 / (cycles * 4));
+			count, size, stride, time, op_latency / op_count, req_count,
+			req_latency / req_count, size * count * 8 * 1000 / time);
 }
+
+static void mqnic_app_dma_bench_remove(struct auxiliary_device *adev);
 
 static int mqnic_app_dma_bench_probe(struct auxiliary_device *adev,
 		const struct auxiliary_device_id *id)
 {
+	int ret = 0;
 	struct mqnic_app_dma_bench *app;
 	struct mqnic_dev *mdev = container_of(adev, struct mqnic_adev, adev)->mdev;
 	struct device *dev = &adev->dev;
+	struct mqnic_reg_block *rb;
 
 	int mismatch = 0;
 	int k;
@@ -414,12 +412,33 @@ static int mqnic_app_dma_bench_probe(struct auxiliary_device *adev,
 	app->app_hw_addr = mdev->app_hw_addr;
 	app->ram_hw_addr = mdev->ram_hw_addr;
 
+	app->rb_list = mqnic_enumerate_reg_block_list(mdev->app_hw_addr, 0, mdev->app_hw_regs_size);
+	if (!app->rb_list) {
+		dev_err(dev, "Failed to enumerate blocks");
+		return -EIO;
+	}
+
+	dev_info(dev, "Application register blocks:");
+	for (rb = app->rb_list; rb->regs; rb++)
+		dev_info(dev, " type 0x%08x (v %d.%d.%d.%d)", rb->type, rb->version >> 24,
+				(rb->version >> 16) & 0xff, (rb->version >> 8) & 0xff, rb->version & 0xff);
+
+	app->dma_bench_rb = mqnic_find_reg_block(app->rb_list, 0x12348101, 0x00000100, 0);
+
+	if (!app->dma_bench_rb) {
+		ret = -EIO;
+		dev_err(dev, "Error: DMA bench register block not found");
+		goto fail_rb_init;
+	}
+
 	// Allocate DMA buffer
 	app->dma_region_len = 16 * 1024;
 	app->dma_region = dma_alloc_coherent(app->nic_dev, app->dma_region_len,
 			&app->dma_region_addr, GFP_KERNEL | __GFP_ZERO);
-	if (!app->dma_region)
-		return -ENOMEM;
+	if (!app->dma_region) {
+		ret = -ENOMEM;
+		goto fail_dma_alloc;
+	}
 
 	dev_info(dev, "Allocated DMA region virt %p, phys %p",
 			app->dma_region, (void *)app->dma_region_addr);
@@ -528,7 +547,12 @@ static int mqnic_app_dma_bench_probe(struct auxiliary_device *adev,
 	print_counters(app);
 
 	return 0;
-}
+
+fail_dma_alloc:
+fail_rb_init:
+	mqnic_app_dma_bench_remove(adev);
+	return ret;
+}	
 
 static void mqnic_app_dma_bench_remove(struct auxiliary_device *adev)
 {
@@ -537,8 +561,12 @@ static void mqnic_app_dma_bench_remove(struct auxiliary_device *adev)
 
 	dev_info(dev, "%s() called", __func__);
 
-	dma_free_coherent(app->nic_dev, app->dma_region_len, app->dma_region,
-			app->dma_region_addr);
+	if (app->dma_region)
+		dma_free_coherent(app->nic_dev, app->dma_region_len, app->dma_region,
+				app->dma_region_addr);
+
+	if (app->rb_list)
+		mqnic_free_reg_block_list(app->rb_list);
 }
 
 static const struct auxiliary_device_id mqnic_app_dma_bench_id_table[] = {

@@ -27,6 +27,7 @@ SYN_FILES += rtl/common/mqnic_rx_queue_map.v
 SYN_FILES += rtl/common/mqnic_ptp.v
 SYN_FILES += rtl/common/mqnic_ptp_clock.v
 SYN_FILES += rtl/common/mqnic_ptp_perout.v
+SYN_FILES += rtl/common/mqnic_rb_clk_info.v
 SYN_FILES += rtl/common/mqnic_port_map_mac_axis.v
 SYN_FILES += rtl/common/cpl_write.v
 SYN_FILES += rtl/common/cpl_op_mux.v
@@ -43,6 +44,9 @@ SYN_FILES += rtl/common/rx_engine.v
 SYN_FILES += rtl/common/tx_checksum.v
 SYN_FILES += rtl/common/rx_hash.v
 SYN_FILES += rtl/common/rx_checksum.v
+SYN_FILES += rtl/common/rb_drp.v
+SYN_FILES += rtl/common/cmac_gty_wrapper.v
+SYN_FILES += rtl/common/cmac_gty_ch_wrapper.v
 SYN_FILES += rtl/common/stats_counter.v
 SYN_FILES += rtl/common/stats_collect.v
 SYN_FILES += rtl/common/stats_pcie_if.v
@@ -52,7 +56,7 @@ SYN_FILES += rtl/common/stats_dma_latency.v
 SYN_FILES += rtl/common/mqnic_tx_scheduler_block_rr.v
 SYN_FILES += rtl/common/tx_scheduler_rr.v
 SYN_FILES += rtl/common/cmac_pad.v
-SYN_FILES += rtl/common/cmac_ts_insert.v
+SYN_FILES += rtl/common/mac_ts_insert.v
 
 SYN_FILES += app/template/rtl/mqnic_app_block.v
 SYN_FILES += lib/axi/rtl/axil_ram.v
@@ -86,6 +90,10 @@ SYN_FILES += lib/pcie/rtl/pcie_axil_master.v
 SYN_FILES += lib/pcie/rtl/pcie_tlp_demux.v
 SYN_FILES += lib/pcie/rtl/pcie_tlp_demux_bar.v
 SYN_FILES += lib/pcie/rtl/pcie_tlp_mux.v
+SYN_FILES += lib/pcie/rtl/pcie_tlp_fifo.v
+SYN_FILES += lib/pcie/rtl/pcie_tlp_fifo_raw.v
+SYN_FILES += lib/pcie/rtl/pcie_msix.v
+SYN_FILES += lib/pcie/rtl/irq_rate_limit.v
 SYN_FILES += lib/pcie/rtl/dma_if_pcie.v
 SYN_FILES += lib/pcie/rtl/dma_if_pcie_rd.v
 SYN_FILES += lib/pcie/rtl/dma_if_pcie_wr.v
@@ -104,7 +112,6 @@ SYN_FILES += lib/pcie/rtl/pcie_us_if_rq.v
 SYN_FILES += lib/pcie/rtl/pcie_us_if_cc.v
 SYN_FILES += lib/pcie/rtl/pcie_us_if_cq.v
 SYN_FILES += lib/pcie/rtl/pcie_us_cfg.v
-SYN_FILES += lib/pcie/rtl/pcie_us_msi.v
 SYN_FILES += lib/pcie/rtl/pulse_merge.v
 
 # XDC files
@@ -117,11 +124,16 @@ XDC_FILES += lib/axis/syn/vivado/sync_reset.tcl
 XDC_FILES += lib/eth/syn/vivado/ptp_clock_cdc.tcl
 XDC_FILES += ../../../common/syn/vivado/mqnic_port.tcl
 XDC_FILES += ../../../common/syn/vivado/mqnic_ptp_clock.tcl
+XDC_FILES += ../../../common/syn/vivado/mqnic_rb_clk_info.tcl
+XDC_FILES += ../../../common/syn/vivado/rb_drp.tcl
+XDC_FILES += ../../../common/syn/vivado/cmac_gty_wrapper.tcl
+XDC_FILES += ../../../common/syn/vivado/cmac_gty_ch_wrapper.tcl
 
 # IP
 IP_TCL_FILES = ip/pcie4_uscale_plus_0.tcl
-IP_TCL_FILES += ip/cmac_usplus_0.tcl
-IP_TCL_FILES += ip/cmac_usplus_1.tcl
+IP_TCL_FILES += ip/cmac_usplus.tcl
+IP_TCL_FILES += ip/cmac_gty.tcl
+IP_TCL_FILES += ip/ddr4_0.tcl
 
 # Configuration
 CONFIG_TCL_FILES = ./config.tcl

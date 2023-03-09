@@ -33,14 +33,14 @@ THE SOFTWARE.
  */
 module dma_if_pcie #
 (
+    // TLP data width
+    parameter TLP_DATA_WIDTH = 256,
+    // TLP strobe width
+    parameter TLP_STRB_WIDTH = TLP_DATA_WIDTH/32,
+    // TLP header width
+    parameter TLP_HDR_WIDTH = 128,
     // TLP segment count
     parameter TLP_SEG_COUNT = 1,
-    // TLP segment data width
-    parameter TLP_SEG_DATA_WIDTH = 256,
-    // TLP segment strobe width
-    parameter TLP_SEG_STRB_WIDTH = TLP_SEG_DATA_WIDTH/32,
-    // TLP segment header width
-    parameter TLP_SEG_HDR_WIDTH = 128,
     // TX sequence number count
     parameter TX_SEQ_NUM_COUNT = 1,
     // TX sequence number width
@@ -54,7 +54,7 @@ module dma_if_pcie #
     // RAM segment count
     parameter RAM_SEG_COUNT = TLP_SEG_COUNT*2,
     // RAM segment data width
-    parameter RAM_SEG_DATA_WIDTH = (TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH)*2/RAM_SEG_COUNT,
+    parameter RAM_SEG_DATA_WIDTH = TLP_DATA_WIDTH*2/RAM_SEG_COUNT,
     // RAM segment byte enable width
     parameter RAM_SEG_BE_WIDTH = RAM_SEG_DATA_WIDTH/8,
     // RAM segment address width
@@ -75,14 +75,10 @@ module dma_if_pcie #
     parameter READ_OP_TABLE_SIZE = PCIE_TAG_COUNT,
     // In-flight transmit limit (read)
     parameter READ_TX_LIMIT = 2**TX_SEQ_NUM_WIDTH,
-    // Transmit flow control (read)
-    parameter READ_TX_FC_ENABLE = 0,
     // Operation table size (write)
     parameter WRITE_OP_TABLE_SIZE = 2**TX_SEQ_NUM_WIDTH,
     // In-flight transmit limit (write)
     parameter WRITE_TX_LIMIT = 2**TX_SEQ_NUM_WIDTH,
-    // Transmit flow control (write)
-    parameter WRITE_TX_FC_ENABLE = 0,
     // Force 64 bit address
     parameter TLP_FORCE_64_BIT_ADDR = 0,
     // Requester ID mash
@@ -95,8 +91,8 @@ module dma_if_pcie #
     /*
      * TLP input (completion)
      */
-    input  wire [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0]   rx_cpl_tlp_data,
-    input  wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]    rx_cpl_tlp_hdr,
+    input  wire [TLP_DATA_WIDTH-1:0]                     rx_cpl_tlp_data,
+    input  wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]        rx_cpl_tlp_hdr,
     input  wire [TLP_SEG_COUNT*4-1:0]                    rx_cpl_tlp_error,
     input  wire [TLP_SEG_COUNT-1:0]                      rx_cpl_tlp_valid,
     input  wire [TLP_SEG_COUNT-1:0]                      rx_cpl_tlp_sop,
@@ -106,7 +102,7 @@ module dma_if_pcie #
     /*
      * TLP output (read request)
      */
-    output wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]    tx_rd_req_tlp_hdr,
+    output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]        tx_rd_req_tlp_hdr,
     output wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]     tx_rd_req_tlp_seq,
     output wire [TLP_SEG_COUNT-1:0]                      tx_rd_req_tlp_valid,
     output wire [TLP_SEG_COUNT-1:0]                      tx_rd_req_tlp_sop,
@@ -116,9 +112,9 @@ module dma_if_pcie #
     /*
      * TLP output (write request)
      */
-    output wire [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0]   tx_wr_req_tlp_data,
-    output wire [TLP_SEG_COUNT*TLP_SEG_STRB_WIDTH-1:0]   tx_wr_req_tlp_strb,
-    output wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]    tx_wr_req_tlp_hdr,
+    output wire [TLP_DATA_WIDTH-1:0]                     tx_wr_req_tlp_data,
+    output wire [TLP_STRB_WIDTH-1:0]                     tx_wr_req_tlp_strb,
+    output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]        tx_wr_req_tlp_hdr,
     output wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]     tx_wr_req_tlp_seq,
     output wire [TLP_SEG_COUNT-1:0]                      tx_wr_req_tlp_valid,
     output wire [TLP_SEG_COUNT-1:0]                      tx_wr_req_tlp_sop,
@@ -132,13 +128,6 @@ module dma_if_pcie #
     input  wire [TX_SEQ_NUM_COUNT-1:0]                   s_axis_rd_req_tx_seq_num_valid,
     input  wire [TX_SEQ_NUM_COUNT*TX_SEQ_NUM_WIDTH-1:0]  s_axis_wr_req_tx_seq_num,
     input  wire [TX_SEQ_NUM_COUNT-1:0]                   s_axis_wr_req_tx_seq_num_valid,
-
-    /*
-     * Transmit flow control
-     */
-    input  wire [7:0]                                    pcie_tx_fc_ph_av,
-    input  wire [11:0]                                   pcie_tx_fc_pd_av,
-    input  wire [7:0]                                    pcie_tx_fc_nph_av,
 
     /*
      * AXI read descriptor input
@@ -230,7 +219,6 @@ module dma_if_pcie #
     output wire                                          stat_rd_req_timeout,
     output wire                                          stat_rd_op_table_full,
     output wire                                          stat_rd_no_tags,
-    output wire                                          stat_rd_tx_no_credit,
     output wire                                          stat_rd_tx_limit,
     output wire                                          stat_rd_tx_stall,
     output wire [$clog2(WRITE_OP_TABLE_SIZE)-1:0]        stat_wr_op_start_tag,
@@ -246,15 +234,14 @@ module dma_if_pcie #
     output wire [3:0]                                    stat_wr_req_finish_status,
     output wire                                          stat_wr_req_finish_valid,
     output wire                                          stat_wr_op_table_full,
-    output wire                                          stat_wr_tx_no_credit,
     output wire                                          stat_wr_tx_limit,
     output wire                                          stat_wr_tx_stall
 );
 
 dma_if_pcie_rd #(
+    .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+    .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
     .TLP_SEG_COUNT(TLP_SEG_COUNT),
-    .TLP_SEG_DATA_WIDTH(TLP_SEG_DATA_WIDTH),
-    .TLP_SEG_HDR_WIDTH(TLP_SEG_HDR_WIDTH),
     .TX_SEQ_NUM_COUNT(TX_SEQ_NUM_COUNT),
     .TX_SEQ_NUM_WIDTH(TX_SEQ_NUM_WIDTH),
     .TX_SEQ_NUM_ENABLE(TX_SEQ_NUM_ENABLE),
@@ -270,7 +257,6 @@ dma_if_pcie_rd #(
     .TAG_WIDTH(TAG_WIDTH),
     .OP_TABLE_SIZE(READ_OP_TABLE_SIZE),
     .TX_LIMIT(READ_TX_LIMIT),
-    .TX_FC_ENABLE(READ_TX_FC_ENABLE),
     .TLP_FORCE_64_BIT_ADDR(TLP_FORCE_64_BIT_ADDR),
     .CHECK_BUS_NUMBER(CHECK_BUS_NUMBER)
 )
@@ -304,11 +290,6 @@ dma_if_pcie_rd_inst (
      */
     .s_axis_tx_seq_num(s_axis_rd_req_tx_seq_num),
     .s_axis_tx_seq_num_valid(s_axis_rd_req_tx_seq_num_valid),
-
-    /*
-     * Transmit flow control
-     */
-    .pcie_tx_fc_nph_av(pcie_tx_fc_nph_av),
 
     /*
      * AXI read descriptor input
@@ -371,16 +352,15 @@ dma_if_pcie_rd_inst (
     .stat_rd_req_timeout(stat_rd_req_timeout),
     .stat_rd_op_table_full(stat_rd_op_table_full),
     .stat_rd_no_tags(stat_rd_no_tags),
-    .stat_rd_tx_no_credit(stat_rd_tx_no_credit),
     .stat_rd_tx_limit(stat_rd_tx_limit),
     .stat_rd_tx_stall(stat_rd_tx_stall)
 );
 
 dma_if_pcie_wr #(
+    .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+    .TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+    .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
     .TLP_SEG_COUNT(TLP_SEG_COUNT),
-    .TLP_SEG_DATA_WIDTH(TLP_SEG_DATA_WIDTH),
-    .TLP_SEG_STRB_WIDTH(TLP_SEG_STRB_WIDTH),
-    .TLP_SEG_HDR_WIDTH(TLP_SEG_HDR_WIDTH),
     .TX_SEQ_NUM_COUNT(TX_SEQ_NUM_COUNT),
     .TX_SEQ_NUM_WIDTH(TX_SEQ_NUM_WIDTH),
     .TX_SEQ_NUM_ENABLE(TX_SEQ_NUM_ENABLE),
@@ -397,7 +377,6 @@ dma_if_pcie_wr #(
     .TAG_WIDTH(TAG_WIDTH),
     .OP_TABLE_SIZE(WRITE_OP_TABLE_SIZE),
     .TX_LIMIT(WRITE_TX_LIMIT),
-    .TX_FC_ENABLE(WRITE_TX_FC_ENABLE),
     .TLP_FORCE_64_BIT_ADDR(TLP_FORCE_64_BIT_ADDR)
 )
 dma_if_pcie_wr_inst (
@@ -421,12 +400,6 @@ dma_if_pcie_wr_inst (
      */
     .s_axis_tx_seq_num(s_axis_wr_req_tx_seq_num),
     .s_axis_tx_seq_num_valid(s_axis_wr_req_tx_seq_num_valid),
-
-    /*
-     * Transmit flow control
-     */
-    .pcie_tx_fc_ph_av(pcie_tx_fc_ph_av),
-    .pcie_tx_fc_pd_av(pcie_tx_fc_pd_av),
 
     /*
      * AXI write descriptor input
@@ -482,7 +455,6 @@ dma_if_pcie_wr_inst (
     .stat_wr_req_finish_status(stat_wr_req_finish_status),
     .stat_wr_req_finish_valid(stat_wr_req_finish_valid),
     .stat_wr_op_table_full(stat_wr_op_table_full),
-    .stat_wr_tx_no_credit(stat_wr_tx_no_credit),
     .stat_wr_tx_limit(stat_wr_tx_limit),
     .stat_wr_tx_stall(stat_wr_tx_stall)
 );

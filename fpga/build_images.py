@@ -144,13 +144,10 @@ class Build:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE)
 
-        while True:
-            line = await proc.stdout.readline()
-            if not line:
-                break
-            line = line.decode('utf-8').strip()
-
-            self.scan_log_line(line)
+        await asyncio.gather(
+            self.process_stream(proc.stdout),
+            self.process_stream(proc.stderr),
+        )
 
         self.synth_done()
         self.build_done()
@@ -165,6 +162,15 @@ class Build:
             self.phase = "Failed"
 
         self.elapsed_time = datetime.datetime.now() - self.start_time
+
+    async def process_stream(self, stream):
+        while True:
+            line = await stream.readline()
+            if not line:
+                break
+            line = line.decode('utf-8').strip()
+
+            self.scan_log_line(line)
 
     def scan_log_line(self, line):
         pass
@@ -247,7 +253,9 @@ class QuartusBuild(Build):
         self.output_file = os.path.join(self.build_dir, "fpga"+self.output_ext)
 
     def scan_log_line(self, line):
-        if line.startswith('quartus_map'):
+        if line.startswith('quartus_ipgenerate'):
+            self.phase = "Generating IP"
+        elif line.startswith('quartus_map') or line.startswith('quartus_syn'):
             self.phase = "Running synthesis and mapping"
         elif line.startswith('quartus_fit'):
             self.synth_done()
@@ -256,6 +264,10 @@ class QuartusBuild(Build):
             self.phase = "Running timing analysis"
         elif line.startswith('quartus_asm'):
             self.phase = "Running assembler"
+
+        m = re.search(r"Worst-case setup slack is (\S+)", line)
+        if m:
+            self.wns = m.group(1)
 
 
 class QuartusProBuild(QuartusBuild):
@@ -289,6 +301,8 @@ async def monitor_status(jobs):
 
 async def main():
     config.read("build_images.ini")
+    config.read("build_images_project.ini")
+    config.read("build_images_local.ini")
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--output_dir', type=str, default=None, help="Output directory")

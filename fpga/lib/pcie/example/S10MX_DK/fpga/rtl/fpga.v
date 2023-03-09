@@ -36,24 +36,24 @@ module fpga (
      * Clock: 100 MHz
      * Reset: Push button, active low
      */
-    input  wire        clk_sys_100m_p,
-    input  wire        cpu_resetn,
+    input  wire         clk_sys_100m_p,
+    input  wire         cpu_resetn,
 
     /*
      * GPIO
      */
-    output wire [3:0]  user_led,
+    output wire [3:0]   user_led,
 
     /*
      * PCIe: gen 3 x16
      */
-    output wire [7:0]  pcie_ep_rx_p,
-    input  wire [7:0]  pcie_ep_tx_p,
-    input  wire        refclk_pcie_ep_edge_p,
-    input  wire        s10_pcie_perstn0
+    output wire [15:0]  pcie_ep_rx_p,
+    input  wire [15:0]  pcie_ep_tx_p,
+    input  wire         refclk_pcie_ep_edge_p,
+    input  wire         s10_pcie_perstn0
 );
 
-parameter SEG_COUNT = 1;
+parameter SEG_COUNT = 2;
 parameter SEG_DATA_WIDTH = 256;
 parameter SEG_EMPTY_WIDTH = $clog2(SEG_DATA_WIDTH/32);
 
@@ -62,6 +62,7 @@ parameter TX_SEQ_NUM_WIDTH = 6;
 parameter PCIE_TAG_COUNT = 256;
 parameter BAR0_APERTURE = 24;
 parameter BAR2_APERTURE = 24;
+parameter BAR4_APERTURE = 16;
 
 // Clock and reset
 
@@ -118,12 +119,6 @@ wire [SEG_COUNT-1:0]                  tx_data_cdts_consumed;
 wire [SEG_COUNT*2-1:0]                tx_cdts_type;
 wire [SEG_COUNT*1-1:0]                tx_cdts_data_value;
 
-wire                                  app_msi_req;
-wire                                  app_msi_ack;
-wire [2:0]                            app_msi_tc;
-wire [4:0]                            app_msi_num;
-wire [1:0]                            app_msi_func_num;
-
 wire [31:0]                           tl_cfg_ctl;
 wire [4:0]                            tl_cfg_add;
 wire [1:0]                            tl_cfg_func;
@@ -163,12 +158,12 @@ pcie pcie_hip_inst (
     .tx_cplh_cdts              (tx_cplh_cdts),
     .tx_ph_cdts                (tx_ph_cdts),
     .tx_nph_cdts               (tx_nph_cdts),
-    .app_msi_req               (app_msi_req),
-    .app_msi_ack               (app_msi_ack),
-    .app_msi_tc                (app_msi_tc),
-    .app_msi_num               (app_msi_num),
+    .app_msi_req               (1'b0),
+    .app_msi_ack               (),
+    .app_msi_tc                (3'd0),
+    .app_msi_num               (5'd0),
     .app_int_sts               (4'd0),
-    .app_msi_func_num          (app_msi_func_num),
+    .app_msi_func_num          (2'd0),
     .int_status                (),
     .int_status_common         (),
     .derr_cor_ext_rpl          (),
@@ -434,6 +429,14 @@ pcie pcie_hip_inst (
     .rx_in5                    (pcie_ep_tx_p[5]),
     .rx_in6                    (pcie_ep_tx_p[6]),
     .rx_in7                    (pcie_ep_tx_p[7]),
+    .rx_in8                    (pcie_ep_tx_p[8]),
+    .rx_in9                    (pcie_ep_tx_p[9]),
+    .rx_in10                   (pcie_ep_tx_p[10]),
+    .rx_in11                   (pcie_ep_tx_p[11]),
+    .rx_in12                   (pcie_ep_tx_p[12]),
+    .rx_in13                   (pcie_ep_tx_p[13]),
+    .rx_in14                   (pcie_ep_tx_p[14]),
+    .rx_in15                   (pcie_ep_tx_p[15]),
     .tx_out0                   (pcie_ep_rx_p[0]),
     .tx_out1                   (pcie_ep_rx_p[1]),
     .tx_out2                   (pcie_ep_rx_p[2]),
@@ -442,6 +445,14 @@ pcie pcie_hip_inst (
     .tx_out5                   (pcie_ep_rx_p[5]),
     .tx_out6                   (pcie_ep_rx_p[6]),
     .tx_out7                   (pcie_ep_rx_p[7]),
+    .tx_out8                   (pcie_ep_rx_p[8]),
+    .tx_out9                   (pcie_ep_rx_p[9]),
+    .tx_out10                  (pcie_ep_rx_p[10]),
+    .tx_out11                  (pcie_ep_rx_p[11]),
+    .tx_out12                  (pcie_ep_rx_p[12]),
+    .tx_out13                  (pcie_ep_rx_p[13]),
+    .tx_out14                  (pcie_ep_rx_p[14]),
+    .tx_out15                  (pcie_ep_rx_p[15]),
     .pm_linkst_in_l1           (),
     .pm_linkst_in_l0s          (),
     .pm_state                  (),
@@ -460,7 +471,8 @@ fpga_core #(
     .TX_SEQ_NUM_WIDTH(TX_SEQ_NUM_WIDTH),
     .PCIE_TAG_COUNT(PCIE_TAG_COUNT),
     .BAR0_APERTURE(BAR0_APERTURE),
-    .BAR2_APERTURE(BAR2_APERTURE)
+    .BAR2_APERTURE(BAR2_APERTURE),
+    .BAR4_APERTURE(BAR4_APERTURE)
 )
 fpga_core_inst (
     .clk(clk),
@@ -502,12 +514,6 @@ fpga_core_inst (
     .tx_data_cdts_consumed(tx_data_cdts_consumed),
     .tx_cdts_type(tx_cdts_type),
     .tx_cdts_data_value(tx_cdts_data_value),
-
-    .app_msi_req(app_msi_req),
-    .app_msi_ack(app_msi_ack),
-    .app_msi_tc(app_msi_tc),
-    .app_msi_num(app_msi_num),
-    .app_msi_func_num(app_msi_func_num),
 
     .tl_cfg_ctl(tl_cfg_ctl),
     .tl_cfg_add(tl_cfg_add),

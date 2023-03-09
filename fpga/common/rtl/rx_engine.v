@@ -66,14 +66,12 @@ module rx_engine #
     parameter REQ_TAG_WIDTH = 8,
     // Descriptor request tag field width
     parameter DESC_REQ_TAG_WIDTH = 8,
+    // Completion request tag field width
+    parameter CPL_REQ_TAG_WIDTH = 8,
     // DMA tag field width
     parameter DMA_TAG_WIDTH = 8,
     // DMA client tag field width
     parameter DMA_CLIENT_TAG_WIDTH = 8,
-    // Queue request tag field width
-    parameter QUEUE_REQ_TAG_WIDTH = 8,
-    // Queue operation tag field width
-    parameter QUEUE_OP_TAG_WIDTH = 8,
     // Queue index width
     parameter QUEUE_INDEX_WIDTH = 4,
     // Queue element pointer width
@@ -184,7 +182,7 @@ module rx_engine #
      * Completion request output
      */
     output wire [CPL_QUEUE_INDEX_WIDTH-1:0] m_axis_cpl_req_queue,
-    output wire [DESC_REQ_TAG_WIDTH-1:0]    m_axis_cpl_req_tag,
+    output wire [CPL_REQ_TAG_WIDTH-1:0]     m_axis_cpl_req_tag,
     output wire [CPL_SIZE*8-1:0]            m_axis_cpl_req_data,
     output wire                             m_axis_cpl_req_valid,
     input  wire                             m_axis_cpl_req_ready,
@@ -192,7 +190,7 @@ module rx_engine #
     /*
      * Completion request status input
      */
-    input  wire [DESC_REQ_TAG_WIDTH-1:0]    s_axis_cpl_req_status_tag,
+    input  wire [CPL_REQ_TAG_WIDTH-1:0]     s_axis_cpl_req_status_tag,
     input  wire                             s_axis_cpl_req_status_full,
     input  wire                             s_axis_cpl_req_status_error,
     input  wire                             s_axis_cpl_req_status_valid,
@@ -279,13 +277,13 @@ initial begin
         $finish;
     end
 
-    if (QUEUE_REQ_TAG_WIDTH < CL_DESC_TABLE_SIZE) begin
-        $error("Error: QUEUE_REQ_TAG_WIDTH must be at least $clog2(DESC_TABLE_SIZE) (instance %m)");
+    if (DESC_REQ_TAG_WIDTH < CL_DESC_TABLE_SIZE) begin
+        $error("Error: DESC_REQ_TAG_WIDTH must be at least $clog2(DESC_TABLE_SIZE) (instance %m)");
         $finish;
     end
 
-    if (DESC_REQ_TAG_WIDTH < CL_DESC_TABLE_SIZE) begin
-        $error("Error: DESC_REQ_TAG_WIDTH must be at least $clog2(DESC_TABLE_SIZE) (instance %m)");
+    if (CPL_REQ_TAG_WIDTH < CL_DESC_TABLE_SIZE) begin
+        $error("Error: CPL_REQ_TAG_WIDTH must be at least $clog2(DESC_TABLE_SIZE) (instance %m)");
         $finish;
     end
 
@@ -308,15 +306,9 @@ reg m_axis_desc_req_valid_reg = 1'b0, m_axis_desc_req_valid_next;
 reg s_axis_desc_tready_reg = 1'b0, s_axis_desc_tready_next;
 
 reg [CPL_QUEUE_INDEX_WIDTH-1:0] m_axis_cpl_req_queue_reg = {CPL_QUEUE_INDEX_WIDTH{1'b0}}, m_axis_cpl_req_queue_next;
-reg [DESC_REQ_TAG_WIDTH-1:0] m_axis_cpl_req_tag_reg = {DESC_REQ_TAG_WIDTH{1'b0}}, m_axis_cpl_req_tag_next;
+reg [CPL_REQ_TAG_WIDTH-1:0] m_axis_cpl_req_tag_reg = {CPL_REQ_TAG_WIDTH{1'b0}}, m_axis_cpl_req_tag_next;
 reg [CPL_SIZE*8-1:0] m_axis_cpl_req_data_reg = {CPL_SIZE*8{1'b0}}, m_axis_cpl_req_data_next;
 reg m_axis_cpl_req_valid_reg = 1'b0, m_axis_cpl_req_valid_next;
-
-reg [DMA_ADDR_WIDTH-1:0] m_axis_dma_write_desc_dma_addr_reg = {DMA_ADDR_WIDTH{1'b0}}, m_axis_dma_write_desc_dma_addr_next;
-reg [RAM_ADDR_WIDTH-1:0] m_axis_dma_write_desc_ram_addr_reg = {RAM_ADDR_WIDTH{1'b0}}, m_axis_dma_write_desc_ram_addr_next;
-reg [DMA_LEN_WIDTH-1:0] m_axis_dma_write_desc_len_reg = {DMA_LEN_WIDTH{1'b0}}, m_axis_dma_write_desc_len_next;
-reg [DMA_TAG_WIDTH-1:0] m_axis_dma_write_desc_tag_reg = {DMA_TAG_WIDTH{1'b0}}, m_axis_dma_write_desc_tag_next;
-reg m_axis_dma_write_desc_valid_reg = 1'b0, m_axis_dma_write_desc_valid_next;
 
 reg [RAM_ADDR_WIDTH-1:0] m_axis_rx_desc_addr_reg = {RAM_ADDR_WIDTH{1'b0}}, m_axis_rx_desc_addr_next;
 reg [DMA_CLIENT_LEN_WIDTH-1:0] m_axis_rx_desc_len_reg = {DMA_CLIENT_LEN_WIDTH{1'b0}}, m_axis_rx_desc_len_next;
@@ -420,6 +412,15 @@ reg desc_table_write_start_en;
 reg [CL_DESC_TABLE_SIZE+1-1:0] desc_table_write_finish_ptr;
 reg desc_table_write_finish_en;
 
+// internal datapath
+reg  [DMA_ADDR_WIDTH-1:0]  m_axis_dma_write_desc_dma_addr_int;
+reg  [RAM_ADDR_WIDTH-1:0]  m_axis_dma_write_desc_ram_addr_int;
+reg  [DMA_LEN_WIDTH-1:0]   m_axis_dma_write_desc_len_int;
+reg  [DMA_TAG_WIDTH-1:0]   m_axis_dma_write_desc_tag_int;
+reg                        m_axis_dma_write_desc_valid_int;
+reg                        m_axis_dma_write_desc_ready_int_reg = 1'b0;
+wire                       m_axis_dma_write_desc_ready_int_early;
+
 assign s_axis_rx_req_ready = s_axis_rx_req_ready_reg;
 
 assign m_axis_rx_req_status_len = m_axis_rx_req_status_len_reg;
@@ -436,12 +437,6 @@ assign m_axis_cpl_req_queue = m_axis_cpl_req_queue_reg;
 assign m_axis_cpl_req_tag = m_axis_cpl_req_tag_reg;
 assign m_axis_cpl_req_data = m_axis_cpl_req_data_reg;
 assign m_axis_cpl_req_valid = m_axis_cpl_req_valid_reg;
-
-assign m_axis_dma_write_desc_dma_addr = m_axis_dma_write_desc_dma_addr_reg;
-assign m_axis_dma_write_desc_ram_addr = m_axis_dma_write_desc_ram_addr_reg;
-assign m_axis_dma_write_desc_len = m_axis_dma_write_desc_len_reg;
-assign m_axis_dma_write_desc_tag = m_axis_dma_write_desc_tag_reg;
-assign m_axis_dma_write_desc_valid = m_axis_dma_write_desc_valid_reg;
 
 assign m_axis_rx_desc_addr = m_axis_rx_desc_addr_reg;
 assign m_axis_rx_desc_len = m_axis_rx_desc_len_reg;
@@ -578,12 +573,6 @@ always @* begin
     m_axis_cpl_req_data_next = m_axis_cpl_req_data_reg;
     m_axis_cpl_req_valid_next = m_axis_cpl_req_valid_reg && !m_axis_cpl_req_ready;
 
-    m_axis_dma_write_desc_dma_addr_next = m_axis_dma_write_desc_dma_addr_reg;
-    m_axis_dma_write_desc_ram_addr_next = m_axis_dma_write_desc_ram_addr_reg;
-    m_axis_dma_write_desc_len_next = m_axis_dma_write_desc_len_reg;
-    m_axis_dma_write_desc_tag_next = m_axis_dma_write_desc_tag_reg;
-    m_axis_dma_write_desc_valid_next = m_axis_dma_write_desc_valid_reg && !m_axis_dma_write_desc_ready;
-
     m_axis_rx_desc_addr_next = m_axis_rx_desc_addr_reg;
     m_axis_rx_desc_len_next = m_axis_rx_desc_len_reg;
     m_axis_rx_desc_tag_next = m_axis_rx_desc_tag_reg;
@@ -640,6 +629,18 @@ always @* begin
     desc_table_write_start_en = 1'b0;
     desc_table_write_finish_ptr = s_axis_dma_write_desc_status_tag;
     desc_table_write_finish_en = 1'b0;
+
+    m_axis_dma_write_desc_dma_addr_int = s_axis_desc_tdata[127:64];
+    m_axis_dma_write_desc_ram_addr_int = (desc_table_buf_ptr[s_axis_desc_tid & DESC_PTR_MASK] & RX_BUFFER_PTR_MASK) + desc_len_reg + RX_BUFFER_OFFSET;
+    if (s_axis_desc_tdata[63:32] < (desc_table_dma_len[s_axis_desc_tid & DESC_PTR_MASK] - desc_len_reg)) begin
+        // limit write to length provided in descriptor
+        m_axis_dma_write_desc_len_int = s_axis_desc_tdata[63:32];
+    end else begin
+        // write actual packet length
+        m_axis_dma_write_desc_len_int = desc_table_dma_len[s_axis_desc_tid & DESC_PTR_MASK] - desc_len_reg;
+    end
+    m_axis_dma_write_desc_tag_int = s_axis_desc_tid & DESC_PTR_MASK;
+    m_axis_dma_write_desc_valid_int = 1'b0;
 
     // receive packet
     // wait for receive request
@@ -729,7 +730,7 @@ always @* begin
 
     // descriptor processing and DMA request generation
     // TODO descriptor validation?
-    s_axis_desc_tready_next = !m_axis_dma_write_desc_valid;
+    s_axis_desc_tready_next = m_axis_dma_write_desc_ready_int_early;
     if (s_axis_desc_tready && s_axis_desc_tvalid) begin
         if (desc_table_active[s_axis_desc_tid & DESC_PTR_MASK]) begin
             desc_start_next = 1'b0;
@@ -738,27 +739,25 @@ always @* begin
             desc_table_write_start_init = desc_start_reg;
 
             // initiate data write
-            m_axis_dma_write_desc_dma_addr_next = s_axis_desc_tdata[127:64];
-            m_axis_dma_write_desc_ram_addr_next = (desc_table_buf_ptr[s_axis_desc_tid & DESC_PTR_MASK] & RX_BUFFER_PTR_MASK) + desc_len_reg + RX_BUFFER_OFFSET;
+            m_axis_dma_write_desc_dma_addr_int = s_axis_desc_tdata[127:64];
+            m_axis_dma_write_desc_ram_addr_int = (desc_table_buf_ptr[s_axis_desc_tid & DESC_PTR_MASK] & RX_BUFFER_PTR_MASK) + desc_len_reg + RX_BUFFER_OFFSET;
             if (s_axis_desc_tdata[63:32] < (desc_table_dma_len[s_axis_desc_tid & DESC_PTR_MASK] - desc_len_reg)) begin
                 // limit write to length provided in descriptor
-                m_axis_dma_write_desc_len_next = s_axis_desc_tdata[63:32];
+                m_axis_dma_write_desc_len_int = s_axis_desc_tdata[63:32];
             end else begin
                 // write actual packet length
-                m_axis_dma_write_desc_len_next = desc_table_dma_len[s_axis_desc_tid & DESC_PTR_MASK] - desc_len_reg;
+                m_axis_dma_write_desc_len_int = desc_table_dma_len[s_axis_desc_tid & DESC_PTR_MASK] - desc_len_reg;
                 desc_done_next = 1'b1;
             end
-            m_axis_dma_write_desc_tag_next = s_axis_desc_tid & DESC_PTR_MASK;
+            m_axis_dma_write_desc_tag_int = s_axis_desc_tid & DESC_PTR_MASK;
 
             desc_table_write_start_ptr = s_axis_desc_tid;
 
-            if (m_axis_dma_write_desc_len_next != 0 && !desc_done_reg) begin
-                m_axis_dma_write_desc_valid_next = 1'b1;
+            if (m_axis_dma_write_desc_len_int != 0 && !desc_done_reg) begin
+                m_axis_dma_write_desc_valid_int = 1'b1;
 
                 // write start
                 desc_table_write_start_en = 1'b1;
-
-                s_axis_desc_tready_next = 1'b0;
             end
 
             if (s_axis_desc_tlast) begin
@@ -906,12 +905,6 @@ always @(posedge clk) begin
     m_axis_cpl_req_data_reg <= m_axis_cpl_req_data_next;
     m_axis_cpl_req_valid_reg <= m_axis_cpl_req_valid_next;
 
-    m_axis_dma_write_desc_dma_addr_reg <= m_axis_dma_write_desc_dma_addr_next;
-    m_axis_dma_write_desc_ram_addr_reg <= m_axis_dma_write_desc_ram_addr_next;
-    m_axis_dma_write_desc_len_reg <= m_axis_dma_write_desc_len_next;
-    m_axis_dma_write_desc_tag_reg <= m_axis_dma_write_desc_tag_next;
-    m_axis_dma_write_desc_valid_reg <= m_axis_dma_write_desc_valid_next;
-
     m_axis_rx_desc_addr_reg <= m_axis_rx_desc_addr_next;
     m_axis_rx_desc_len_reg <= m_axis_rx_desc_len_next;
     m_axis_rx_desc_tag_reg <= m_axis_rx_desc_tag_next;
@@ -1021,7 +1014,6 @@ always @(posedge clk) begin
         m_axis_desc_req_valid_reg <= 1'b0;
         s_axis_desc_tready_reg <= 1'b0;
         m_axis_cpl_req_valid_reg <= 1'b0;
-        m_axis_dma_write_desc_valid_reg <= 1'b0;
         m_axis_rx_desc_valid_reg <= 1'b0;
         s_axis_rx_hash_ready_reg <= 1'b0;
         s_axis_rx_csum_ready_reg <= 1'b0;
@@ -1046,6 +1038,93 @@ always @(posedge clk) begin
         desc_table_store_csum_ptr_reg <= 0;
         desc_table_cpl_enqueue_start_ptr_reg <= 0;
         desc_table_finish_ptr_reg <= 0;
+    end
+end
+
+// output datapath logic
+reg [DMA_ADDR_WIDTH-1:0]  m_axis_dma_write_desc_dma_addr_reg  = {DMA_ADDR_WIDTH{1'b0}};
+reg [RAM_ADDR_WIDTH-1:0]  m_axis_dma_write_desc_ram_addr_reg  = {RAM_ADDR_WIDTH{1'b0}};
+reg [DMA_LEN_WIDTH-1:0]   m_axis_dma_write_desc_len_reg       = {DMA_LEN_WIDTH{1'b0}};
+reg [DMA_TAG_WIDTH-1:0]   m_axis_dma_write_desc_tag_reg       = {DMA_TAG_WIDTH{1'b0}};
+reg                       m_axis_dma_write_desc_valid_reg     = 1'b0, m_axis_dma_write_desc_valid_next;
+
+reg [DMA_ADDR_WIDTH-1:0]  temp_m_axis_dma_write_desc_dma_addr_reg  = {DMA_ADDR_WIDTH{1'b0}};
+reg [RAM_ADDR_WIDTH-1:0]  temp_m_axis_dma_write_desc_ram_addr_reg  = {RAM_ADDR_WIDTH{1'b0}};
+reg [DMA_LEN_WIDTH-1:0]   temp_m_axis_dma_write_desc_len_reg       = {DMA_LEN_WIDTH{1'b0}};
+reg [DMA_TAG_WIDTH-1:0]   temp_m_axis_dma_write_desc_tag_reg       = {DMA_TAG_WIDTH{1'b0}};
+reg                       temp_m_axis_dma_write_desc_valid_reg     = 1'b0, temp_m_axis_dma_write_desc_valid_next;
+
+// datapath control
+reg store_axis_int_to_output;
+reg store_axis_int_to_temp;
+reg store_axis_temp_to_output;
+
+assign m_axis_dma_write_desc_dma_addr  = m_axis_dma_write_desc_dma_addr_reg;
+assign m_axis_dma_write_desc_ram_addr  = m_axis_dma_write_desc_ram_addr_reg;
+assign m_axis_dma_write_desc_len       = m_axis_dma_write_desc_len_reg;
+assign m_axis_dma_write_desc_tag       = m_axis_dma_write_desc_tag_reg;
+assign m_axis_dma_write_desc_valid     = m_axis_dma_write_desc_valid_reg;
+
+// enable ready input next cycle if output is ready or the temp reg will not be filled on the next cycle (output reg empty or no input)
+assign m_axis_dma_write_desc_ready_int_early = m_axis_dma_write_desc_ready || (!temp_m_axis_dma_write_desc_valid_reg && (!m_axis_dma_write_desc_valid_reg || !m_axis_dma_write_desc_valid_int));
+
+always @* begin
+    // transfer sink ready state to source
+    m_axis_dma_write_desc_valid_next = m_axis_dma_write_desc_valid_reg;
+    temp_m_axis_dma_write_desc_valid_next = temp_m_axis_dma_write_desc_valid_reg;
+
+    store_axis_int_to_output = 1'b0;
+    store_axis_int_to_temp = 1'b0;
+    store_axis_temp_to_output = 1'b0;
+
+    if (m_axis_dma_write_desc_ready_int_reg) begin
+        // input is ready
+        if (m_axis_dma_write_desc_ready || !m_axis_dma_write_desc_valid_reg) begin
+            // output is ready or currently not valid, transfer data to output
+            m_axis_dma_write_desc_valid_next = m_axis_dma_write_desc_valid_int;
+            store_axis_int_to_output = 1'b1;
+        end else begin
+            // output is not ready, store input in temp
+            temp_m_axis_dma_write_desc_valid_next = m_axis_dma_write_desc_valid_int;
+            store_axis_int_to_temp = 1'b1;
+        end
+    end else if (m_axis_dma_write_desc_ready) begin
+        // input is not ready, but output is ready
+        m_axis_dma_write_desc_valid_next = temp_m_axis_dma_write_desc_valid_reg;
+        temp_m_axis_dma_write_desc_valid_next = 1'b0;
+        store_axis_temp_to_output = 1'b1;
+    end
+end
+
+always @(posedge clk) begin
+    m_axis_dma_write_desc_valid_reg <= m_axis_dma_write_desc_valid_next;
+    m_axis_dma_write_desc_ready_int_reg <= m_axis_dma_write_desc_ready_int_early;
+    temp_m_axis_dma_write_desc_valid_reg <= temp_m_axis_dma_write_desc_valid_next;
+
+    // datapath
+    if (store_axis_int_to_output) begin
+        m_axis_dma_write_desc_dma_addr_reg <= m_axis_dma_write_desc_dma_addr_int;
+        m_axis_dma_write_desc_ram_addr_reg <= m_axis_dma_write_desc_ram_addr_int;
+        m_axis_dma_write_desc_len_reg <= m_axis_dma_write_desc_len_int;
+        m_axis_dma_write_desc_tag_reg <= m_axis_dma_write_desc_tag_int;
+    end else if (store_axis_temp_to_output) begin
+        m_axis_dma_write_desc_dma_addr_reg <= temp_m_axis_dma_write_desc_dma_addr_reg;
+        m_axis_dma_write_desc_ram_addr_reg <= temp_m_axis_dma_write_desc_ram_addr_reg;
+        m_axis_dma_write_desc_len_reg <= temp_m_axis_dma_write_desc_len_reg;
+        m_axis_dma_write_desc_tag_reg <= temp_m_axis_dma_write_desc_tag_reg;
+    end
+
+    if (store_axis_int_to_temp) begin
+        temp_m_axis_dma_write_desc_dma_addr_reg <= m_axis_dma_write_desc_dma_addr_int;
+        temp_m_axis_dma_write_desc_ram_addr_reg <= m_axis_dma_write_desc_ram_addr_int;
+        temp_m_axis_dma_write_desc_len_reg <= m_axis_dma_write_desc_len_int;
+        temp_m_axis_dma_write_desc_tag_reg <= m_axis_dma_write_desc_tag_int;
+    end
+
+    if (rst) begin
+        m_axis_dma_write_desc_valid_reg <= 1'b0;
+        m_axis_dma_write_desc_ready_int_reg <= 1'b0;
+        temp_m_axis_dma_write_desc_valid_reg <= 1'b0;
     end
 end
 

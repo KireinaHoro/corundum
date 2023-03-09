@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2021 Alex Forencich
+Copyright (c) 2021-2022 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -45,16 +45,24 @@ module pcie_us_if #
     parameter AXIS_PCIE_CQ_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 85 : 183,
     // PCIe AXI stream CC tuser signal width
     parameter AXIS_PCIE_CC_USER_WIDTH = AXIS_PCIE_DATA_WIDTH < 512 ? 33 : 81,
+    // RC interface TLP straddling
+    parameter RC_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 256,
+    // RQ interface TLP straddling
+    parameter RQ_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
+    // CQ interface TLP straddling
+    parameter CQ_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
+    // CC interface TLP straddling
+    parameter CC_STRADDLE = AXIS_PCIE_DATA_WIDTH >= 512,
     // RQ sequence number width
     parameter RQ_SEQ_NUM_WIDTH = AXIS_PCIE_RQ_USER_WIDTH == 60 ? 4 : 6,
+    // TLP data width
+    parameter TLP_DATA_WIDTH = AXIS_PCIE_DATA_WIDTH,
+    // TLP strobe width
+    parameter TLP_STRB_WIDTH = TLP_DATA_WIDTH/32,
+    // TLP header width
+    parameter TLP_HDR_WIDTH = 128,
     // TLP segment count
     parameter TLP_SEG_COUNT = 1,
-    // TLP segment data width
-    parameter TLP_SEG_DATA_WIDTH = AXIS_PCIE_DATA_WIDTH/TLP_SEG_COUNT,
-    // TLP segment strobe width
-    parameter TLP_SEG_STRB_WIDTH = TLP_SEG_DATA_WIDTH/32,
-    // TLP segment header width
-    parameter TLP_SEG_HDR_WIDTH = 128,
     // TX sequence number count
     parameter TX_SEQ_NUM_COUNT = AXIS_PCIE_DATA_WIDTH < 512 ? 1 : 2,
     // TX sequence number width
@@ -71,8 +79,10 @@ module pcie_us_if #
     parameter READ_MAX_READ_REQ_SIZE = 1,
     // Read max payload size field
     parameter READ_MAX_PAYLOAD_SIZE = 1,
+    // enable MSI-X support
+    parameter MSIX_ENABLE = 1,
     // enable MSI support
-    parameter MSI_ENABLE = 1,
+    parameter MSI_ENABLE = 0,
     // MSI vector count
     parameter MSI_COUNT = 32
 )
@@ -129,18 +139,7 @@ module pcie_us_if #
     input  wire                                          s_axis_rq_seq_num_valid_1,
 
     /*
-     * Flow control
-     */
-    input  wire [7:0]                                    cfg_fc_ph,
-    input  wire [11:0]                                   cfg_fc_pd,
-    input  wire [7:0]                                    cfg_fc_nph,
-    input  wire [11:0]                                   cfg_fc_npd,
-    input  wire [7:0]                                    cfg_fc_cplh,
-    input  wire [11:0]                                   cfg_fc_cpld,
-    output wire [2:0]                                    cfg_fc_sel,
-
-    /*
-     * Configuration interface
+     * Configuration management interface
      */
     output wire [9:0]                                    cfg_mgmt_addr,
     output wire [7:0]                                    cfg_mgmt_function_number,
@@ -152,7 +151,24 @@ module pcie_us_if #
     input  wire                                          cfg_mgmt_read_write_done,
 
     /*
-     * Interrupt interface
+     * Configuration status interface
+     */
+    input  wire [2:0]                                    cfg_max_payload,
+    input  wire [2:0]                                    cfg_max_read_req,
+
+    /*
+     * Configuration flow control interface
+     */
+    input  wire [7:0]                                    cfg_fc_ph,
+    input  wire [11:0]                                   cfg_fc_pd,
+    input  wire [7:0]                                    cfg_fc_nph,
+    input  wire [11:0]                                   cfg_fc_npd,
+    input  wire [7:0]                                    cfg_fc_cplh,
+    input  wire [11:0]                                   cfg_fc_cpld,
+    output wire [2:0]                                    cfg_fc_sel,
+
+    /*
+     * Configuration interrupt interface
      */
     input  wire [3:0]                                    cfg_interrupt_msi_enable,
     input  wire [7:0]                                    cfg_interrupt_msi_vf_enable,
@@ -166,17 +182,29 @@ module pcie_us_if #
     output wire [3:0]                                    cfg_interrupt_msi_pending_status_function_num,
     input  wire                                          cfg_interrupt_msi_sent,
     input  wire                                          cfg_interrupt_msi_fail,
+    input  wire [3:0]                                    cfg_interrupt_msix_enable,
+    input  wire [3:0]                                    cfg_interrupt_msix_mask,
+    input  wire [251:0]                                  cfg_interrupt_msix_vf_enable,
+    input  wire [251:0]                                  cfg_interrupt_msix_vf_mask,
+    output wire [63:0]                                   cfg_interrupt_msix_address,
+    output wire [31:0]                                   cfg_interrupt_msix_data,
+    output wire                                          cfg_interrupt_msix_int,
+    output wire [1:0]                                    cfg_interrupt_msix_vec_pending,
+    input  wire                                          cfg_interrupt_msix_vec_pending_status,
+    input  wire                                          cfg_interrupt_msix_sent,
+    input  wire                                          cfg_interrupt_msix_fail,
     output wire [2:0]                                    cfg_interrupt_msi_attr,
     output wire                                          cfg_interrupt_msi_tph_present,
     output wire [1:0]                                    cfg_interrupt_msi_tph_type,
     output wire [8:0]                                    cfg_interrupt_msi_tph_st_tag,
-    output wire [3:0]                                    cfg_interrupt_msi_function_number,
+    output wire [7:0]                                    cfg_interrupt_msi_function_number,
 
     /*
      * TLP output (request to BAR)
      */
-    output wire [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0]   rx_req_tlp_data,
-    output wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]    rx_req_tlp_hdr,
+    output wire [TLP_DATA_WIDTH-1:0]                     rx_req_tlp_data,
+    output wire [TLP_STRB_WIDTH-1:0]                     rx_req_tlp_strb,
+    output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]        rx_req_tlp_hdr,
     output wire [TLP_SEG_COUNT*3-1:0]                    rx_req_tlp_bar_id,
     output wire [TLP_SEG_COUNT*8-1:0]                    rx_req_tlp_func_num,
     output wire [TLP_SEG_COUNT-1:0]                      rx_req_tlp_valid,
@@ -187,8 +215,9 @@ module pcie_us_if #
     /*
      * TLP output (completion to DMA)
      */
-    output wire [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0]   rx_cpl_tlp_data,
-    output wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]    rx_cpl_tlp_hdr,
+    output wire [TLP_DATA_WIDTH-1:0]                     rx_cpl_tlp_data,
+    output wire [TLP_STRB_WIDTH-1:0]                     rx_cpl_tlp_strb,
+    output wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]        rx_cpl_tlp_hdr,
     output wire [TLP_SEG_COUNT*4-1:0]                    rx_cpl_tlp_error,
     output wire [TLP_SEG_COUNT-1:0]                      rx_cpl_tlp_valid,
     output wire [TLP_SEG_COUNT-1:0]                      rx_cpl_tlp_sop,
@@ -198,7 +227,7 @@ module pcie_us_if #
     /*
      * TLP input (read request from DMA)
      */
-    input  wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]    tx_rd_req_tlp_hdr,
+    input  wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]        tx_rd_req_tlp_hdr,
     input  wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]     tx_rd_req_tlp_seq,
     input  wire [TLP_SEG_COUNT-1:0]                      tx_rd_req_tlp_valid,
     input  wire [TLP_SEG_COUNT-1:0]                      tx_rd_req_tlp_sop,
@@ -214,9 +243,9 @@ module pcie_us_if #
     /*
      * TLP input (write request from DMA)
      */
-    input  wire [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0]   tx_wr_req_tlp_data,
-    input  wire [TLP_SEG_COUNT*TLP_SEG_STRB_WIDTH-1:0]   tx_wr_req_tlp_strb,
-    input  wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]    tx_wr_req_tlp_hdr,
+    input  wire [TLP_DATA_WIDTH-1:0]                     tx_wr_req_tlp_data,
+    input  wire [TLP_STRB_WIDTH-1:0]                     tx_wr_req_tlp_strb,
+    input  wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]        tx_wr_req_tlp_hdr,
     input  wire [TLP_SEG_COUNT*TX_SEQ_NUM_WIDTH-1:0]     tx_wr_req_tlp_seq,
     input  wire [TLP_SEG_COUNT-1:0]                      tx_wr_req_tlp_valid,
     input  wire [TLP_SEG_COUNT-1:0]                      tx_wr_req_tlp_sop,
@@ -232,13 +261,24 @@ module pcie_us_if #
     /*
      * TLP input (completion from BAR)
      */
-    input  wire [TLP_SEG_COUNT*TLP_SEG_DATA_WIDTH-1:0]   tx_cpl_tlp_data,
-    input  wire [TLP_SEG_COUNT*TLP_SEG_STRB_WIDTH-1:0]   tx_cpl_tlp_strb,
-    input  wire [TLP_SEG_COUNT*TLP_SEG_HDR_WIDTH-1:0]    tx_cpl_tlp_hdr,
+    input  wire [TLP_DATA_WIDTH-1:0]                     tx_cpl_tlp_data,
+    input  wire [TLP_STRB_WIDTH-1:0]                     tx_cpl_tlp_strb,
+    input  wire [TLP_SEG_COUNT*TLP_HDR_WIDTH-1:0]        tx_cpl_tlp_hdr,
     input  wire [TLP_SEG_COUNT-1:0]                      tx_cpl_tlp_valid,
     input  wire [TLP_SEG_COUNT-1:0]                      tx_cpl_tlp_sop,
     input  wire [TLP_SEG_COUNT-1:0]                      tx_cpl_tlp_eop,
     output wire                                          tx_cpl_tlp_ready,
+
+    /*
+     * TLP input (write request from MSI-X)
+     */
+    input  wire [31:0]                                   tx_msix_wr_req_tlp_data,
+    input  wire                                          tx_msix_wr_req_tlp_strb,
+    input  wire [TLP_HDR_WIDTH-1:0]                      tx_msix_wr_req_tlp_hdr,
+    input  wire                                          tx_msix_wr_req_tlp_valid,
+    input  wire                                          tx_msix_wr_req_tlp_sop,
+    input  wire                                          tx_msix_wr_req_tlp_eop,
+    output wire                                          tx_msix_wr_req_tlp_ready,
 
     /*
      * Flow control
@@ -256,6 +296,8 @@ module pcie_us_if #
     output wire [F_COUNT-1:0]                            ext_tag_enable,
     output wire [F_COUNT*3-1:0]                          max_read_request_size,
     output wire [F_COUNT*3-1:0]                          max_payload_size,
+    output wire [F_COUNT-1:0]                            msix_enable,
+    output wire [F_COUNT-1:0]                            msix_mask,
 
     /*
      * MSI request inputs
@@ -267,10 +309,11 @@ pcie_us_if_rc #(
     .AXIS_PCIE_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
     .AXIS_PCIE_KEEP_WIDTH(AXIS_PCIE_KEEP_WIDTH),
     .AXIS_PCIE_RC_USER_WIDTH(AXIS_PCIE_RC_USER_WIDTH),
-    .TLP_SEG_COUNT(TLP_SEG_COUNT),
-    .TLP_SEG_DATA_WIDTH(TLP_SEG_DATA_WIDTH),
-    .TLP_SEG_STRB_WIDTH(TLP_SEG_STRB_WIDTH),
-    .TLP_SEG_HDR_WIDTH(TLP_SEG_HDR_WIDTH)
+    .RC_STRADDLE(RC_STRADDLE),
+    .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+    .TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+    .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
+    .TLP_SEG_COUNT(TLP_SEG_COUNT)
 )
 pcie_us_if_rc_inst
 (
@@ -291,6 +334,7 @@ pcie_us_if_rc_inst
      * TLP output (completion to DMA)
      */
     .rx_cpl_tlp_data(rx_cpl_tlp_data),
+    .rx_cpl_tlp_strb(rx_cpl_tlp_strb),
     .rx_cpl_tlp_hdr(rx_cpl_tlp_hdr),
     .rx_cpl_tlp_error(rx_cpl_tlp_error),
     .rx_cpl_tlp_valid(rx_cpl_tlp_valid),
@@ -303,11 +347,12 @@ pcie_us_if_rq #(
     .AXIS_PCIE_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
     .AXIS_PCIE_KEEP_WIDTH(AXIS_PCIE_KEEP_WIDTH),
     .AXIS_PCIE_RQ_USER_WIDTH(AXIS_PCIE_RQ_USER_WIDTH),
+    .RQ_STRADDLE(RQ_STRADDLE),
     .RQ_SEQ_NUM_WIDTH(RQ_SEQ_NUM_WIDTH),
+    .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+    .TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+    .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
     .TLP_SEG_COUNT(TLP_SEG_COUNT),
-    .TLP_SEG_DATA_WIDTH(TLP_SEG_DATA_WIDTH),
-    .TLP_SEG_STRB_WIDTH(TLP_SEG_STRB_WIDTH),
-    .TLP_SEG_HDR_WIDTH(TLP_SEG_HDR_WIDTH),
     .TX_SEQ_NUM_COUNT(TX_SEQ_NUM_COUNT),
     .TX_SEQ_NUM_WIDTH(TX_SEQ_NUM_WIDTH)
 )
@@ -366,17 +411,31 @@ pcie_us_if_rq_inst
      * Transmit sequence number output (DMA write request)
      */
     .m_axis_wr_req_tx_seq_num(m_axis_wr_req_tx_seq_num),
-    .m_axis_wr_req_tx_seq_num_valid(m_axis_wr_req_tx_seq_num_valid)
+    .m_axis_wr_req_tx_seq_num_valid(m_axis_wr_req_tx_seq_num_valid),
+
+    /*
+     * Flow control
+     */
+    .tx_fc_ph_av(tx_fc_ph_av),
+    .tx_fc_pd_av(tx_fc_pd_av),
+    .tx_fc_nph_av(tx_fc_nph_av),
+    .tx_fc_npd_av(tx_fc_npd_av),
+
+    /*
+     * Configuration
+     */
+    .max_payload_size(cfg_max_payload)
 );
 
 pcie_us_if_cq #(
     .AXIS_PCIE_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
     .AXIS_PCIE_KEEP_WIDTH(AXIS_PCIE_KEEP_WIDTH),
     .AXIS_PCIE_CQ_USER_WIDTH(AXIS_PCIE_CQ_USER_WIDTH),
-    .TLP_SEG_COUNT(TLP_SEG_COUNT),
-    .TLP_SEG_DATA_WIDTH(TLP_SEG_DATA_WIDTH),
-    .TLP_SEG_STRB_WIDTH(TLP_SEG_STRB_WIDTH),
-    .TLP_SEG_HDR_WIDTH(TLP_SEG_HDR_WIDTH)
+    .CQ_STRADDLE(CQ_STRADDLE),
+    .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+    .TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+    .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
+    .TLP_SEG_COUNT(TLP_SEG_COUNT)
 )
 pcie_us_if_cq_inst
 (
@@ -397,6 +456,7 @@ pcie_us_if_cq_inst
      * TLP output (request to BAR)
      */
     .rx_req_tlp_data(rx_req_tlp_data),
+    .rx_req_tlp_strb(rx_req_tlp_strb),
     .rx_req_tlp_hdr(rx_req_tlp_hdr),
     .rx_req_tlp_bar_id(rx_req_tlp_bar_id),
     .rx_req_tlp_func_num(rx_req_tlp_func_num),
@@ -410,10 +470,11 @@ pcie_us_if_cc #(
     .AXIS_PCIE_DATA_WIDTH(AXIS_PCIE_DATA_WIDTH),
     .AXIS_PCIE_KEEP_WIDTH(AXIS_PCIE_KEEP_WIDTH),
     .AXIS_PCIE_CC_USER_WIDTH(AXIS_PCIE_CC_USER_WIDTH),
-    .TLP_SEG_COUNT(TLP_SEG_COUNT),
-    .TLP_SEG_DATA_WIDTH(TLP_SEG_DATA_WIDTH),
-    .TLP_SEG_STRB_WIDTH(TLP_SEG_STRB_WIDTH),
-    .TLP_SEG_HDR_WIDTH(TLP_SEG_HDR_WIDTH)
+    .CC_STRADDLE(CC_STRADDLE),
+    .TLP_DATA_WIDTH(TLP_DATA_WIDTH),
+    .TLP_STRB_WIDTH(TLP_STRB_WIDTH),
+    .TLP_HDR_WIDTH(TLP_HDR_WIDTH),
+    .TLP_SEG_COUNT(TLP_SEG_COUNT)
 )
 pcie_us_if_cc_inst
 (
@@ -500,8 +561,68 @@ end else begin
 
 end
 
+assign msix_enable = cfg_interrupt_msix_enable;
+assign msix_mask = cfg_interrupt_msix_mask;
+
+wire [7:0] cfg_interrupt_msi_function_number_msix;
+wire [7:0] cfg_interrupt_msi_function_number_msi;
+
+assign cfg_interrupt_msi_function_number = (MSI_ENABLE && (!MSIX_ENABLE || cfg_interrupt_msi_int)) ?
+    cfg_interrupt_msi_function_number_msi : cfg_interrupt_msi_function_number_msix;
+
+if (MSIX_ENABLE) begin
+
+    reg cfg_interrupt_msix_int_reg = 1'b0;
+    reg tx_msix_wr_req_tlp_ready_reg = 1'b0;
+
+    reg msix_active_reg = 1'b0;
+
+    assign tx_msix_wr_req_tlp_ready = tx_msix_wr_req_tlp_ready_reg;
+
+    assign cfg_interrupt_msix_address = {tx_msix_wr_req_tlp_hdr[63:2], 2'b00};
+    assign cfg_interrupt_msix_data = tx_msix_wr_req_tlp_data;
+    assign cfg_interrupt_msix_int = cfg_interrupt_msix_int_reg;
+    assign cfg_interrupt_msi_function_number_msix = tx_msix_wr_req_tlp_hdr[87:80];
+    assign cfg_interrupt_msix_vec_pending = 0;
+
+    always @(posedge clk) begin
+        cfg_interrupt_msix_int_reg <= 1'b0;
+        tx_msix_wr_req_tlp_ready_reg <= 1'b0;
+
+        if (!msix_active_reg) begin
+            if (tx_msix_wr_req_tlp_valid && !tx_msix_wr_req_tlp_ready) begin
+                cfg_interrupt_msix_int_reg <= 1'b1;
+                msix_active_reg <= 1'b1;
+            end
+        end else begin
+            if (cfg_interrupt_msix_sent || cfg_interrupt_msix_fail) begin
+                tx_msix_wr_req_tlp_ready_reg <= tx_msix_wr_req_tlp_valid;
+                msix_active_reg <= 1'b0;
+            end
+        end
+
+        if (rst) begin
+            cfg_interrupt_msix_int_reg <= 1'b0;
+            tx_msix_wr_req_tlp_ready_reg <= 1'b0;
+            msix_active_reg <= 1'b0;
+        end
+    end
+
+end else begin
+
+    assign tx_msix_wr_req_tlp_ready = 0;
+
+    assign cfg_interrupt_msix_address = 0;
+    assign cfg_interrupt_msix_data = 0;
+    assign cfg_interrupt_msix_int = 0;
+    assign cfg_interrupt_msix_vec_pending = 0;
+
+    assign cfg_interrupt_msi_function_number_msix = 0;
+
+end
+
 if (MSI_ENABLE) begin
-    
+
     pcie_us_msi #(
         .MSI_COUNT(MSI_COUNT)
     )
@@ -533,7 +654,7 @@ if (MSI_ENABLE) begin
         .cfg_interrupt_msi_tph_present(cfg_interrupt_msi_tph_present),
         .cfg_interrupt_msi_tph_type(cfg_interrupt_msi_tph_type),
         .cfg_interrupt_msi_tph_st_tag(cfg_interrupt_msi_tph_st_tag),
-        .cfg_interrupt_msi_function_number(cfg_interrupt_msi_function_number)
+        .cfg_interrupt_msi_function_number(cfg_interrupt_msi_function_number_msi)
     );
 
 end else begin
@@ -547,7 +668,8 @@ end else begin
     assign cfg_interrupt_msi_tph_present = 0;
     assign cfg_interrupt_msi_tph_type = 0;
     assign cfg_interrupt_msi_tph_st_tag = 0;
-    assign cfg_interrupt_msi_function_number = 0;
+
+    assign cfg_interrupt_msi_function_number_msi = 0;
 
 end
 

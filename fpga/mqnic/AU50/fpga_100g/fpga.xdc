@@ -13,6 +13,7 @@ set_property BITSTREAM.CONFIG.EXTMASTERCCLK_EN DISABLE [current_design]
 set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES        [current_design]
 set_property BITSTREAM.CONFIG.UNUSEDPIN PULLUP         [current_design]
 set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR YES       [current_design]
+set_property BITSTREAM.CONFIG.OVERTEMPSHUTDOWN Enable  [current_design]
 
 set_operating_conditions -design_power_budget 63
 
@@ -23,9 +24,9 @@ set_operating_conditions -design_power_budget 63
 #create_clock -period 10 -name clk_100mhz_0 [get_ports clk_100mhz_0_p]
 
 # 100 MHz
-#set_property -dict {LOC BB18 IOSTANDARD LVDS} [get_ports clk_100mhz_1_p]
-#set_property -dict {LOC BC18 IOSTANDARD LVDS} [get_ports clk_100mhz_1_n]
-#create_clock -period 10 -name clk_100mhz_1 [get_ports clk_100mhz_1_p]
+set_property -dict {LOC BB18 IOSTANDARD LVDS} [get_ports clk_100mhz_1_p]
+set_property -dict {LOC BC18 IOSTANDARD LVDS} [get_ports clk_100mhz_1_n]
+create_clock -period 10 -name clk_100mhz_1 [get_ports clk_100mhz_1_p]
 
 # LEDs
 set_property -dict {LOC E18 IOSTANDARD LVCMOS18 SLEW SLOW DRIVE 8} [get_ports qsfp_led_act]
@@ -113,7 +114,7 @@ set_property -dict {LOC N37 } [get_ports qsfp_mgt_refclk_0_n] ;# MGTREFCLK0N_131
 #set_property -dict {LOC F18 IOSTANDARD LVDS} [get_ports qsfp_recclk_n] ;# to SI5394 IN0
 
 # 161.1328125 MHz MGT reference clock (SI5394 OUT0)
-#create_clock -period 6.206 -name qsfp_mgt_refclk_0 [get_ports qsfp_mgt_refclk_0_p]
+create_clock -period 6.206 -name qsfp_mgt_refclk_0 [get_ports qsfp_mgt_refclk_0_p]
 
 # 322.265625 MHz MGT reference clock (SI5394 OUT2)
 #create_clock -period 3.103 -name qsfp_mgt_refclk_1 [get_ports qsfp_mgt_refclk_1_p]

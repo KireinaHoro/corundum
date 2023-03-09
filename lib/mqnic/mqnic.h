@@ -151,6 +151,8 @@ struct mqnic {
     struct mqnic_reg_block *rb_list;
     struct mqnic_reg_block *fw_id_rb;
     struct mqnic_reg_block *if_rb;
+    struct mqnic_reg_block *stats_rb;
+    struct mqnic_reg_block *clk_info_rb;
     struct mqnic_reg_block *phc_rb;
 
     uint32_t fpga_id;
@@ -164,6 +166,19 @@ struct mqnic {
     uint32_t rel_info;
 
     uint32_t app_id;
+
+    uint32_t stats_offset;
+    uint32_t stats_count;
+    uint32_t stats_stride;
+    uint32_t stats_flags;
+
+    uint16_t core_clk_nom_per_ns_num;
+    uint16_t core_clk_nom_per_ns_denom;
+    uint32_t core_clk_nom_freq_hz;
+    uint16_t ref_clk_nom_per_ns_num;
+    uint16_t ref_clk_nom_per_ns_denom;
+    uint32_t ref_clk_nom_freq_hz;
+    uint32_t clk_info_channels;
 
     uint32_t if_offset;
     uint32_t if_count;
@@ -205,5 +220,20 @@ void mqnic_sched_block_close(struct mqnic_sched_block *block);
 // mqnic_scheduler.c
 struct mqnic_sched *mqnic_sched_open(struct mqnic_sched_block *block, int index, struct mqnic_reg_block *rb);
 void mqnic_sched_close(struct mqnic_sched *sched);
+
+// mqnic_clk_info.c
+void mqnic_clk_info_init(struct mqnic *dev);
+uint32_t mqnic_get_core_clk_nom_freq_hz(struct mqnic *dev);
+uint32_t mqnic_get_ref_clk_nom_freq_hz(struct mqnic *dev);
+uint32_t mqnic_get_core_clk_freq_hz(struct mqnic *dev);
+uint32_t mqnic_get_clk_freq_hz(struct mqnic *dev, int ch);
+uint64_t mqnic_core_clk_cycles_to_ns(struct mqnic *dev, uint64_t cycles);
+uint64_t mqnic_core_clk_ns_to_cycles(struct mqnic *dev, uint64_t ns);
+uint64_t mqnic_ref_clk_cycles_to_ns(struct mqnic *dev, uint64_t cycles);
+uint64_t mqnic_ref_clk_ns_to_cycles(struct mqnic *dev, uint64_t ns);
+
+// mqnic_stats.c
+void mqnic_stats_init(struct mqnic *dev);
+uint64_t mqnic_stats_read(struct mqnic *dev, int index);
 
 #endif /* MQNIC_H */

@@ -60,6 +60,45 @@ class TB(object):
         self.rc = RootComplex()
 
         self.dev = PcieIfDevice(
+            # configuration options
+            force_64bit_addr=False,
+            pf_count=1,
+            max_payload_size=512,
+            enable_extended_tag=True,
+
+            pf0_msi_enable=False,
+            pf0_msi_count=1,
+            pf1_msi_enable=False,
+            pf1_msi_count=1,
+            pf2_msi_enable=False,
+            pf2_msi_count=1,
+            pf3_msi_enable=False,
+            pf3_msi_count=1,
+            pf0_msix_enable=True,
+            pf0_msix_table_size=31,
+            pf0_msix_table_bir=4,
+            pf0_msix_table_offset=0x00000000,
+            pf0_msix_pba_bir=4,
+            pf0_msix_pba_offset=0x00008000,
+            pf1_msix_enable=False,
+            pf1_msix_table_size=0,
+            pf1_msix_table_bir=0,
+            pf1_msix_table_offset=0x00000000,
+            pf1_msix_pba_bir=0,
+            pf1_msix_pba_offset=0x00000000,
+            pf2_msix_enable=False,
+            pf2_msix_table_size=0,
+            pf2_msix_table_bir=0,
+            pf2_msix_table_offset=0x00000000,
+            pf2_msix_pba_bir=0,
+            pf2_msix_pba_offset=0x00000000,
+            pf3_msix_enable=False,
+            pf3_msix_table_size=0,
+            pf3_msix_table_bir=0,
+            pf3_msix_table_offset=0x00000000,
+            pf3_msix_pba_bir=0,
+            pf3_msix_pba_offset=0x00000000,
+
             clk=dut.clk,
             rst=dut.rst,
 
@@ -77,25 +116,25 @@ class TB(object):
 
             rx_cpl_tlp_bus=PcieIfRxBus.from_prefix(dut, "rx_cpl_tlp"),
 
+            tx_msi_wr_req_tlp_bus=PcieIfTxBus.from_prefix(dut, "tx_msix_wr_req_tlp"),
+
             cfg_max_payload=dut.max_payload_size,
             cfg_max_read_req=dut.max_read_request_size,
             cfg_ext_tag_enable=dut.ext_tag_enable,
-
-            tx_fc_ph_av=dut.pcie_tx_fc_ph_av,
-            tx_fc_pd_av=dut.pcie_tx_fc_pd_av,
-            tx_fc_nph_av=dut.pcie_tx_fc_nph_av,
         )
 
         self.dev.log.setLevel(logging.DEBUG)
 
         self.rc.make_port().connect(self.dev)
 
-        self.dev.functions[0].msi_multiple_message_capable = 5
-
         self.dev.functions[0].configure_bar(0, 2**len(dut.axil_ctrl_awaddr))
         self.dev.functions[0].configure_bar(2, 2**len(dut.axi_ram_awaddr))
+        self.dev.functions[0].configure_bar(4, 2**len(dut.axil_msix_awaddr))
 
         dut.bus_num.setimmediatevalue(0)
+
+        dut.msix_enable.setimmediatevalue(0)
+        dut.msix_mask.setimmediatevalue(0)
 
         # monitor error outputs
         self.status_error_cor_asserted = False
@@ -134,15 +173,22 @@ async def run_test(dut):
 
     await tb.cycle_reset()
 
-    await tb.rc.enumerate(enable_bus_mastering=True, configure_msi=True)
+    await tb.rc.enumerate()
 
     mem = tb.rc.mem_pool.alloc_region(16*1024*1024)
     mem_base = mem.get_absolute_address(0)
 
-    dev_pf0_bar0 = tb.rc.tree[0][0].bar_window[0]
-    dev_pf0_bar2 = tb.rc.tree[0][0].bar_window[2]
+    dev = tb.rc.find_device(tb.dev.functions[0].pcie_id)
+    await dev.enable_device()
+    await dev.set_master()
+    await dev.alloc_irq_vectors(32, 32)
+
+    dev_pf0_bar0 = dev.bar_window[0]
+    dev_pf0_bar2 = dev.bar_window[2]
 
     tb.dut.bus_num.value = tb.dev.bus_num
+    tb.dut.msix_enable.value = tb.dev.functions[0].msix_cap.msix_enable
+    tb.dut.msix_mask.value = tb.dev.functions[0].msix_cap.msix_function_mask
 
     tb.log.info("Test memory write to BAR 2")
 
@@ -353,26 +399,21 @@ def test_example_core_pcie(request, pcie_data_width):
         os.path.join(pcie_rtl_dir, "pcie_tlp_demux_bar.v"),
         os.path.join(pcie_rtl_dir, "pcie_tlp_demux.v"),
         os.path.join(pcie_rtl_dir, "pcie_tlp_mux.v"),
+        os.path.join(pcie_rtl_dir, "pcie_msix.v"),
         os.path.join(pcie_rtl_dir, "dma_if_pcie.v"),
         os.path.join(pcie_rtl_dir, "dma_if_pcie_rd.v"),
         os.path.join(pcie_rtl_dir, "dma_if_pcie_wr.v"),
         os.path.join(pcie_rtl_dir, "dma_psdpram.v"),
-        os.path.join(pcie_rtl_dir, "arbiter.v"),
         os.path.join(pcie_rtl_dir, "priority_encoder.v"),
         os.path.join(pcie_rtl_dir, "pulse_merge.v"),
     ]
 
     parameters = {}
 
-    # segmented interface parameters
-    tlp_seg_count = 1
-    tlp_seg_data_width = pcie_data_width // tlp_seg_count
-    tlp_seg_strb_width = tlp_seg_data_width // 32
-
-    parameters['TLP_SEG_COUNT'] = tlp_seg_count
-    parameters['TLP_SEG_DATA_WIDTH'] = tlp_seg_data_width
-    parameters['TLP_SEG_STRB_WIDTH'] = tlp_seg_strb_width
-    parameters['TLP_SEG_HDR_WIDTH'] = 128
+    parameters['TLP_DATA_WIDTH'] = pcie_data_width
+    parameters['TLP_STRB_WIDTH'] = parameters['TLP_DATA_WIDTH'] // 32
+    parameters['TLP_HDR_WIDTH'] = 128
+    parameters['TLP_SEG_COUNT'] = 1
     parameters['TX_SEQ_NUM_COUNT'] = 1
     parameters['TX_SEQ_NUM_WIDTH'] = 6
     parameters['TX_SEQ_NUM_ENABLE'] = 1
@@ -381,14 +422,13 @@ def test_example_core_pcie(request, pcie_data_width):
     parameters['IMM_WIDTH'] = 32
     parameters['READ_OP_TABLE_SIZE'] = parameters['PCIE_TAG_COUNT']
     parameters['READ_TX_LIMIT'] = 2**parameters['TX_SEQ_NUM_WIDTH']
-    parameters['READ_TX_FC_ENABLE'] = 1
     parameters['WRITE_OP_TABLE_SIZE'] = 2**parameters['TX_SEQ_NUM_WIDTH']
     parameters['WRITE_TX_LIMIT'] = 2**parameters['TX_SEQ_NUM_WIDTH']
-    parameters['WRITE_TX_FC_ENABLE'] = 1
     parameters['TLP_FORCE_64_BIT_ADDR'] = 0
     parameters['CHECK_BUS_NUMBER'] = 1
     parameters['BAR0_APERTURE'] = 24
     parameters['BAR2_APERTURE'] = 24
+    parameters['BAR4_APERTURE'] = 16
 
     extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
 

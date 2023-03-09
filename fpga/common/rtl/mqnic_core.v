@@ -59,6 +59,10 @@ module mqnic_core #
 
     parameter PORT_COUNT = IF_COUNT*PORTS_PER_IF,
 
+    // Clock configuration
+    parameter CLK_PERIOD_NS_NUM = 4,
+    parameter CLK_PERIOD_NS_DENOM = 1,
+
     // PTP configuration
     parameter PTP_CLK_PERIOD_NS_NUM = 4,
     parameter PTP_CLK_PERIOD_NS_DENOM = 1,
@@ -66,6 +70,7 @@ module mqnic_core #
     parameter PTP_CLOCK_PIPELINE = 0,
     parameter PTP_CLOCK_CDC_PIPELINE = 0,
     parameter PTP_USE_SAMPLE_CLOCK = 0,
+    parameter PTP_SEPARATE_TX_CLOCK = 0,
     parameter PTP_SEPARATE_RX_CLOCK = 0,
     parameter PTP_PORT_CDC_PIPELINE = 0,
     parameter PTP_PEROUT_ENABLE = 0,
@@ -103,7 +108,6 @@ module mqnic_core #
     parameter TX_CPL_FIFO_DEPTH = 32,
     parameter TX_TAG_WIDTH = $clog2(TX_DESC_TABLE_SIZE)+1,
     parameter TX_CHECKSUM_ENABLE = 1,
-    parameter RX_RSS_ENABLE = 1,
     parameter RX_HASH_ENABLE = 1,
     parameter RX_CHECKSUM_ENABLE = 1,
     parameter TX_FIFO_DEPTH = 32768,
@@ -112,6 +116,50 @@ module mqnic_core #
     parameter MAX_RX_SIZE = 9214,
     parameter TX_RAM_SIZE = 32768,
     parameter RX_RAM_SIZE = 32768,
+
+    // RAM configuration
+    parameter DDR_CH = 1,
+    parameter DDR_ENABLE = 0,
+    parameter DDR_GROUP_SIZE = 1,
+    parameter AXI_DDR_DATA_WIDTH = 256,
+    parameter AXI_DDR_ADDR_WIDTH = 32,
+    parameter AXI_DDR_STRB_WIDTH = (AXI_DDR_DATA_WIDTH/8),
+    parameter AXI_DDR_ID_WIDTH = 8,
+    parameter AXI_DDR_AWUSER_ENABLE = 0,
+    parameter AXI_DDR_AWUSER_WIDTH = 1,
+    parameter AXI_DDR_WUSER_ENABLE = 0,
+    parameter AXI_DDR_WUSER_WIDTH = 1,
+    parameter AXI_DDR_BUSER_ENABLE = 0,
+    parameter AXI_DDR_BUSER_WIDTH = 1,
+    parameter AXI_DDR_ARUSER_ENABLE = 0,
+    parameter AXI_DDR_ARUSER_WIDTH = 1,
+    parameter AXI_DDR_RUSER_ENABLE = 0,
+    parameter AXI_DDR_RUSER_WIDTH = 1,
+    parameter AXI_DDR_MAX_BURST_LEN = 256,
+    parameter AXI_DDR_NARROW_BURST = 0,
+    parameter AXI_DDR_FIXED_BURST = 0,
+    parameter AXI_DDR_WRAP_BURST = 0,
+    parameter HBM_CH = 1,
+    parameter HBM_ENABLE = 0,
+    parameter HBM_GROUP_SIZE = 1,
+    parameter AXI_HBM_DATA_WIDTH = 256,
+    parameter AXI_HBM_ADDR_WIDTH = 32,
+    parameter AXI_HBM_STRB_WIDTH = (AXI_HBM_DATA_WIDTH/8),
+    parameter AXI_HBM_ID_WIDTH = 8,
+    parameter AXI_HBM_AWUSER_ENABLE = 0,
+    parameter AXI_HBM_AWUSER_WIDTH = 1,
+    parameter AXI_HBM_WUSER_ENABLE = 0,
+    parameter AXI_HBM_WUSER_WIDTH = 1,
+    parameter AXI_HBM_BUSER_ENABLE = 0,
+    parameter AXI_HBM_BUSER_WIDTH = 1,
+    parameter AXI_HBM_ARUSER_ENABLE = 0,
+    parameter AXI_HBM_ARUSER_WIDTH = 1,
+    parameter AXI_HBM_RUSER_ENABLE = 0,
+    parameter AXI_HBM_RUSER_WIDTH = 1,
+    parameter AXI_HBM_MAX_BURST_LEN = 256,
+    parameter AXI_HBM_NARROW_BURST = 0,
+    parameter AXI_HBM_FIXED_BURST = 0,
+    parameter AXI_HBM_WRAP_BURST = 0,
 
     // Application block configuration
     parameter APP_ID = 32'h00000000,
@@ -140,7 +188,10 @@ module mqnic_core #
     parameter RAM_SEG_ADDR_WIDTH = RAM_ADDR_WIDTH-$clog2(RAM_SEG_COUNT*RAM_SEG_BE_WIDTH),
     parameter RAM_PIPELINE = 2,
 
-    parameter MSI_COUNT = 32,
+    // Interrupt configuration
+    parameter IRQ_INDEX_WIDTH = EVENT_QUEUE_INDEX_WIDTH,
+    parameter MSIX_ENABLE = 0,
+    parameter AXIL_MSIX_ADDR_WIDTH = 16,
 
     // AXI lite interface configuration (control)
     parameter AXIL_CTRL_DATA_WIDTH = 32,
@@ -249,6 +300,29 @@ module mqnic_core #
     output wire                                         m_axil_csr_rready,
 
     /*
+     * AXI-Lite master interface (MSI-X)
+     */
+    output wire [AXIL_MSIX_ADDR_WIDTH-1:0]              m_axil_msix_awaddr,
+    output wire [2:0]                                   m_axil_msix_awprot,
+    output wire                                         m_axil_msix_awvalid,
+    input  wire                                         m_axil_msix_awready,
+    output wire [AXIL_CTRL_DATA_WIDTH-1:0]              m_axil_msix_wdata,
+    output wire [AXIL_CTRL_STRB_WIDTH-1:0]              m_axil_msix_wstrb,
+    output wire                                         m_axil_msix_wvalid,
+    input  wire                                         m_axil_msix_wready,
+    input  wire [1:0]                                   m_axil_msix_bresp,
+    input  wire                                         m_axil_msix_bvalid,
+    output wire                                         m_axil_msix_bready,
+    output wire [AXIL_MSIX_ADDR_WIDTH-1:0]              m_axil_msix_araddr,
+    output wire [2:0]                                   m_axil_msix_arprot,
+    output wire                                         m_axil_msix_arvalid,
+    input  wire                                         m_axil_msix_arready,
+    input  wire [AXIL_CTRL_DATA_WIDTH-1:0]              m_axil_msix_rdata,
+    input  wire [1:0]                                   m_axil_msix_rresp,
+    input  wire                                         m_axil_msix_rvalid,
+    output wire                                         m_axil_msix_rready,
+
+    /*
      * Control register interface
      */
     output wire [AXIL_CSR_ADDR_WIDTH-1:0]               ctrl_reg_wr_addr,
@@ -320,9 +394,11 @@ module mqnic_core #
     input  wire [RAM_SEG_COUNT-1:0]                     dma_ram_rd_resp_ready,
 
     /*
-     * MSI request outputs
+     * Interrupt request output
      */
-    output wire [MSI_COUNT-1:0]                         msi_irq,
+    output wire [IRQ_INDEX_WIDTH-1:0]                   irq_index,
+    output wire                                         irq_valid,
+    input  wire                                         irq_ready,
 
     /*
      * PTP clock
@@ -331,6 +407,7 @@ module mqnic_core #
     input  wire                                         ptp_rst,
     input  wire                                         ptp_sample_clk,
     output wire                                         ptp_pps,
+    output wire                                         ptp_pps_str,
     output wire [PTP_TS_WIDTH-1:0]                      ptp_ts_96,
     output wire                                         ptp_ts_step,
     output wire                                         ptp_sync_pps,
@@ -346,6 +423,8 @@ module mqnic_core #
     input  wire [PORT_COUNT-1:0]                        tx_clk,
     input  wire [PORT_COUNT-1:0]                        tx_rst,
 
+    input  wire [PORT_COUNT-1:0]                        tx_ptp_clk,
+    input  wire [PORT_COUNT-1:0]                        tx_ptp_rst,
     output wire [PORT_COUNT*PTP_TS_WIDTH-1:0]           tx_ptp_ts_96,
     output wire [PORT_COUNT-1:0]                        tx_ptp_ts_step,
 
@@ -379,6 +458,108 @@ module mqnic_core #
     input  wire [PORT_COUNT*AXIS_RX_USER_WIDTH-1:0]     s_axis_rx_tuser,
 
     input  wire [PORT_COUNT-1:0]                        rx_status,
+
+    /*
+     * DDR
+     */
+    input  wire [DDR_CH-1:0]                            ddr_clk,
+    input  wire [DDR_CH-1:0]                            ddr_rst,
+
+    output wire [DDR_CH*AXI_DDR_ID_WIDTH-1:0]           m_axi_ddr_awid,
+    output wire [DDR_CH*AXI_DDR_ADDR_WIDTH-1:0]         m_axi_ddr_awaddr,
+    output wire [DDR_CH*8-1:0]                          m_axi_ddr_awlen,
+    output wire [DDR_CH*3-1:0]                          m_axi_ddr_awsize,
+    output wire [DDR_CH*2-1:0]                          m_axi_ddr_awburst,
+    output wire [DDR_CH-1:0]                            m_axi_ddr_awlock,
+    output wire [DDR_CH*4-1:0]                          m_axi_ddr_awcache,
+    output wire [DDR_CH*3-1:0]                          m_axi_ddr_awprot,
+    output wire [DDR_CH*4-1:0]                          m_axi_ddr_awqos,
+    output wire [DDR_CH*AXI_DDR_AWUSER_WIDTH-1:0]       m_axi_ddr_awuser,
+    output wire [DDR_CH-1:0]                            m_axi_ddr_awvalid,
+    input  wire [DDR_CH-1:0]                            m_axi_ddr_awready,
+    output wire [DDR_CH*AXI_DDR_DATA_WIDTH-1:0]         m_axi_ddr_wdata,
+    output wire [DDR_CH*AXI_DDR_STRB_WIDTH-1:0]         m_axi_ddr_wstrb,
+    output wire [DDR_CH-1:0]                            m_axi_ddr_wlast,
+    output wire [DDR_CH*AXI_DDR_WUSER_WIDTH-1:0]        m_axi_ddr_wuser,
+    output wire [DDR_CH-1:0]                            m_axi_ddr_wvalid,
+    input  wire [DDR_CH-1:0]                            m_axi_ddr_wready,
+    input  wire [DDR_CH*AXI_DDR_ID_WIDTH-1:0]           m_axi_ddr_bid,
+    input  wire [DDR_CH*2-1:0]                          m_axi_ddr_bresp,
+    input  wire [DDR_CH*AXI_DDR_BUSER_WIDTH-1:0]        m_axi_ddr_buser,
+    input  wire [DDR_CH-1:0]                            m_axi_ddr_bvalid,
+    output wire [DDR_CH-1:0]                            m_axi_ddr_bready,
+    output wire [DDR_CH*AXI_DDR_ID_WIDTH-1:0]           m_axi_ddr_arid,
+    output wire [DDR_CH*AXI_DDR_ADDR_WIDTH-1:0]         m_axi_ddr_araddr,
+    output wire [DDR_CH*8-1:0]                          m_axi_ddr_arlen,
+    output wire [DDR_CH*3-1:0]                          m_axi_ddr_arsize,
+    output wire [DDR_CH*2-1:0]                          m_axi_ddr_arburst,
+    output wire [DDR_CH-1:0]                            m_axi_ddr_arlock,
+    output wire [DDR_CH*4-1:0]                          m_axi_ddr_arcache,
+    output wire [DDR_CH*3-1:0]                          m_axi_ddr_arprot,
+    output wire [DDR_CH*4-1:0]                          m_axi_ddr_arqos,
+    output wire [DDR_CH*AXI_DDR_ARUSER_WIDTH-1:0]       m_axi_ddr_aruser,
+    output wire [DDR_CH-1:0]                            m_axi_ddr_arvalid,
+    input  wire [DDR_CH-1:0]                            m_axi_ddr_arready,
+    input  wire [DDR_CH*AXI_DDR_ID_WIDTH-1:0]           m_axi_ddr_rid,
+    input  wire [DDR_CH*AXI_DDR_DATA_WIDTH-1:0]         m_axi_ddr_rdata,
+    input  wire [DDR_CH*2-1:0]                          m_axi_ddr_rresp,
+    input  wire [DDR_CH-1:0]                            m_axi_ddr_rlast,
+    input  wire [DDR_CH*AXI_DDR_RUSER_WIDTH-1:0]        m_axi_ddr_ruser,
+    input  wire [DDR_CH-1:0]                            m_axi_ddr_rvalid,
+    output wire [DDR_CH-1:0]                            m_axi_ddr_rready,
+
+    input  wire [DDR_CH-1:0]                            ddr_status,
+
+    /*
+     * HBM
+     */
+    input  wire [HBM_CH-1:0]                            hbm_clk,
+    input  wire [HBM_CH-1:0]                            hbm_rst,
+
+    output wire [HBM_CH*AXI_HBM_ID_WIDTH-1:0]           m_axi_hbm_awid,
+    output wire [HBM_CH*AXI_HBM_ADDR_WIDTH-1:0]         m_axi_hbm_awaddr,
+    output wire [HBM_CH*8-1:0]                          m_axi_hbm_awlen,
+    output wire [HBM_CH*3-1:0]                          m_axi_hbm_awsize,
+    output wire [HBM_CH*2-1:0]                          m_axi_hbm_awburst,
+    output wire [HBM_CH-1:0]                            m_axi_hbm_awlock,
+    output wire [HBM_CH*4-1:0]                          m_axi_hbm_awcache,
+    output wire [HBM_CH*3-1:0]                          m_axi_hbm_awprot,
+    output wire [HBM_CH*4-1:0]                          m_axi_hbm_awqos,
+    output wire [HBM_CH*AXI_HBM_AWUSER_WIDTH-1:0]       m_axi_hbm_awuser,
+    output wire [HBM_CH-1:0]                            m_axi_hbm_awvalid,
+    input  wire [HBM_CH-1:0]                            m_axi_hbm_awready,
+    output wire [HBM_CH*AXI_HBM_DATA_WIDTH-1:0]         m_axi_hbm_wdata,
+    output wire [HBM_CH*AXI_HBM_STRB_WIDTH-1:0]         m_axi_hbm_wstrb,
+    output wire [HBM_CH-1:0]                            m_axi_hbm_wlast,
+    output wire [HBM_CH*AXI_HBM_WUSER_WIDTH-1:0]        m_axi_hbm_wuser,
+    output wire [HBM_CH-1:0]                            m_axi_hbm_wvalid,
+    input  wire [HBM_CH-1:0]                            m_axi_hbm_wready,
+    input  wire [HBM_CH*AXI_HBM_ID_WIDTH-1:0]           m_axi_hbm_bid,
+    input  wire [HBM_CH*2-1:0]                          m_axi_hbm_bresp,
+    input  wire [HBM_CH*AXI_HBM_BUSER_WIDTH-1:0]        m_axi_hbm_buser,
+    input  wire [HBM_CH-1:0]                            m_axi_hbm_bvalid,
+    output wire [HBM_CH-1:0]                            m_axi_hbm_bready,
+    output wire [HBM_CH*AXI_HBM_ID_WIDTH-1:0]           m_axi_hbm_arid,
+    output wire [HBM_CH*AXI_HBM_ADDR_WIDTH-1:0]         m_axi_hbm_araddr,
+    output wire [HBM_CH*8-1:0]                          m_axi_hbm_arlen,
+    output wire [HBM_CH*3-1:0]                          m_axi_hbm_arsize,
+    output wire [HBM_CH*2-1:0]                          m_axi_hbm_arburst,
+    output wire [HBM_CH-1:0]                            m_axi_hbm_arlock,
+    output wire [HBM_CH*4-1:0]                          m_axi_hbm_arcache,
+    output wire [HBM_CH*3-1:0]                          m_axi_hbm_arprot,
+    output wire [HBM_CH*4-1:0]                          m_axi_hbm_arqos,
+    output wire [HBM_CH*AXI_HBM_ARUSER_WIDTH-1:0]       m_axi_hbm_aruser,
+    output wire [HBM_CH-1:0]                            m_axi_hbm_arvalid,
+    input  wire [HBM_CH-1:0]                            m_axi_hbm_arready,
+    input  wire [HBM_CH*AXI_HBM_ID_WIDTH-1:0]           m_axi_hbm_rid,
+    input  wire [HBM_CH*AXI_HBM_DATA_WIDTH-1:0]         m_axi_hbm_rdata,
+    input  wire [HBM_CH*2-1:0]                          m_axi_hbm_rresp,
+    input  wire [HBM_CH-1:0]                            m_axi_hbm_rlast,
+    input  wire [HBM_CH*AXI_HBM_RUSER_WIDTH-1:0]        m_axi_hbm_ruser,
+    input  wire [HBM_CH-1:0]                            m_axi_hbm_rvalid,
+    output wire [HBM_CH-1:0]                            m_axi_hbm_rready,
+
+    input  wire [HBM_CH-1:0]                            hbm_status,
 
     /*
      * Statistics increment input
@@ -422,7 +603,10 @@ parameter AXIS_IF_RX_DEST_WIDTH = RX_QUEUE_INDEX_WIDTH;
 parameter AXIS_IF_TX_USER_WIDTH = AXIS_TX_USER_WIDTH;
 parameter AXIS_IF_RX_USER_WIDTH = AXIS_RX_USER_WIDTH;
 
+localparam CLK_CYCLES_PER_US = (1000*CLK_PERIOD_NS_DENOM)/CLK_PERIOD_NS_NUM;
+
 localparam PHC_RB_BASE_ADDR = 32'h100;
+localparam CLK_RB_BASE_ADDR = PHC_RB_BASE_ADDR + 32'h100;
 
 // check configuration
 initial begin
@@ -560,15 +744,23 @@ wire [AXIL_CTRL_DATA_WIDTH-1:0] ptp_ctrl_reg_rd_data;
 wire ptp_ctrl_reg_rd_wait;
 wire ptp_ctrl_reg_rd_ack;
 
+wire clk_ctrl_reg_wr_wait;
+wire clk_ctrl_reg_wr_ack;
+wire [AXIL_CTRL_DATA_WIDTH-1:0] clk_ctrl_reg_rd_data;
+wire clk_ctrl_reg_rd_wait;
+wire clk_ctrl_reg_rd_ack;
+
 reg ctrl_reg_wr_ack_reg = 1'b0;
 reg [AXIL_CTRL_DATA_WIDTH-1:0] ctrl_reg_rd_data_reg = {AXIL_CTRL_DATA_WIDTH{1'b0}};
 reg ctrl_reg_rd_ack_reg = 1'b0;
 
-assign ctrl_reg_wr_wait_int = ctrl_reg_wr_wait | ptp_ctrl_reg_wr_wait;
-assign ctrl_reg_wr_ack_int = ctrl_reg_wr_ack | ctrl_reg_wr_ack_reg | ptp_ctrl_reg_wr_ack;
-assign ctrl_reg_rd_data_int = ctrl_reg_rd_data | ctrl_reg_rd_data_reg | ptp_ctrl_reg_rd_data;
-assign ctrl_reg_rd_wait_int = ctrl_reg_rd_wait | ptp_ctrl_reg_rd_wait;
-assign ctrl_reg_rd_ack_int = ctrl_reg_rd_ack | ctrl_reg_rd_ack_reg | ptp_ctrl_reg_rd_ack;
+reg [15:0] irq_rate_limit_min_interval_reg = 10;
+
+assign ctrl_reg_wr_wait_int = ctrl_reg_wr_wait | ptp_ctrl_reg_wr_wait | clk_ctrl_reg_wr_wait;
+assign ctrl_reg_wr_ack_int = ctrl_reg_wr_ack | ctrl_reg_wr_ack_reg | ptp_ctrl_reg_wr_ack | clk_ctrl_reg_wr_ack;
+assign ctrl_reg_rd_data_int = ctrl_reg_rd_data | ctrl_reg_rd_data_reg | ptp_ctrl_reg_rd_data | clk_ctrl_reg_rd_data;
+assign ctrl_reg_rd_wait_int = ctrl_reg_rd_wait | ptp_ctrl_reg_rd_wait | clk_ctrl_reg_rd_wait;
+assign ctrl_reg_rd_ack_int = ctrl_reg_rd_ack | ctrl_reg_rd_ack_reg | ptp_ctrl_reg_rd_ack | clk_ctrl_reg_rd_ack;
 
 always @(posedge clk) begin
     ctrl_reg_wr_ack_reg <= 1'b0;
@@ -578,9 +770,11 @@ always @(posedge clk) begin
     if (ctrl_reg_wr_en && !ctrl_reg_wr_ack_reg) begin
         // write operation
         ctrl_reg_wr_ack_reg <= 1'b0;
-        // case ({ctrl_reg_wr_addr >> 2, 2'b00})
-        //     default: ctrl_reg_wr_ack_reg <= 1'b0;
-        // endcase
+        case ({ctrl_reg_wr_addr >> 2, 2'b00})
+            // IRQ configuration
+            8'h4C: irq_rate_limit_min_interval_reg <= ctrl_reg_wr_data;  // IRQ config: Min interval
+            default: ctrl_reg_wr_ack_reg <= 1'b0;
+        endcase
     end
 
     if (ctrl_reg_rd_en && !ctrl_reg_rd_ack_reg) begin
@@ -599,24 +793,29 @@ always @(posedge clk) begin
             8'h20: ctrl_reg_rd_data_reg <= BUILD_DATE;    // FW ID: Build date
             8'h24: ctrl_reg_rd_data_reg <= GIT_HASH;      // FW ID: Git commit hash
             8'h28: ctrl_reg_rd_data_reg <= RELEASE_INFO;  // FW ID: Release info
+            // IRQ configuration
+            8'h40: ctrl_reg_rd_data_reg <= 32'h0000C007;  // IRQ config: Type
+            8'h44: ctrl_reg_rd_data_reg <= 32'h00000100;  // IRQ config: Version
+            8'h48: ctrl_reg_rd_data_reg <= 32'h50;        // IRQ config: Next header
+            8'h4C: ctrl_reg_rd_data_reg <= irq_rate_limit_min_interval_reg;  // IRQ config: Min interval
             // Interface
-            8'h40: ctrl_reg_rd_data_reg <= 32'h0000C000;  // Interface: Type
-            8'h44: ctrl_reg_rd_data_reg <= 32'h00000100;  // Interface: Version
-            8'h48: ctrl_reg_rd_data_reg <= 32'h60;        // Interface: Next header
-            8'h4C: ctrl_reg_rd_data_reg <= 32'h0;         // Interface: Offset
-            8'h50: ctrl_reg_rd_data_reg <= IF_COUNT;      // Interface: Count
-            8'h54: ctrl_reg_rd_data_reg <= 2**AXIL_IF_CTRL_ADDR_WIDTH;  // Interface: Stride
-            8'h58: ctrl_reg_rd_data_reg <= 2**AXIL_CSR_ADDR_WIDTH;      // Interface: CSR offset
+            8'h50: ctrl_reg_rd_data_reg <= 32'h0000C000;  // Interface: Type
+            8'h54: ctrl_reg_rd_data_reg <= 32'h00000100;  // Interface: Version
+            8'h58: ctrl_reg_rd_data_reg <= 32'h70;        // Interface: Next header
+            8'h5C: ctrl_reg_rd_data_reg <= 32'h0;         // Interface: Offset
+            8'h60: ctrl_reg_rd_data_reg <= IF_COUNT;      // Interface: Count
+            8'h64: ctrl_reg_rd_data_reg <= 2**AXIL_IF_CTRL_ADDR_WIDTH;  // Interface: Stride
+            8'h68: ctrl_reg_rd_data_reg <= 2**AXIL_CSR_ADDR_WIDTH;      // Interface: CSR offset
             // App info
-            8'h60: ctrl_reg_rd_data_reg <= APP_ENABLE ? 32'h0000C005 : 0;  // App info: Type
-            8'h64: ctrl_reg_rd_data_reg <= APP_ENABLE ? 32'h00000200 : 0;  // App info: Version
-            8'h68: ctrl_reg_rd_data_reg <= 32'h80;                         // App info: Next header
-            8'h6C: ctrl_reg_rd_data_reg <= APP_ENABLE ? APP_ID : 0;        // App info: ID
+            8'h70: ctrl_reg_rd_data_reg <= APP_ENABLE ? 32'h0000C005 : 0;  // App info: Type
+            8'h74: ctrl_reg_rd_data_reg <= APP_ENABLE ? 32'h00000200 : 0;  // App info: Version
+            8'h78: ctrl_reg_rd_data_reg <= 32'h80;                         // App info: Next header
+            8'h7C: ctrl_reg_rd_data_reg <= APP_ENABLE ? APP_ID : 0;        // App info: ID
             // Stats
             8'h80: ctrl_reg_rd_data_reg <= STAT_ENABLE ? 32'h0000C006 : 0;      // Stats: Type
             8'h84: ctrl_reg_rd_data_reg <= STAT_ENABLE ? 32'h00000100 : 0;      // Stats: Version
             8'h88: ctrl_reg_rd_data_reg <= PHC_RB_BASE_ADDR;                    // Stats: Next header
-            8'h8C: ctrl_reg_rd_data_reg <= STAT_ENABLE ? 2**16 : 0;             // Stats: Offset
+            8'h8C: ctrl_reg_rd_data_reg <= STAT_ENABLE ? (MSIX_ENABLE ? 2 : 1)*2**16 : 0;  // Stats: Offset
             8'h90: ctrl_reg_rd_data_reg <= STAT_ENABLE ? 2**STAT_ID_WIDTH : 0;  // Stats: Count
             8'h94: ctrl_reg_rd_data_reg <= STAT_ENABLE ? 8 : 0;                 // Stats: Stride
             8'h98: ctrl_reg_rd_data_reg <= STAT_ENABLE ? 32'h00000000 : 0;      // Stats: Flags
@@ -627,6 +826,8 @@ always @(posedge clk) begin
     if (rst) begin
         ctrl_reg_wr_ack_reg <= 1'b0;
         ctrl_reg_rd_ack_reg <= 1'b0;
+
+        irq_rate_limit_min_interval_reg <= 10;
     end
 end
 
@@ -642,7 +843,7 @@ mqnic_ptp #(
     .REG_DATA_WIDTH(AXIL_CTRL_DATA_WIDTH),
     .REG_STRB_WIDTH(AXIL_CTRL_STRB_WIDTH),
     .RB_BASE_ADDR(PHC_RB_BASE_ADDR),
-    .RB_NEXT_PTR(RB_NEXT_PTR)
+    .RB_NEXT_PTR(CLK_RB_BASE_ADDR)
 )
 mqnic_ptp_inst (
     .clk(clk),
@@ -670,6 +871,7 @@ mqnic_ptp_inst (
     .ptp_rst(ptp_rst),
     .ptp_sample_clk(ptp_sample_clk),
     .ptp_pps(ptp_pps),
+    .ptp_pps_str(ptp_pps_str),
     .ptp_ts_96(ptp_ts_96),
     .ptp_ts_step(ptp_ts_step),
     .ptp_sync_pps(ptp_sync_pps),
@@ -678,6 +880,50 @@ mqnic_ptp_inst (
     .ptp_perout_locked(ptp_perout_locked),
     .ptp_perout_error(ptp_perout_error),
     .ptp_perout_pulse(ptp_perout_pulse)
+);
+
+localparam CLK_CNT = PORT_COUNT*2;
+
+wire [CLK_CNT-1:0] all_clocks;
+
+mqnic_rb_clk_info #(
+    .CLK_PERIOD_NS_NUM(CLK_PERIOD_NS_NUM),
+    .CLK_PERIOD_NS_DENOM(CLK_PERIOD_NS_DENOM),
+    .REF_CLK_PERIOD_NS_NUM(PTP_CLK_PERIOD_NS_NUM),
+    .REF_CLK_PERIOD_NS_DENOM(PTP_CLK_PERIOD_NS_DENOM),
+    .CH_CNT(PORT_COUNT*2),
+    .REG_ADDR_WIDTH(AXIL_CTRL_ADDR_WIDTH),
+    .REG_DATA_WIDTH(AXIL_CTRL_DATA_WIDTH),
+    .REG_STRB_WIDTH(AXIL_CTRL_STRB_WIDTH),
+    .RB_BASE_ADDR(CLK_RB_BASE_ADDR),
+    .RB_NEXT_PTR(RB_NEXT_PTR)
+)
+mqnic_rb_clk_info_inst (
+    .clk(clk),
+    .rst(rst),
+
+    /*
+     * Register interface
+     */
+    .reg_wr_addr(ctrl_reg_wr_addr),
+    .reg_wr_data(ctrl_reg_wr_data),
+    .reg_wr_strb(ctrl_reg_wr_strb),
+    .reg_wr_en(ctrl_reg_wr_en),
+    .reg_wr_wait(clk_ctrl_reg_wr_wait),
+    .reg_wr_ack(clk_ctrl_reg_wr_ack),
+    .reg_rd_addr(ctrl_reg_rd_addr),
+    .reg_rd_en(ctrl_reg_rd_en),
+    .reg_rd_data(clk_ctrl_reg_rd_data),
+    .reg_rd_wait(clk_ctrl_reg_rd_wait),
+    .reg_rd_ack(clk_ctrl_reg_rd_ack),
+
+    /*
+     * Clock inputs
+     */
+    .ref_clk(ptp_clk),
+    .ref_rst(ptp_rst),
+
+    .ch_clk(all_clocks)
 );
 
 localparam CTRL_XBAR_MAIN_OFFSET = 0;
@@ -857,13 +1103,17 @@ wire [IF_COUNT-1:0]                       axil_if_csr_rvalid;
 wire [IF_COUNT-1:0]                       axil_if_csr_rready;
 
 localparam CSR_XBAR_CSR_OFFSET = 0;
-localparam CSR_XBAR_STAT_OFFSET = CSR_XBAR_CSR_OFFSET + 1;
+localparam CSR_XBAR_MSIX_OFFSET = CSR_XBAR_CSR_OFFSET + 1;
+localparam CSR_XBAR_STAT_OFFSET = CSR_XBAR_MSIX_OFFSET + (MSIX_ENABLE ? 1 : 0);
 localparam CSR_XBAR_PASSTHROUGH_OFFSET = CSR_XBAR_STAT_OFFSET + (STAT_ENABLE ? 1 : 0);
 localparam CSR_XBAR_M_COUNT = CSR_XBAR_PASSTHROUGH_OFFSET + (AXIL_CSR_PASSTHROUGH_ENABLE ? 1 : 0);
 
 function [CSR_XBAR_M_COUNT*32-1:0] calcCsrXbarWidths(input [31:0] dummy);
     begin
         calcCsrXbarWidths[CSR_XBAR_CSR_OFFSET*32 +: 32] = 16;
+        if (MSIX_ENABLE) begin
+            calcCsrXbarWidths[CSR_XBAR_MSIX_OFFSET*32 +: 32] = 16;
+        end
         if (STAT_ENABLE) begin
             calcCsrXbarWidths[CSR_XBAR_STAT_OFFSET*32 +: 32] = 16;
         end
@@ -914,6 +1164,44 @@ assign axil_csr_xbar_rdata[CSR_XBAR_CSR_OFFSET*AXIL_CTRL_DATA_WIDTH +: AXIL_CTRL
 assign axil_csr_xbar_rresp[CSR_XBAR_CSR_OFFSET*2 +: 2] = axil_csr_rresp;
 assign axil_csr_xbar_rvalid[CSR_XBAR_CSR_OFFSET +: 1] = axil_csr_rvalid;
 assign axil_csr_rready = axil_csr_xbar_rready[CSR_XBAR_CSR_OFFSET +: 1];
+
+if (MSIX_ENABLE) begin
+
+    assign m_axil_msix_awaddr = axil_csr_xbar_awaddr[CSR_XBAR_MSIX_OFFSET*AXIL_CSR_ADDR_WIDTH +: AXIL_CSR_ADDR_WIDTH];
+    assign m_axil_msix_awprot = axil_csr_xbar_awprot[CSR_XBAR_MSIX_OFFSET*3 +: 3];
+    assign m_axil_msix_awvalid = axil_csr_xbar_awvalid[CSR_XBAR_MSIX_OFFSET +: 1];
+    assign axil_csr_xbar_awready[CSR_XBAR_MSIX_OFFSET +: 1] = m_axil_msix_awready;
+    assign m_axil_msix_wdata = axil_csr_xbar_wdata[CSR_XBAR_MSIX_OFFSET*AXIL_CTRL_DATA_WIDTH +: AXIL_CTRL_DATA_WIDTH];
+    assign m_axil_msix_wstrb = axil_csr_xbar_wstrb[CSR_XBAR_MSIX_OFFSET*AXIL_CTRL_STRB_WIDTH +: AXIL_CTRL_STRB_WIDTH];
+    assign m_axil_msix_wvalid = axil_csr_xbar_wvalid[CSR_XBAR_MSIX_OFFSET +: 1];
+    assign axil_csr_xbar_wready[CSR_XBAR_MSIX_OFFSET +: 1] = m_axil_msix_wready;
+    assign axil_csr_xbar_bresp[CSR_XBAR_MSIX_OFFSET*2 +: 2] = m_axil_msix_bresp;
+    assign axil_csr_xbar_bvalid[CSR_XBAR_MSIX_OFFSET +: 1] = m_axil_msix_bvalid;
+    assign m_axil_msix_bready = axil_csr_xbar_bready[CSR_XBAR_MSIX_OFFSET +: 1];
+    assign m_axil_msix_araddr = axil_csr_xbar_araddr[CSR_XBAR_MSIX_OFFSET*AXIL_CSR_ADDR_WIDTH +: AXIL_CSR_ADDR_WIDTH];
+    assign m_axil_msix_arprot = axil_csr_xbar_arprot[CSR_XBAR_MSIX_OFFSET*3 +: 3];
+    assign m_axil_msix_arvalid = axil_csr_xbar_arvalid[CSR_XBAR_MSIX_OFFSET +: 1];
+    assign axil_csr_xbar_arready[CSR_XBAR_MSIX_OFFSET +: 1] = m_axil_msix_arready;
+    assign axil_csr_xbar_rdata[CSR_XBAR_MSIX_OFFSET*AXIL_CTRL_DATA_WIDTH +: AXIL_CTRL_DATA_WIDTH] = m_axil_msix_rdata;
+    assign axil_csr_xbar_rresp[CSR_XBAR_MSIX_OFFSET*2 +: 2] = m_axil_msix_rresp;
+    assign axil_csr_xbar_rvalid[CSR_XBAR_MSIX_OFFSET +: 1] = m_axil_msix_rvalid;
+    assign m_axil_msix_rready = axil_csr_xbar_rready[CSR_XBAR_MSIX_OFFSET +: 1];
+
+end else begin
+
+    assign m_axil_msix_awaddr = 0;
+    assign m_axil_msix_awprot = 0;
+    assign m_axil_msix_awvalid = 0;
+    assign m_axil_msix_wdata = 0;
+    assign m_axil_msix_wstrb = 0;
+    assign m_axil_msix_wvalid = 0;
+    assign m_axil_msix_bready = 0;
+    assign m_axil_msix_araddr = 0;
+    assign m_axil_msix_arprot = 0;
+    assign m_axil_msix_arvalid = 0;
+    assign m_axil_msix_rready = 0;
+
+end
 
 if (STAT_ENABLE) begin
 
@@ -1161,7 +1449,7 @@ if (STAT_ENABLE) begin
 
 end else begin
 
-    assign s_axis_stat_tready = 1'b1;
+    assign axis_stat_tready = 1'b1;
 
 end
 
@@ -2048,19 +2336,95 @@ end
 
 endgenerate
 
-wire [MSI_COUNT-1:0] if_msi_irq[IF_COUNT-1:0];
-reg [MSI_COUNT-1:0] msi_irq_cmb = 0;
+wire [IRQ_INDEX_WIDTH-1:0]  int_irq_index;
+wire                        int_irq_valid;
+wire                        int_irq_ready;
 
-assign msi_irq = msi_irq_cmb;
+irq_rate_limit #(
+    .IRQ_INDEX_WIDTH(IRQ_INDEX_WIDTH)
+)
+irq_rate_limit_inst (
+    .clk(clk),
+    .rst(rst),
 
-integer k;
+    /*
+     * Interrupt request input
+     */
+    .in_irq_index(int_irq_index),
+    .in_irq_valid(int_irq_valid),
+    .in_irq_ready(int_irq_ready),
 
-always @* begin
-    msi_irq_cmb = 0;
-    for (k = 0; k < IF_COUNT; k = k + 1) begin
-        msi_irq_cmb = msi_irq_cmb | if_msi_irq[k];
-    end
+    /*
+     * Interrupt request output
+     */
+    .out_irq_index(irq_index),
+    .out_irq_valid(irq_valid),
+    .out_irq_ready(irq_ready),
+
+    /*
+     * Configuration
+     */
+    .prescale(CLK_CYCLES_PER_US-1),
+    .min_interval(irq_rate_limit_min_interval_reg)
+);
+
+wire [IF_COUNT*IRQ_INDEX_WIDTH-1:0]  if_irq_index;
+wire [IF_COUNT-1:0]                  if_irq_valid;
+wire [IF_COUNT-1:0]                  if_irq_ready;
+
+generate
+
+if (IF_COUNT > 1) begin : irq_mux
+
+    axis_arb_mux #(
+        .S_COUNT(IF_COUNT),
+        .DATA_WIDTH(IRQ_INDEX_WIDTH),
+        .KEEP_ENABLE(0),
+        .ID_ENABLE(0),
+        .DEST_ENABLE(0),
+        .USER_ENABLE(0),
+        .LAST_ENABLE(0),
+        .ARB_TYPE_ROUND_ROBIN(1),
+        .ARB_LSB_HIGH_PRIORITY(1)
+    )
+    axis_irq_mux_inst (
+        .clk(clk),
+        .rst(rst),
+
+        /*
+         * AXI Stream inputs
+         */
+        .s_axis_tdata(if_irq_index),
+        .s_axis_tkeep(0),
+        .s_axis_tvalid(if_irq_valid),
+        .s_axis_tready(if_irq_ready),
+        .s_axis_tlast(0),
+        .s_axis_tid(0),
+        .s_axis_tdest(0),
+        .s_axis_tuser(0),
+
+        /*
+         * AXI Stream output
+         */
+        .m_axis_tdata(int_irq_index),
+        .m_axis_tkeep(),
+        .m_axis_tvalid(int_irq_valid),
+        .m_axis_tready(int_irq_ready),
+        .m_axis_tlast(),
+        .m_axis_tid(),
+        .m_axis_tdest(),
+        .m_axis_tuser()
+    );
+
+end else begin
+
+    assign int_irq_index = if_irq_index;
+    assign int_irq_valid = if_irq_valid;
+    assign if_irq_ready = int_irq_ready;
+
 end
+
+endgenerate
 
 // streaming connections to application
 wire [PORT_COUNT-1:0]                        app_direct_tx_clk;
@@ -2251,7 +2615,6 @@ generate
             .TX_CPL_FIFO_DEPTH(TX_CPL_FIFO_DEPTH),
             .TX_TAG_WIDTH(TX_TAG_WIDTH),
             .TX_CHECKSUM_ENABLE(TX_CHECKSUM_ENABLE),
-            .RX_RSS_ENABLE(RX_RSS_ENABLE),
             .RX_HASH_ENABLE(RX_HASH_ENABLE),
             .RX_CHECKSUM_ENABLE(RX_CHECKSUM_ENABLE),
             .TX_FIFO_DEPTH(TX_FIFO_DEPTH),
@@ -2271,8 +2634,8 @@ generate
             .DMA_IMM_ENABLE(DMA_IMM_ENABLE),
             .DMA_IMM_WIDTH(DMA_IMM_WIDTH),
             .DMA_LEN_WIDTH(DMA_LEN_WIDTH),
-            .DMA_TAG_WIDTH(DMA_TAG_WIDTH),
-            .RAM_SEL_WIDTH(RAM_SEL_WIDTH),
+            .DMA_TAG_WIDTH(IF_DMA_TAG_WIDTH),
+            .RAM_SEL_WIDTH(IF_RAM_SEL_WIDTH),
             .RAM_ADDR_WIDTH(RAM_ADDR_WIDTH),
             .RAM_SEG_COUNT(RAM_SEG_COUNT),
             .RAM_SEG_DATA_WIDTH(RAM_SEG_DATA_WIDTH),
@@ -2280,7 +2643,8 @@ generate
             .RAM_SEG_ADDR_WIDTH(RAM_SEG_ADDR_WIDTH),
             .RAM_PIPELINE(RAM_PIPELINE),
 
-            .MSI_COUNT(MSI_COUNT),
+            // Interrupt configuration
+            .IRQ_INDEX_WIDTH(IRQ_INDEX_WIDTH),
 
             // AXI lite interface configuration
             .AXIL_DATA_WIDTH(AXIL_CTRL_DATA_WIDTH),
@@ -2650,9 +3014,11 @@ generate
             .ptp_ts_step(ptp_sync_ts_step),
 
             /*
-             * MSI interrupts
+             * Interrupt request output
              */
-            .msi_irq(if_msi_irq[n])
+            .irq_index(if_irq_index[n*IRQ_INDEX_WIDTH +: IRQ_INDEX_WIDTH]),
+            .irq_valid(if_irq_valid[n +: 1]),
+            .irq_ready(if_irq_ready[n +: 1])
         );
 
         for (m = 0; m < PORTS_PER_IF; m = m + 1) begin : port
@@ -2662,6 +3028,9 @@ generate
 
             wire port_rx_clk = rx_clk[n*PORTS_PER_IF+m];
             wire port_rx_rst = rx_rst[n*PORTS_PER_IF+m];
+
+            wire port_tx_ptp_clk = tx_ptp_clk[n*PORTS_PER_IF+m];
+            wire port_tx_ptp_rst = tx_ptp_rst[n*PORTS_PER_IF+m];
 
             wire port_rx_ptp_clk = rx_ptp_clk[n*PORTS_PER_IF+m];
             wire port_rx_ptp_rst = rx_ptp_rst[n*PORTS_PER_IF+m];
@@ -2677,6 +3046,9 @@ generate
 
             assign app_direct_rx_clk[n*PORTS_PER_IF+m] = port_rx_clk;
             assign app_direct_rx_rst[n*PORTS_PER_IF+m] = port_rx_rst;
+
+            assign all_clocks[(n*PORTS_PER_IF+m)*2+0] = port_tx_clk;
+            assign all_clocks[(n*PORTS_PER_IF+m)*2+1] = port_rx_clk;
 
             wire [PTP_TS_WIDTH-1:0] port_rx_ptp_ts_96;
             wire port_rx_ptp_ts_step;
@@ -2697,8 +3069,8 @@ generate
                 tx_ptp_cdc_inst (
                     .input_clk(ptp_clk),
                     .input_rst(ptp_rst),
-                    .output_clk(port_tx_clk),
-                    .output_rst(port_tx_rst),
+                    .output_clk(PTP_SEPARATE_TX_CLOCK ? port_tx_ptp_clk : port_tx_clk),
+                    .output_rst(PTP_SEPARATE_TX_CLOCK ? port_tx_ptp_rst : port_tx_rst),
                     .sample_clk(ptp_sample_clk),
                     .input_ts(ptp_ts_96),
                     .input_ts_step(ptp_ts_step),
@@ -2763,6 +3135,10 @@ if (APP_ENABLE) begin : app
 
         .PORT_COUNT(PORT_COUNT),
 
+        // Clock configuration
+        .CLK_PERIOD_NS_NUM(CLK_PERIOD_NS_NUM),
+        .CLK_PERIOD_NS_DENOM(CLK_PERIOD_NS_DENOM),
+
         // PTP configuration
         .PTP_CLK_PERIOD_NS_NUM(PTP_CLK_PERIOD_NS_NUM),
         .PTP_CLK_PERIOD_NS_DENOM(PTP_CLK_PERIOD_NS_DENOM),
@@ -2777,6 +3153,50 @@ if (APP_ENABLE) begin : app
         .TX_TAG_WIDTH(TX_TAG_WIDTH),
         .MAX_TX_SIZE(MAX_TX_SIZE),
         .MAX_RX_SIZE(MAX_RX_SIZE),
+
+        // RAM configuration
+        .DDR_CH(DDR_CH),
+        .DDR_ENABLE(DDR_ENABLE),
+        .DDR_GROUP_SIZE(DDR_GROUP_SIZE),
+        .AXI_DDR_DATA_WIDTH(AXI_DDR_DATA_WIDTH),
+        .AXI_DDR_ADDR_WIDTH(AXI_DDR_ADDR_WIDTH),
+        .AXI_DDR_STRB_WIDTH(AXI_DDR_STRB_WIDTH),
+        .AXI_DDR_ID_WIDTH(AXI_DDR_ID_WIDTH),
+        .AXI_DDR_AWUSER_ENABLE(AXI_DDR_AWUSER_ENABLE),
+        .AXI_DDR_AWUSER_WIDTH(AXI_DDR_AWUSER_WIDTH),
+        .AXI_DDR_WUSER_ENABLE(AXI_DDR_WUSER_ENABLE),
+        .AXI_DDR_WUSER_WIDTH(AXI_DDR_WUSER_WIDTH),
+        .AXI_DDR_BUSER_ENABLE(AXI_DDR_BUSER_ENABLE),
+        .AXI_DDR_BUSER_WIDTH(AXI_DDR_BUSER_WIDTH),
+        .AXI_DDR_ARUSER_ENABLE(AXI_DDR_ARUSER_ENABLE),
+        .AXI_DDR_ARUSER_WIDTH(AXI_DDR_ARUSER_WIDTH),
+        .AXI_DDR_RUSER_ENABLE(AXI_DDR_RUSER_ENABLE),
+        .AXI_DDR_RUSER_WIDTH(AXI_DDR_RUSER_WIDTH),
+        .AXI_DDR_MAX_BURST_LEN(AXI_DDR_MAX_BURST_LEN),
+        .AXI_DDR_NARROW_BURST(AXI_DDR_NARROW_BURST),
+        .AXI_DDR_FIXED_BURST(AXI_DDR_FIXED_BURST),
+        .AXI_DDR_WRAP_BURST(AXI_DDR_WRAP_BURST),
+        .HBM_CH(HBM_CH),
+        .HBM_ENABLE(HBM_ENABLE),
+        .HBM_GROUP_SIZE(HBM_GROUP_SIZE),
+        .AXI_HBM_DATA_WIDTH(AXI_HBM_DATA_WIDTH),
+        .AXI_HBM_ADDR_WIDTH(AXI_HBM_ADDR_WIDTH),
+        .AXI_HBM_STRB_WIDTH(AXI_HBM_STRB_WIDTH),
+        .AXI_HBM_ID_WIDTH(AXI_HBM_ID_WIDTH),
+        .AXI_HBM_AWUSER_ENABLE(AXI_HBM_AWUSER_ENABLE),
+        .AXI_HBM_AWUSER_WIDTH(AXI_HBM_AWUSER_WIDTH),
+        .AXI_HBM_WUSER_ENABLE(AXI_HBM_WUSER_ENABLE),
+        .AXI_HBM_WUSER_WIDTH(AXI_HBM_WUSER_WIDTH),
+        .AXI_HBM_BUSER_ENABLE(AXI_HBM_BUSER_ENABLE),
+        .AXI_HBM_BUSER_WIDTH(AXI_HBM_BUSER_WIDTH),
+        .AXI_HBM_ARUSER_ENABLE(AXI_HBM_ARUSER_ENABLE),
+        .AXI_HBM_ARUSER_WIDTH(AXI_HBM_ARUSER_WIDTH),
+        .AXI_HBM_RUSER_ENABLE(AXI_HBM_RUSER_ENABLE),
+        .AXI_HBM_RUSER_WIDTH(AXI_HBM_RUSER_WIDTH),
+        .AXI_HBM_MAX_BURST_LEN(AXI_HBM_MAX_BURST_LEN),
+        .AXI_HBM_NARROW_BURST(AXI_HBM_NARROW_BURST),
+        .AXI_HBM_FIXED_BURST(AXI_HBM_FIXED_BURST),
+        .AXI_HBM_WRAP_BURST(AXI_HBM_WRAP_BURST),
 
         // Application configuration
         .APP_ID(APP_ID),
@@ -3008,6 +3428,7 @@ if (APP_ENABLE) begin : app
         .ptp_rst(ptp_rst),
         .ptp_sample_clk(ptp_sample_clk),
         .ptp_pps(ptp_pps),
+        .ptp_pps_str(ptp_pps_str),
         .ptp_ts_96(ptp_ts_96),
         .ptp_ts_step(ptp_ts_step),
         .ptp_sync_pps(ptp_sync_pps),
@@ -3153,6 +3574,108 @@ if (APP_ENABLE) begin : app
         .m_axis_if_rx_tid(app_m_axis_if_rx_tid),
         .m_axis_if_rx_tdest(app_m_axis_if_rx_tdest),
         .m_axis_if_rx_tuser(app_m_axis_if_rx_tuser),
+
+        /*
+         * DDR
+         */
+        .ddr_clk(ddr_clk),
+        .ddr_rst(ddr_rst),
+
+        .m_axi_ddr_awid(m_axi_ddr_awid),
+        .m_axi_ddr_awaddr(m_axi_ddr_awaddr),
+        .m_axi_ddr_awlen(m_axi_ddr_awlen),
+        .m_axi_ddr_awsize(m_axi_ddr_awsize),
+        .m_axi_ddr_awburst(m_axi_ddr_awburst),
+        .m_axi_ddr_awlock(m_axi_ddr_awlock),
+        .m_axi_ddr_awcache(m_axi_ddr_awcache),
+        .m_axi_ddr_awprot(m_axi_ddr_awprot),
+        .m_axi_ddr_awqos(m_axi_ddr_awqos),
+        .m_axi_ddr_awuser(m_axi_ddr_awuser),
+        .m_axi_ddr_awvalid(m_axi_ddr_awvalid),
+        .m_axi_ddr_awready(m_axi_ddr_awready),
+        .m_axi_ddr_wdata(m_axi_ddr_wdata),
+        .m_axi_ddr_wstrb(m_axi_ddr_wstrb),
+        .m_axi_ddr_wlast(m_axi_ddr_wlast),
+        .m_axi_ddr_wuser(m_axi_ddr_wuser),
+        .m_axi_ddr_wvalid(m_axi_ddr_wvalid),
+        .m_axi_ddr_wready(m_axi_ddr_wready),
+        .m_axi_ddr_bid(m_axi_ddr_bid),
+        .m_axi_ddr_bresp(m_axi_ddr_bresp),
+        .m_axi_ddr_buser(m_axi_ddr_buser),
+        .m_axi_ddr_bvalid(m_axi_ddr_bvalid),
+        .m_axi_ddr_bready(m_axi_ddr_bready),
+        .m_axi_ddr_arid(m_axi_ddr_arid),
+        .m_axi_ddr_araddr(m_axi_ddr_araddr),
+        .m_axi_ddr_arlen(m_axi_ddr_arlen),
+        .m_axi_ddr_arsize(m_axi_ddr_arsize),
+        .m_axi_ddr_arburst(m_axi_ddr_arburst),
+        .m_axi_ddr_arlock(m_axi_ddr_arlock),
+        .m_axi_ddr_arcache(m_axi_ddr_arcache),
+        .m_axi_ddr_arprot(m_axi_ddr_arprot),
+        .m_axi_ddr_arqos(m_axi_ddr_arqos),
+        .m_axi_ddr_aruser(m_axi_ddr_aruser),
+        .m_axi_ddr_arvalid(m_axi_ddr_arvalid),
+        .m_axi_ddr_arready(m_axi_ddr_arready),
+        .m_axi_ddr_rid(m_axi_ddr_rid),
+        .m_axi_ddr_rdata(m_axi_ddr_rdata),
+        .m_axi_ddr_rresp(m_axi_ddr_rresp),
+        .m_axi_ddr_rlast(m_axi_ddr_rlast),
+        .m_axi_ddr_ruser(m_axi_ddr_ruser),
+        .m_axi_ddr_rvalid(m_axi_ddr_rvalid),
+        .m_axi_ddr_rready(m_axi_ddr_rready),
+
+        .ddr_status(ddr_status),
+
+        /*
+         * HBM
+         */
+        .hbm_clk(hbm_clk),
+        .hbm_rst(hbm_rst),
+
+        .m_axi_hbm_awid(m_axi_hbm_awid),
+        .m_axi_hbm_awaddr(m_axi_hbm_awaddr),
+        .m_axi_hbm_awlen(m_axi_hbm_awlen),
+        .m_axi_hbm_awsize(m_axi_hbm_awsize),
+        .m_axi_hbm_awburst(m_axi_hbm_awburst),
+        .m_axi_hbm_awlock(m_axi_hbm_awlock),
+        .m_axi_hbm_awcache(m_axi_hbm_awcache),
+        .m_axi_hbm_awprot(m_axi_hbm_awprot),
+        .m_axi_hbm_awqos(m_axi_hbm_awqos),
+        .m_axi_hbm_awuser(m_axi_hbm_awuser),
+        .m_axi_hbm_awvalid(m_axi_hbm_awvalid),
+        .m_axi_hbm_awready(m_axi_hbm_awready),
+        .m_axi_hbm_wdata(m_axi_hbm_wdata),
+        .m_axi_hbm_wstrb(m_axi_hbm_wstrb),
+        .m_axi_hbm_wlast(m_axi_hbm_wlast),
+        .m_axi_hbm_wuser(m_axi_hbm_wuser),
+        .m_axi_hbm_wvalid(m_axi_hbm_wvalid),
+        .m_axi_hbm_wready(m_axi_hbm_wready),
+        .m_axi_hbm_bid(m_axi_hbm_bid),
+        .m_axi_hbm_bresp(m_axi_hbm_bresp),
+        .m_axi_hbm_buser(m_axi_hbm_buser),
+        .m_axi_hbm_bvalid(m_axi_hbm_bvalid),
+        .m_axi_hbm_bready(m_axi_hbm_bready),
+        .m_axi_hbm_arid(m_axi_hbm_arid),
+        .m_axi_hbm_araddr(m_axi_hbm_araddr),
+        .m_axi_hbm_arlen(m_axi_hbm_arlen),
+        .m_axi_hbm_arsize(m_axi_hbm_arsize),
+        .m_axi_hbm_arburst(m_axi_hbm_arburst),
+        .m_axi_hbm_arlock(m_axi_hbm_arlock),
+        .m_axi_hbm_arcache(m_axi_hbm_arcache),
+        .m_axi_hbm_arprot(m_axi_hbm_arprot),
+        .m_axi_hbm_arqos(m_axi_hbm_arqos),
+        .m_axi_hbm_aruser(m_axi_hbm_aruser),
+        .m_axi_hbm_arvalid(m_axi_hbm_arvalid),
+        .m_axi_hbm_arready(m_axi_hbm_arready),
+        .m_axi_hbm_rid(m_axi_hbm_rid),
+        .m_axi_hbm_rdata(m_axi_hbm_rdata),
+        .m_axi_hbm_rresp(m_axi_hbm_rresp),
+        .m_axi_hbm_rlast(m_axi_hbm_rlast),
+        .m_axi_hbm_ruser(m_axi_hbm_ruser),
+        .m_axi_hbm_rvalid(m_axi_hbm_rvalid),
+        .m_axi_hbm_rready(m_axi_hbm_rready),
+
+        .hbm_status(hbm_status),
 
         /*
          * Statistics increment output
@@ -3313,6 +3836,66 @@ end else begin
     assign app_m_axis_if_rx_tid = 0;
     assign app_m_axis_if_rx_tdest = 0;
     assign app_m_axis_if_rx_tuser = 0;
+
+    assign m_axi_ddr_awid = 0;
+    assign m_axi_ddr_awaddr = 0;
+    assign m_axi_ddr_awlen = 0;
+    assign m_axi_ddr_awsize = 0;
+    assign m_axi_ddr_awburst = 0;
+    assign m_axi_ddr_awlock = 0;
+    assign m_axi_ddr_awcache = 0;
+    assign m_axi_ddr_awprot = 0;
+    assign m_axi_ddr_awqos = 0;
+    assign m_axi_ddr_awuser = 0;
+    assign m_axi_ddr_awvalid = 0;
+    assign m_axi_ddr_wdata = 0;
+    assign m_axi_ddr_wstrb = 0;
+    assign m_axi_ddr_wlast = 0;
+    assign m_axi_ddr_wuser = 0;
+    assign m_axi_ddr_wvalid = 0;
+    assign m_axi_ddr_bready = 0;
+    assign m_axi_ddr_arid = 0;
+    assign m_axi_ddr_araddr = 0;
+    assign m_axi_ddr_arlen = 0;
+    assign m_axi_ddr_arsize = 0;
+    assign m_axi_ddr_arburst = 0;
+    assign m_axi_ddr_arlock = 0;
+    assign m_axi_ddr_arcache = 0;
+    assign m_axi_ddr_arprot = 0;
+    assign m_axi_ddr_arqos = 0;
+    assign m_axi_ddr_aruser = 0;
+    assign m_axi_ddr_arvalid = 0;
+    assign m_axi_ddr_rready = 0;
+
+    assign m_axi_hbm_awid = 0;
+    assign m_axi_hbm_awaddr = 0;
+    assign m_axi_hbm_awlen = 0;
+    assign m_axi_hbm_awsize = 0;
+    assign m_axi_hbm_awburst = 0;
+    assign m_axi_hbm_awlock = 0;
+    assign m_axi_hbm_awcache = 0;
+    assign m_axi_hbm_awprot = 0;
+    assign m_axi_hbm_awqos = 0;
+    assign m_axi_hbm_awuser = 0;
+    assign m_axi_hbm_awvalid = 0;
+    assign m_axi_hbm_wdata = 0;
+    assign m_axi_hbm_wstrb = 0;
+    assign m_axi_hbm_wlast = 0;
+    assign m_axi_hbm_wuser = 0;
+    assign m_axi_hbm_wvalid = 0;
+    assign m_axi_hbm_bready = 0;
+    assign m_axi_hbm_arid = 0;
+    assign m_axi_hbm_araddr = 0;
+    assign m_axi_hbm_arlen = 0;
+    assign m_axi_hbm_arsize = 0;
+    assign m_axi_hbm_arburst = 0;
+    assign m_axi_hbm_arlock = 0;
+    assign m_axi_hbm_arcache = 0;
+    assign m_axi_hbm_arprot = 0;
+    assign m_axi_hbm_arqos = 0;
+    assign m_axi_hbm_aruser = 0;
+    assign m_axi_hbm_arvalid = 0;
+    assign m_axi_hbm_rready = 0;
 
     assign axis_app_stat_tdata = 0;
     assign axis_app_stat_tid = 0;
