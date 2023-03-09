@@ -31,3 +31,5 @@ fpga/mqnic/**/*.tcl
 fpga/mqnic/**/rev/
 fpga/mqnic/**/defines.v
 !fpga/mqnic/**/config.tcl
+
+*.orig
