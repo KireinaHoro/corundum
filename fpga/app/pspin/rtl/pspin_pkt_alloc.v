@@ -1,3 +1,11 @@
+/**
+ * PsPIN Packet Allocator
+ *
+ * Allocate buffer for incoming packets.  Incoming packet take free space from
+ * SLOT0 (large slot) or SLOT1 (small slot); the exact division of the buffer
+ * is configurable.
+ */
+
 module pspin_pkt_alloc #
 (
     parameter LEN_WIDTH = 20,
