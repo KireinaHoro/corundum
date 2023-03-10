@@ -1,17 +1,24 @@
 # Placement constraints
+
+# put PsPIN cluster 0 into SLR0
 create_pblock pblock_slr0
 add_cells_to_pblock [get_pblocks pblock_slr0] [get_cells -quiet [list {core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/gen_clusters[0].gen_cluster_sync.i_cluster}]]
 resize_pblock [get_pblocks pblock_slr0] -add {SLR0}
-# add_cells_to_pblock [get_pblocks pblock_slr0] [get_cells -quiet ""]
 
 create_pblock pblock_slr1
-add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells -quiet {core_inst/core_inst/core_pcie_inst/core_inst/iface[*].interface_inst/interface_rx_inst}]
-add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells -quiet {core_inst/core_inst/core_pcie_inst/core_inst/iface[*].interface_inst/interface_tx_inst}]
-add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells -quiet {core_inst/core_inst/core_pcie_inst/core_inst/iface[*].interface_inst/tx_fifo_inst}]
-add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells -quiet {core_inst/core_inst/core_pcie_inst/core_inst/iface[*].interface_inst/rx_fifo_inst}]
-add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells {core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/i_atomics core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/i_l2_hnd_mem core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/i_l2_pkt_mem core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/i_l2_xbar core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/i_nhi_xbar core_inst/core_inst/core_pcie_inst/core_inst/dma_if_mux.dma_if_mux_ctrl_inst core_inst/core_inst/core_pcie_inst/core_inst/dma_if_mux.dma_if_mux_data_inst core_inst/core_inst/core_pcie_inst/core_inst/dma_if_mux_inst}]
+add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/core_inst/dma_if_mux_inst"]
+add_cells_to_pblock -quiet [get_pblocks pblock_slr1] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/core_inst/dma_if_mux.dma_if_mux_ctrl_inst"]
+add_cells_to_pblock -quiet [get_pblocks pblock_slr1] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/core_inst/dma_if_mux.dma_if_mux_data_inst"]
+add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/core_inst/iface[*].interface_inst/interface_rx_inst"]
+add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/core_inst/iface[*].interface_inst/interface_tx_inst"]
+add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/core_inst/iface[*].interface_inst/tx_fifo_inst"]
+add_cells_to_pblock [get_pblocks pblock_slr1] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/core_inst/iface[*].interface_inst/rx_fifo_inst"]
 resize_pblock [get_pblocks pblock_slr1] -add {SLR1}
 
+# put PsPIN cluster 1 into SLR2
+create_pblock pblock_slr2
+add_cells_to_pblock [get_pblocks pblock_slr2] [get_cells -quiet [list {core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/gen_clusters[1].gen_cluster_sync.i_cluster}]]
+resize_pblock [get_pblocks pblock_slr2] -add {SLR2}
 
 create_pblock pblock_pcie
 add_cells_to_pblock [get_pblocks pblock_pcie] [get_cells -quiet "pcie4_uscale_plus_inst"]
@@ -20,12 +27,6 @@ add_cells_to_pblock [get_pblocks pblock_pcie] [get_cells -quiet "core_inst/core_
 add_cells_to_pblock [get_pblocks pblock_pcie] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/dma_if_pcie_inst"]
 add_cells_to_pblock [get_pblocks pblock_pcie] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/pcie_msix_inst"]
 resize_pblock [get_pblocks pblock_pcie] -add {CLOCKREGION_X4Y5:CLOCKREGION_X5Y8}
-set_property PARENT pblock_slr1 [get_pblocks pblock_pcie]
-
-create_pblock pblock_slr2
-add_cells_to_pblock [get_pblocks pblock_slr2] [get_cells -quiet [list {core_inst/core_inst/core_pcie_inst/core_inst/app.app_block_inst/pspin_inst/i_pspin/gen_clusters[1].gen_cluster_sync.i_cluster}]]
-resize_pblock [get_pblocks pblock_slr2] -add {SLR2}
-# add_cells_to_pblock [get_pblocks pblock_slr2] [get_cells -quiet ""]
 
 create_pblock pblock_eth
 add_cells_to_pblock [get_pblocks pblock_eth] [get_cells -quiet "core_inst/core_inst/core_pcie_inst/core_inst/iface[*].interface_inst/port[*].port_inst/port_tx_inst/tx_async_fifo_inst"]
