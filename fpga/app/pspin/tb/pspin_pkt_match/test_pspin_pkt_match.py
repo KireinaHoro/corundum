@@ -117,11 +117,16 @@ class TB:
         # deassert valid to clear matching rule for at least one cycle
         await RisingEdge(self.dut.clk)
 
-        for idx, ru in enumerate(self.rules):
-            self.dut.match_idx[idx] = ru.idx
-            self.dut.match_mask[idx] = ru.mask
-            self.dut.match_start[idx] = ru.start
-            self.dut.match_end[idx] = ru.end
+        concat_idx, concat_mask, concat_start, concat_end = 0, 0, 0, 0
+        for ru in self.rules:
+            concat_idx = (concat_idx << self.match_width) + ru.idx
+            concat_mask = (concat_mask << self.match_width) + ru.mask
+            concat_start = (concat_start << self.match_width) + ru.start
+            concat_end = (concat_end << self.match_width) + ru.end
+        self.dut.match_idx = concat_idx
+        self.dut.match_mask = concat_mask
+        self.dut.match_start = concat_start
+        self.dut.match_end = concat_end
         
         # disable unused rules
         for idx in range(len(self.rules), self.dut.UMATCH_ENTRIES):

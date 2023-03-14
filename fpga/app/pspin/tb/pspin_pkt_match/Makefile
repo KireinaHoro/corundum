@@ -30,6 +30,7 @@ DUT      = pspin_pkt_match
 TOPLEVEL = $(DUT)
 MODULE   = test_$(DUT)
 VERILOG_SOURCES += ../../rtl/$(DUT).v
+VERILOG_SOURCES += ../../lib/axis/rtl/axis_fifo.v
 
 # module parameters
 export PARAM_UMATCH_WIDTH ?= 32
