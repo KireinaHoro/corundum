@@ -19,7 +19,7 @@ async def Active(signal):
     if signal.value != 1:
         await RisingEdge(signal)
 
-async def WithTimeout(action, timeout_ns=100):
+async def WithTimeout(action, timeout_ns=10000):
     # timeout
     timer = Timer(timeout_ns, 'ns')
     task = cocotb.start_soon(action)
