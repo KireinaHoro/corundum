@@ -77,12 +77,13 @@ initial begin
         $error("Error: exactly 2 modes supported: AND and OR");
         $finish;
     end
+    $display("Pkt match engine: %d rules, %d data width, %d MTU", UMATCH_ENTRIES, AXIS_IF_DATA_WIDTH, UMATCH_MTU);
 end
 
 wire [AXIS_IF_DATA_WIDTH-1:0]         buffered_tdata;
 wire [AXIS_IF_KEEP_WIDTH-1:0]         buffered_tkeep;
 wire                                  buffered_tvalid;
-wire                                  buffered_tready;
+reg                                   buffered_tready;
 wire                                  buffered_tlast;
 wire [AXIS_IF_RX_ID_WIDTH-1:0]        buffered_tid;
 wire [AXIS_IF_RX_DEST_WIDTH-1:0]      buffered_tdest;
@@ -96,9 +97,9 @@ reg [AXIS_IF_KEEP_WIDTH-1:0]          send_tkeep;
 reg                                   send_tvalid;
 wire                                  send_tready;
 reg                                   send_tlast;
-wire [AXIS_IF_RX_ID_WIDTH-1:0]        send_tid;
-wire [AXIS_IF_RX_DEST_WIDTH-1:0]      send_tdest;
-wire [AXIS_IF_RX_USER_WIDTH-1:0]      send_tuser;
+reg [AXIS_IF_RX_ID_WIDTH-1:0]         send_tid;
+reg [AXIS_IF_RX_DEST_WIDTH-1:0]       send_tdest;
+reg [AXIS_IF_RX_USER_WIDTH-1:0]       send_tuser;
 
 // state
 localparam [2:0]
@@ -114,11 +115,16 @@ reg [2:0] state_q, state_d;
 reg [MATCHER_WIDTH-1:0] matcher;
 reg [MATCHER_IDX_WIDTH-1:0] matcher_idx;
 reg [MATCHER_IDX_WIDTH-1:0] last_idx;
-reg [AXIS_IF_DATA_WIDTH-1:0] last_tkeep;
 localparam
     MATCH_AND = 1'b0,
     MATCH_OR = 1'b1;
 reg matched;
+
+// saved axis metadata
+reg [AXIS_IF_KEEP_WIDTH-1:0] saved_tkeep [MATCHER_BEATS-1:0];
+reg [AXIS_IF_RX_USER_WIDTH-1:0] saved_tuser [MATCHER_BEATS-1:0];
+reg [AXIS_IF_RX_ID_WIDTH-1:0] saved_tid [MATCHER_BEATS-1:0];
+reg [AXIS_IF_RX_DEST_WIDTH-1:0] saved_tdest [MATCHER_BEATS-1:0];
 
 // matching units
 reg [UMATCH_WIDTH-1:0] mu_data [UMATCH_ENTRIES-1:0];
@@ -164,6 +170,7 @@ always @* begin
     endcase
 end
 
+integer k;
 // moore output
 always @(posedge clk) begin
     case (state_d) // next state
@@ -171,20 +178,38 @@ always @(posedge clk) begin
             matcher <= {MATCHER_WIDTH{1'b0}};
             matcher_idx <= {MATCHER_IDX_WIDTH{1'b0}};
             last_idx <= {MATCHER_IDX_WIDTH{1'b0}};
-            last_tkeep <= {AXIS_IF_DATA_WIDTH{1'b0}};
             matched <= 1'b0;
             send_tdata <= {AXIS_IF_DATA_WIDTH{1'b0}};
             send_tvalid <= 1'b0;
+            send_tlast <= 1'b0;
+            send_tkeep <= {AXIS_IF_KEEP_WIDTH{1'b0}};
+            buffered_tready <= 1'b1;
+
+            for (k = 0; k < MATCHER_BEATS; k = k + 1) begin
+                saved_tkeep[k] <= {AXIS_IF_KEEP_WIDTH{1'b0}};
+                saved_tuser[k] <= {AXIS_IF_RX_USER_WIDTH{1'b0}};
+                saved_tid[k] <= {AXIS_IF_RX_ID_WIDTH{1'b0}};
+                saved_tdest[k] <= {AXIS_IF_RX_DEST_WIDTH{1'b0}};
+            end
+
         end
         RECV: begin
             matcher[matcher_idx +: AXIS_IF_DATA_WIDTH] <= buffered_tdata;
             matcher_idx <= matcher_idx + AXIS_IF_DATA_WIDTH;
+            saved_tkeep[matcher_idx] <= buffered_tkeep;
+            saved_tuser[matcher_idx] <= buffered_tuser;
+            saved_tid[matcher_idx] <= buffered_tid;
+            saved_tdest[matcher_idx] <= buffered_tdest;
         end
         RECV_LAST: begin
             matcher[matcher_idx +: AXIS_IF_DATA_WIDTH] <= buffered_tdata;
             matcher_idx <= {MATCHER_IDX_WIDTH{1'b0}};
             last_idx <= matcher_idx;
-            last_tkeep <= buffered_tkeep;
+            saved_tkeep[matcher_idx] <= buffered_tkeep;
+            saved_tuser[matcher_idx] <= buffered_tuser;
+            saved_tid[matcher_idx] <= buffered_tid;
+            saved_tdest[matcher_idx] <= buffered_tdest;
+            buffered_tready <= 1'b0;
         end
         MATCH: begin
             matched <= 
@@ -193,13 +218,20 @@ always @(posedge clk) begin
         SEND: begin
             send_tdata <= matcher[matcher_idx +: AXIS_IF_DATA_WIDTH];
             send_tvalid <= 1'b1;
+            send_tkeep <= saved_tkeep[matcher_idx];
+            send_tuser <= saved_tuser[matcher_idx];
+            send_tid <= saved_tid[matcher_idx];
+            send_tdest <= saved_tdest[matcher_idx];
             matcher_idx <= matcher_idx + AXIS_IF_DATA_WIDTH;
         end
         SEND_LAST: begin
             send_tdata <= matcher[matcher_idx +: AXIS_IF_DATA_WIDTH];
             send_tvalid <= 1'b1;
+            send_tkeep <= saved_tkeep[matcher_idx];
+            send_tuser <= saved_tuser[matcher_idx];
+            send_tid <= saved_tid[matcher_idx];
+            send_tdest <= saved_tdest[matcher_idx];
             send_tlast <= 1'b1;
-            send_tkeep <= last_tkeep;
         end
     endcase
 end
