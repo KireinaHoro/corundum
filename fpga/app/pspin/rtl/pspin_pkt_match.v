@@ -68,7 +68,7 @@ module pspin_pkt_match #(
 );
 
 localparam MATCHER_BEATS = (UMATCH_MTU * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
-localparam MATCHER_IDX_WIDTH = $clog2(MATCHER_BEATS * AXIS_IF_DATA_WIDTH);
+localparam MATCHER_IDX_WIDTH = $clog2(MATCHER_BEATS);
 localparam MATCHER_WIDTH = MATCHER_BEATS * AXIS_IF_DATA_WIDTH;
 localparam BUFFER_FIFO_DEPTH = UMATCH_BUF_FRAMES * MATCHER_BEATS * AXIS_IF_KEEP_WIDTH;
 
@@ -214,15 +214,15 @@ always @(posedge clk) begin
             end
         end
         RECV: begin
-            matcher[matcher_idx +: AXIS_IF_DATA_WIDTH] <= buffered_tdata;
-            matcher_idx <= matcher_idx + AXIS_IF_DATA_WIDTH;
+            matcher[matcher_idx*AXIS_IF_DATA_WIDTH +: AXIS_IF_DATA_WIDTH] <= buffered_tdata;
+            matcher_idx <= matcher_idx + 1;
             saved_tkeep[matcher_idx] <= buffered_tkeep;
             saved_tuser[matcher_idx] <= buffered_tuser;
             saved_tid[matcher_idx] <= buffered_tid;
             saved_tdest[matcher_idx] <= buffered_tdest;
         end
         RECV_LAST: begin
-            matcher[matcher_idx +: AXIS_IF_DATA_WIDTH] <= buffered_tdata;
+            matcher[matcher_idx*AXIS_IF_DATA_WIDTH +: AXIS_IF_DATA_WIDTH] <= buffered_tdata;
             matcher_idx <= {MATCHER_IDX_WIDTH{1'b0}};
             last_idx <= matcher_idx;
             saved_tkeep[matcher_idx] <= buffered_tkeep;
@@ -236,16 +236,16 @@ always @(posedge clk) begin
                 match_mode_q == MATCH_AND ? and_matched : or_matched;
         end
         SEND: begin
-            send_tdata <= matcher[matcher_idx +: AXIS_IF_DATA_WIDTH];
+            send_tdata <= matcher[matcher_idx*AXIS_IF_DATA_WIDTH +: AXIS_IF_DATA_WIDTH];
+            matcher_idx <= matcher_idx + 1;
             send_tvalid <= 1'b1;
             send_tkeep <= saved_tkeep[matcher_idx];
             send_tuser <= saved_tuser[matcher_idx];
             send_tid <= saved_tid[matcher_idx];
             send_tdest <= saved_tdest[matcher_idx];
-            matcher_idx <= matcher_idx + AXIS_IF_DATA_WIDTH;
         end
         SEND_LAST: begin
-            send_tdata <= matcher[matcher_idx +: AXIS_IF_DATA_WIDTH];
+            send_tdata <= matcher[matcher_idx*AXIS_IF_DATA_WIDTH +: AXIS_IF_DATA_WIDTH];
             send_tvalid <= 1'b1;
             send_tkeep <= saved_tkeep[matcher_idx];
             send_tuser <= saved_tuser[matcher_idx];
