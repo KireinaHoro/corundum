@@ -114,6 +114,8 @@ class TB:
         assert self.mode >= 0 and self.mode < self.match_modes, \
             'unrecognised mode %d' % self.mode
 
+        print(f'Setting rule {self.rules}, mode {self.mode}')
+
         self.dut.match_valid.value = 0
         # deassert valid to clear matching rule for at least one cycle
         await RisingEdge(self.dut.clk)
@@ -145,8 +147,10 @@ class TB:
 
         await self.pkt_src.send(frame)
         if self.match(pkt):
+            print('Packet matches')
             sink = self.matched_sink
         else:
+            print('Packet does not match')
             sink = self.unmatched_sink
         out: AxiStreamFrame = await WithTimeout(sink.recv())
 

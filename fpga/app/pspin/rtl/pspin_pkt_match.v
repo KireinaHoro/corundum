@@ -146,8 +146,9 @@ for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
         mu_idx[i] = match_idx_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] * UMATCH_WIDTH;
         mu_data[i] = matcher[mu_idx[i] +: UMATCH_WIDTH];
         mu_matched[i] =
-            match_start_q[i] <= (mu_data[i] & match_mask_q[i]) &&
-            match_end_q[i]   >= (mu_data[i] & match_mask_q[i]);
+            (match_start_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] <= (mu_data[i] & match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH]) &&
+             match_end_q  [i*UMATCH_WIDTH +: UMATCH_WIDTH] >= (mu_data[i] & match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH])) ||
+            match_mask_q  [i*UMATCH_WIDTH +: UMATCH_WIDTH] == {UMATCH_WIDTH{1'b0}};
     end
 end
 endgenerate
