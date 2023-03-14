@@ -126,6 +126,13 @@ reg [AXIS_IF_RX_USER_WIDTH-1:0] saved_tuser [MATCHER_BEATS-1:0];
 reg [AXIS_IF_RX_ID_WIDTH-1:0] saved_tid [MATCHER_BEATS-1:0];
 reg [AXIS_IF_RX_DEST_WIDTH-1:0] saved_tdest [MATCHER_BEATS-1:0];
 
+// saved matching rules - only updated when in IDLE
+reg [$clog2(UMATCH_MODES)-1:0]        match_mode_q;
+reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_idx_q;
+reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_mask_q;
+reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_start_q;
+reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_end_q;
+
 // matching units
 reg [UMATCH_WIDTH-1:0] mu_data [UMATCH_ENTRIES-1:0];
 reg [MATCHER_IDX_WIDTH-1:0] mu_idx [UMATCH_ENTRIES-1:0];
@@ -136,11 +143,11 @@ generate
 genvar i;
 for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
     always @* begin
-        mu_idx[i] = match_idx[i*UMATCH_WIDTH +: UMATCH_WIDTH] * UMATCH_WIDTH;
+        mu_idx[i] = match_idx_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] * UMATCH_WIDTH;
         mu_data[i] = matcher[mu_idx[i] +: UMATCH_WIDTH];
         mu_matched[i] =
-            match_start[i] <= (mu_data[i] & match_mask[i]) &&
-            match_end[i]   >= (mu_data[i] & match_mask[i]);
+            match_start_q[i] <= (mu_data[i] & match_mask_q[i]) &&
+            match_end_q[i]   >= (mu_data[i] & match_mask_q[i]);
     end
 end
 endgenerate
@@ -192,6 +199,19 @@ always @(posedge clk) begin
                 saved_tdest[k] <= {AXIS_IF_RX_DEST_WIDTH{1'b0}};
             end
 
+            if (match_valid) begin
+                match_mode_q <= match_mode;
+                match_idx_q <= match_idx;
+                match_mask_q <= match_mask;
+                match_start_q <= match_start;
+                match_end_q <= match_end;
+            end else begin
+                match_mode_q <= {$clog2(UMATCH_MODES){1'b0}};
+                match_idx_q <= {UMATCH_WIDTH*UMATCH_ENTRIES{1'b0}};
+                match_mask_q <= {UMATCH_WIDTH*UMATCH_ENTRIES{1'b0}};
+                match_start_q <= {UMATCH_WIDTH*UMATCH_ENTRIES{1'b0}};
+                match_end_q <= {UMATCH_WIDTH*UMATCH_ENTRIES{1'b0}};
+            end
         end
         RECV: begin
             matcher[matcher_idx +: AXIS_IF_DATA_WIDTH] <= buffered_tdata;
@@ -213,7 +233,7 @@ always @(posedge clk) begin
         end
         MATCH: begin
             matched <= 
-                match_mode == MATCH_AND ? and_matched : or_matched;
+                match_mode_q == MATCH_AND ? and_matched : or_matched;
         end
         SEND: begin
             send_tdata <= matcher[matcher_idx +: AXIS_IF_DATA_WIDTH];

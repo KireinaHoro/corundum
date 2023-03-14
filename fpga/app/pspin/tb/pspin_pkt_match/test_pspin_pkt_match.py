@@ -41,12 +41,12 @@ MODE_OR = 1
 class TB:
     def __init__(self, dut):
         self.dut = dut
-        self.match_width = self.dut.UMATCH_WIDTH
+        self.match_width = self.dut.UMATCH_WIDTH.value
+        self.match_count = self.dut.UMATCH_ENTRIES.value
+        self.match_modes = self.dut.UMATCH_MODES.value
 
-        print(f'Rule Width: {self.match_width}; Rule Count: {self.dut.UMATCH_ENTRIES}')
+        print(f'Rule Width: {self.match_width}; Rule Count: {self.match_count}')
 
-        self.all_bypass()
-        
         self.log = logging.getLogger('cocotb.tb')
         self.log.setLevel(logging.DEBUG)
 
@@ -83,7 +83,7 @@ class TB:
 
     # match packet with ruleset
     def match(self, pkt: bytes):
-        match_bytes = self.match_width.value // 8
+        match_bytes = self.match_width // 8
         def match_single(ru: MatchRule):
             r = pkt[ru.idx:ru.idx+match_bytes]
             # big endian
@@ -110,8 +110,9 @@ class TB:
         await RisingEdge(self.dut.clk)
 
     async def set_rule(self):
-        assert len(self.rules) <= self.dut.UMATCH_ENTRIES, 'too many rules supplied'
-        assert self.mode > 0 and self.mode < self.dut.UMATCH_MODES, 'unrecognised modes'
+        assert len(self.rules) <= self.match_count, 'too many rules supplied'
+        assert self.mode >= 0 and self.mode < self.match_modes, \
+            'unrecognised mode %d' % self.mode
 
         self.dut.match_valid.value = 0
         # deassert valid to clear matching rule for at least one cycle
@@ -123,16 +124,16 @@ class TB:
             concat_mask = (concat_mask << self.match_width) + ru.mask
             concat_start = (concat_start << self.match_width) + ru.start
             concat_end = (concat_end << self.match_width) + ru.end
-        self.dut.match_idx = concat_idx
-        self.dut.match_mask = concat_mask
-        self.dut.match_start = concat_start
-        self.dut.match_end = concat_end
+        self.dut.match_idx.value = concat_idx
+        self.dut.match_mask.value = concat_mask
+        self.dut.match_start.value = concat_start
+        self.dut.match_end.value = concat_end
         
         # disable unused rules
-        for idx in range(len(self.rules), self.dut.UMATCH_ENTRIES):
-            self.dut.match_mask[idx] = 0
+        for idx in range(len(self.rules), self.match_count):
+            self.dut.match_mask[idx].value = 0
         
-        self.dut.match_mode = self.mode
+        self.dut.match_mode.value = self.mode
         
         self.dut.match_valid.value = 1
         # hold at least one cycle after setting matching rule
@@ -159,10 +160,12 @@ async def run_test_simple(dut):
     pkts = map(bytes, rdpcap('sample.pcap'))
 
     tb.all_bypass()
+    await tb.set_rule()
     for p in pkts:
         await tb.push_pkt(p)
 
     tb.all_match()
+    await tb.set_rule()
     for p in pkts:
         await tb.push_pkt(p)
 
@@ -173,10 +176,12 @@ async def run_test_complex(dut):
     pkts = map(bytes, rdpcap('sample.pcap'))
 
     tb.tcp_dportnum(22)
+    await tb.set_rule()
     for p in pkts:
         await tb.push_pkt(p)
 
     tb.tcp_or_udp()
+    await tb.set_rule()
     for p in pkts:
         await tb.push_pkt(p)
 
