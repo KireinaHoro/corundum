@@ -67,8 +67,8 @@ module pspin_pkt_match #(
     input  wire                                   match_valid
 );
 
-localparam MATCHER_BEATS = (UMATCH_MTU + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
-localparam MATCHER_IDX_WIDTH = $clog2(MATCHER_BEATS);
+localparam MATCHER_BEATS = (UMATCH_MTU * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
+localparam MATCHER_IDX_WIDTH = $clog2(MATCHER_BEATS * AXIS_IF_DATA_WIDTH);
 localparam MATCHER_WIDTH = MATCHER_BEATS * AXIS_IF_DATA_WIDTH;
 localparam BUFFER_FIFO_DEPTH = UMATCH_BUF_FRAMES * MATCHER_BEATS * AXIS_IF_KEEP_WIDTH;
 
