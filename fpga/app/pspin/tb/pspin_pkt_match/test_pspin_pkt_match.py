@@ -123,16 +123,17 @@ class TB:
         # deassert valid to clear matching rule for at least one cycle
         await RisingEdge(self.dut.clk)
 
-        concat_idx, concat_mask, concat_start, concat_end = 0, 0, 0, 0
+        concat_idx, concat_mask, concat_start, concat_end = b'', b'', b'', b''
         for ru in self.rules:
-            concat_idx = (concat_idx << self.match_width) + ru.idx
-            concat_mask = (concat_mask << self.match_width) + ru.mask
-            concat_start = (concat_start << self.match_width) + ru.start
-            concat_end = (concat_end << self.match_width) + ru.end
-        self.dut.match_idx.value = concat_idx
-        self.dut.match_mask.value = concat_mask
-        self.dut.match_start.value = concat_start
-        self.dut.match_end.value = concat_end
+            concat_idx += ru.idx.to_bytes(self.match_width // 8, byteorder='little')
+            concat_mask += ru.mask.to_bytes(self.match_width // 8, byteorder='big')
+            concat_start += ru.start.to_bytes(self.match_width // 8, byteorder='big')
+            concat_end += ru.end.to_bytes(self.match_width // 8, byteorder='big')
+
+        self.dut.match_idx.value = int.from_bytes(concat_idx, byteorder='little')
+        self.dut.match_mask.value = int.from_bytes(concat_mask, byteorder='little')
+        self.dut.match_start.value = int.from_bytes(concat_start, byteorder='little')
+        self.dut.match_end.value = int.from_bytes(concat_end, byteorder='little')
         
         # disable unused rules
         for idx in range(len(self.rules), self.match_count):
