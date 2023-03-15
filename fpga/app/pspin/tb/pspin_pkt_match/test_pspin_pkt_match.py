@@ -87,10 +87,11 @@ class TB:
 
         match_bytes = self.match_width // 8
         def match_single(ru: MatchRule):
-            r = pkt[ru.idx:ru.idx+match_bytes]
+            r = pkt[ru.idx*match_bytes:ru.idx*match_bytes+match_bytes]
             # big endian
-            i = reduce(lambda acc, v: acc << 8 + v, r, 0)
+            i = reduce(lambda acc, v: (acc << 8) + v, r, 0)
             im = i & ru.mask
+            print(f'i={i:#x}\tim={im:#x}\tru.start={ru.start:#x}\tru.end={ru.end:#x}')
             return ru.start <= im and im <= ru.end
         results = map(match_single, self.rules)
         if self.mode == MODE_AND:
