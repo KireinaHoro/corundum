@@ -74,14 +74,6 @@ localparam MATCHER_IDX_WIDTH = $clog2(MATCHER_BEATS);
 localparam MATCHER_WIDTH = MATCHER_BEATS * AXIS_IF_DATA_WIDTH;
 localparam BUFFER_FIFO_DEPTH = UMATCH_BUF_FRAMES * MATCHER_BEATS * AXIS_IF_KEEP_WIDTH;
 
-initial begin
-    if (UMATCH_MODES != 2) begin
-        $error("Error: exactly 2 modes supported: AND and OR");
-        $finish;
-    end
-    $display("Pkt match engine: %d rules, %d data width, %d MTU", UMATCH_ENTRIES, AXIS_IF_DATA_WIDTH, UMATCH_MTU);
-end
-
 wire [AXIS_IF_DATA_WIDTH-1:0]         buffered_tdata;
 wire [AXIS_IF_KEEP_WIDTH-1:0]         buffered_tkeep;
 wire                                  buffered_tvalid;
@@ -138,10 +130,31 @@ reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_end_q;
 // matching units
 reg [UMATCH_WIDTH-1:0] mu_data [UMATCH_ENTRIES-1:0];
 reg [UMATCH_WIDTH-1:0] mu_mask [UMATCH_ENTRIES-1:0];
+reg [UMATCH_WIDTH-1:0] mu_start [UMATCH_ENTRIES-1:0];
+reg [UMATCH_WIDTH-1:0] mu_end [UMATCH_ENTRIES-1:0];
 reg [MATCHER_IDX_WIDTH-1:0] mu_idx [UMATCH_ENTRIES-1:0];
 reg [UMATCH_ENTRIES-1:0] mu_matched;
 wire and_matched = &mu_matched;
 wire or_matched = |mu_matched;
+
+integer idx;
+initial begin
+    if (UMATCH_MODES != 2) begin
+        $error("Error: exactly 2 modes supported: AND and OR");
+        $finish;
+    end
+    $display("Pkt match engine: %d rules, %d data width, %d MTU", UMATCH_ENTRIES, AXIS_IF_DATA_WIDTH, UMATCH_MTU);
+
+    // dump for icarus verilog
+    for (idx = 0; idx < UMATCH_ENTRIES; idx = idx + 1) begin
+        $dumpvars(0, mu_data[idx]);
+        $dumpvars(0, mu_mask[idx]);
+        $dumpvars(0, mu_idx[idx]);
+        $dumpvars(0, mu_start[idx]);
+        $dumpvars(0, mu_end[idx]);
+    end
+end
+
 generate
 genvar i;
 for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
@@ -149,6 +162,8 @@ for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
         mu_idx[i] = `SLICE(match_idx_q, i, UMATCH_WIDTH);
         mu_mask[i] = `SLICE(match_mask_q, i, UMATCH_WIDTH);
         mu_data[i] = `SLICE(matcher, mu_idx[i], UMATCH_WIDTH) & mu_mask[i];
+        mu_start[i] = `SLICE(match_start_q, i, UMATCH_WIDTH);
+        mu_end[i] = `SLICE(match_end_q, i, UMATCH_WIDTH);
         if (mu_mask[i] == {UMATCH_WIDTH{1'b0}}) // mask all zero - MU off
             case (match_mode_q)
                 MATCH_AND: mu_matched[i] = 1'b1;
@@ -156,8 +171,7 @@ for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
             endcase
         else
             mu_matched[i] =
-                `SLICE(match_start_q, i, UMATCH_WIDTH) <= mu_data[i] &&
-                `SLICE(match_end_q  , i, UMATCH_WIDTH) >= mu_data[i];
+                mu_start[i] <= mu_data[i] && mu_end[i] >= mu_data[i];
     end
 end
 endgenerate
