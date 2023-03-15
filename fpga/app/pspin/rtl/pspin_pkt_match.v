@@ -189,12 +189,19 @@ always @* begin
     state_d = state_q;
 
     case (state_q)
-        IDLE: if (buffered_tvalid && buffered_tready)
-            state_d = RECV;
+        IDLE: if (buffered_tvalid && buffered_tready) begin
+            if (buffered_tlast) // only one beat
+                state_d = RECV_LAST;
+            else
+                state_d = RECV;
+        end
         RECV: if (buffered_tvalid && buffered_tready && buffered_tlast)
             state_d = RECV_LAST;
         RECV_LAST: state_d = MATCH;
-        MATCH: state_d = SEND;
+        MATCH: if (last_idx == matcher_idx) // only one beat
+            state_d = SEND_LAST;
+        else
+            state_d = SEND;
         SEND: if (send_tvalid && send_tready && last_idx == matcher_idx)
             state_d = SEND_LAST;
         SEND_LAST: state_d = IDLE;
