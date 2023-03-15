@@ -153,12 +153,15 @@ class TB:
         if self.match(pkt):
             print('Packet matches')
             sink = self.matched_sink
+            ret = True
         else:
             print('Packet does not match')
             sink = self.unmatched_sink
+            ret = False
         out: AxiStreamFrame = await WithTimeout(sink.recv())
 
         assert frame == out, f'mismatched frame {frame} vs received {out}'
+        return ret
 
 def load_packets(limit=None):
     if hasattr(load_packets, 'pkts'):
@@ -172,60 +175,70 @@ async def run_test_all_bypass(dut):
     await tb.cycle_reset()
 
     pkts = load_packets(10)
+    expected_count, count = 0, 0
 
     tb.all_bypass()
     await tb.set_rule()
     for p in pkts:
-        await tb.push_pkt(p)
+        count += await tb.push_pkt(p)
+    assert count == expected_count, 'wrong number of packets matched'
 
 async def run_test_all_match(dut):
     tb = TB(dut)
     await tb.cycle_reset()
 
     pkts = load_packets(10)
+    expected_count, count = 10, 0
 
     tb.all_match()
     await tb.set_rule()
     for p in pkts:
-        await tb.push_pkt(p)
+        count += await tb.push_pkt(p)
+    assert count == expected_count, 'wrong number of packets matched'
 
 async def run_test_switch_rule(dut):
     tb = TB(dut)
     await tb.cycle_reset()
 
     pkts = load_packets(10)
+    expected_count, count = 10, 0
 
     tb.all_bypass()
     await tb.set_rule()
     for p in pkts:
-        await tb.push_pkt(p)
+        count += await tb.push_pkt(p)
 
     tb.all_match()
     await tb.set_rule()
     for p in pkts:
-        await tb.push_pkt(p)
+        count += await tb.push_pkt(p)
+    assert count == expected_count, 'wrong number of packets matched'
 
 async def run_test_tcp_dport(dut):
     tb = TB(dut)
     await tb.cycle_reset()
 
-    pkts = load_packets()
+    pkts = load_packets() # 74 in total
+    expected_count, count = 42, 0
 
     tb.tcp_dportnum(22)
     await tb.set_rule()
     for p in pkts:
-        await tb.push_pkt(p)
+        count += await tb.push_pkt(p)
+    assert count == expected_count, 'wrong number of packets matched'
 
 async def run_test_tcp_and_udp(dut):
     tb = TB(dut)
     await tb.cycle_reset()
 
-    pkts = load_packets()
+    pkts = load_packets() # 74 in total
+    expected_count, count = 69, 0
 
     tb.tcp_or_udp()
     await tb.set_rule()
     for p in pkts:
-        await tb.push_pkt(p)
+        count += await tb.push_pkt(p)
+    assert count == expected_count, 'wrong number of packets matched'
 
 if cocotb.SIM_NAME:
     for test in [run_test_all_bypass, run_test_all_match, run_test_switch_rule, run_test_tcp_dport, run_test_tcp_and_udp]:
