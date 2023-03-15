@@ -145,10 +145,15 @@ for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
     always @* begin
         mu_idx[i] = match_idx_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] * UMATCH_WIDTH;
         mu_data[i] = matcher[mu_idx[i] +: UMATCH_WIDTH];
-        mu_matched[i] =
-            (match_start_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] <= (mu_data[i] & match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH]) &&
-             match_end_q  [i*UMATCH_WIDTH +: UMATCH_WIDTH] >= (mu_data[i] & match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH])) ||
-            match_mask_q  [i*UMATCH_WIDTH +: UMATCH_WIDTH] == {UMATCH_WIDTH{1'b0}};
+        if (match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] == {UMATCH_WIDTH{1'b0}}) // mask all zero - MU off
+            case (match_mode_q)
+                MATCH_AND: mu_matched[i] = 1'b1;
+                MATCH_OR:  mu_matched[i] = 1'b0;
+            endcase
+        else
+            mu_matched[i] =
+                match_start_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] <= (mu_data[i] & match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH]) &&
+                match_end_q  [i*UMATCH_WIDTH +: UMATCH_WIDTH] >= (mu_data[i] & match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH]);
     end
 end
 endgenerate
