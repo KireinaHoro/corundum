@@ -83,6 +83,8 @@ class TB:
 
     # match packet with ruleset
     def match(self, pkt: bytes):
+        print(f'Current rule {self.rules}, mode {self.mode}')
+
         match_bytes = self.match_width // 8
         def match_single(ru: MatchRule):
             r = pkt[ru.idx:ru.idx+match_bytes]
@@ -156,12 +158,40 @@ class TB:
 
         assert frame == out, f'mismatched frame {frame} vs received {out}'
 
+def load_packets(limit=None):
+    if hasattr(load_packets, 'pkts'):
+        return load_packets.pkts[:limit]
+    else:
+        load_packets.pkts = list(map(bytes, rdpcap('sample.pcap')))
+        return load_packets(limit)
 
-async def run_test_simple(dut):
+async def run_test_all_bypass(dut):
     tb = TB(dut)
     await tb.cycle_reset()
 
-    pkts = map(bytes, rdpcap('sample.pcap'))
+    pkts = load_packets(10)
+
+    tb.all_bypass()
+    await tb.set_rule()
+    for p in pkts:
+        await tb.push_pkt(p)
+
+async def run_test_all_match(dut):
+    tb = TB(dut)
+    await tb.cycle_reset()
+
+    pkts = load_packets(10)
+
+    tb.all_match()
+    await tb.set_rule()
+    for p in pkts:
+        await tb.push_pkt(p)
+
+async def run_test_switch_rule(dut):
+    tb = TB(dut)
+    await tb.cycle_reset()
+
+    pkts = load_packets(10)
 
     tb.all_bypass()
     await tb.set_rule()
@@ -173,16 +203,22 @@ async def run_test_simple(dut):
     for p in pkts:
         await tb.push_pkt(p)
 
-async def run_test_complex(dut):
+async def run_test_tcp_dport(dut):
     tb = TB(dut)
     await tb.cycle_reset()
 
-    pkts = map(bytes, rdpcap('sample.pcap'))
+    pkts = load_packets()
 
     tb.tcp_dportnum(22)
     await tb.set_rule()
     for p in pkts:
         await tb.push_pkt(p)
+
+async def run_test_tcp_and_udp(dut):
+    tb = TB(dut)
+    await tb.cycle_reset()
+
+    pkts = load_packets()
 
     tb.tcp_or_udp()
     await tb.set_rule()
@@ -190,6 +226,6 @@ async def run_test_complex(dut):
         await tb.push_pkt(p)
 
 if cocotb.SIM_NAME:
-    for test in [run_test_simple, run_test_complex]:
+    for test in [run_test_all_bypass, run_test_all_match, run_test_switch_rule, run_test_tcp_dport, run_test_tcp_and_udp]:
         factory = TestFactory(test)
         factory.generate_tests()
