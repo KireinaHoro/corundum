@@ -11,6 +11,8 @@
  * the respective unit value in the combining modes.
  */
 
+`define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
+
 module pspin_pkt_match #(
     parameter UMATCH_WIDTH = 32,
     parameter UMATCH_ENTRIES = 16,
@@ -135,6 +137,7 @@ reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_end_q;
 
 // matching units
 reg [UMATCH_WIDTH-1:0] mu_data [UMATCH_ENTRIES-1:0];
+reg [UMATCH_WIDTH-1:0] mu_mask [UMATCH_ENTRIES-1:0];
 reg [MATCHER_IDX_WIDTH-1:0] mu_idx [UMATCH_ENTRIES-1:0];
 reg [UMATCH_ENTRIES-1:0] mu_matched;
 wire and_matched = &mu_matched;
@@ -143,17 +146,18 @@ generate
 genvar i;
 for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
     always @* begin
-        mu_idx[i] = match_idx_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] * UMATCH_WIDTH;
-        mu_data[i] = matcher[mu_idx[i] +: UMATCH_WIDTH];
-        if (match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] == {UMATCH_WIDTH{1'b0}}) // mask all zero - MU off
+        mu_idx[i] = `SLICE(match_idx_q, i, UMATCH_WIDTH);
+        mu_mask[i] = `SLICE(match_mask_q, i, UMATCH_WIDTH);
+        mu_data[i] = `SLICE(matcher, mu_idx[i], UMATCH_WIDTH) & mu_mask[i];
+        if (mu_mask[i] == {UMATCH_WIDTH{1'b0}}) // mask all zero - MU off
             case (match_mode_q)
                 MATCH_AND: mu_matched[i] = 1'b1;
                 MATCH_OR:  mu_matched[i] = 1'b0;
             endcase
         else
             mu_matched[i] =
-                match_start_q[i*UMATCH_WIDTH +: UMATCH_WIDTH] <= (mu_data[i] & match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH]) &&
-                match_end_q  [i*UMATCH_WIDTH +: UMATCH_WIDTH] >= (mu_data[i] & match_mask_q[i*UMATCH_WIDTH +: UMATCH_WIDTH]);
+                `SLICE(match_start_q, i, UMATCH_WIDTH) <= mu_data[i] &&
+                `SLICE(match_end_q  , i, UMATCH_WIDTH) >= mu_data[i];
     end
 end
 endgenerate
@@ -220,7 +224,7 @@ always @(posedge clk) begin
             end
         end
         RECV: begin
-            matcher[matcher_idx*AXIS_IF_DATA_WIDTH +: AXIS_IF_DATA_WIDTH] <= buffered_tdata;
+            `SLICE(matcher, matcher_idx, AXIS_IF_DATA_WIDTH) <= buffered_tdata;
             matcher_idx <= matcher_idx + 1;
             saved_tkeep[matcher_idx] <= buffered_tkeep;
             saved_tuser[matcher_idx] <= buffered_tuser;
@@ -228,7 +232,7 @@ always @(posedge clk) begin
             saved_tdest[matcher_idx] <= buffered_tdest;
         end
         RECV_LAST: begin
-            matcher[matcher_idx*AXIS_IF_DATA_WIDTH +: AXIS_IF_DATA_WIDTH] <= buffered_tdata;
+            `SLICE(matcher, matcher_idx, AXIS_IF_DATA_WIDTH) <= buffered_tdata;
             matcher_idx <= {MATCHER_IDX_WIDTH{1'b0}};
             last_idx <= matcher_idx;
             saved_tkeep[matcher_idx] <= buffered_tkeep;
@@ -242,7 +246,7 @@ always @(posedge clk) begin
                 match_mode_q == MATCH_AND ? and_matched : or_matched;
         end
         SEND: begin
-            send_tdata <= matcher[matcher_idx*AXIS_IF_DATA_WIDTH +: AXIS_IF_DATA_WIDTH];
+            send_tdata <= `SLICE(matcher, matcher_idx, AXIS_IF_DATA_WIDTH);
             matcher_idx <= matcher_idx + 1;
             send_tvalid <= 1'b1;
             send_tkeep <= saved_tkeep[matcher_idx];
@@ -251,7 +255,7 @@ always @(posedge clk) begin
             send_tdest <= saved_tdest[matcher_idx];
         end
         SEND_LAST: begin
-            send_tdata <= matcher[matcher_idx*AXIS_IF_DATA_WIDTH +: AXIS_IF_DATA_WIDTH];
+            send_tdata <= `SLICE(matcher, matcher_idx, AXIS_IF_DATA_WIDTH);
             send_tvalid <= 1'b1;
             send_tkeep <= saved_tkeep[matcher_idx];
             send_tuser <= saved_tuser[matcher_idx];
