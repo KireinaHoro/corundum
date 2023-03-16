@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from functools import reduce
+from itertools import cycle
 import operator
 
 import cocotb, cocotb_test
@@ -19,7 +20,7 @@ async def Active(signal):
     if signal.value != 1:
         await RisingEdge(signal)
 
-async def WithTimeout(action, timeout_ns=500):
+async def WithTimeout(action, timeout_ns=1000):
     # timeout
     timer = Timer(timeout_ns, 'ns')
     task = cocotb.start_soon(action)
@@ -45,19 +46,33 @@ class TB:
         self.match_count = self.dut.UMATCH_ENTRIES.value
         self.match_modes = self.dut.UMATCH_MODES.value
 
-        print(f'Rule Width: {self.match_width}; Rule Count: {self.match_count}')
-
         self.log = logging.getLogger('cocotb.tb')
-        self.log.setLevel(logging.DEBUG)
+        self.log.setLevel(logging.INFO)
+
+        self.log.info(f'Rule Width: {self.match_width}; Rule Count: {self.match_count}')
 
         cocotb.start_soon(Clock(dut.clk, 2, units='ns').start())
 
         self.pkt_src = AxiStreamSource(AxiStreamBus.from_prefix(dut, 's_axis_nic_rx'),
                                        dut.clk, dut.rstn, reset_active_level=False)
+        self.pkt_src.log.setLevel(logging.WARNING)
         self.unmatched_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, 'm_axis_nic_rx'),
                                             dut.clk, dut.rstn, reset_active_level=False)
+        self.unmatched_sink.log.setLevel(logging.WARNING)
         self.matched_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, 'm_axis_pspin_rx'),
                                           dut.clk, dut.rstn, reset_active_level=False)
+        self.matched_sink.log.setLevel(logging.WARNING)
+
+    def set_idle_generator(self, generator=None):
+        if generator:
+            self.log.info('Setting idle generator')
+            self.pkt_src.set_pause_generator(generator())
+    
+    def set_backpressure_generator(self, generator=None):
+        if generator:
+            self.log.info('Setting back pressure generator')
+            self.unmatched_sink.set_pause_generator(generator())
+            self.matched_sink.set_pause_generator(generator())
 
     # ruleset generation
     def all_match(self):
@@ -83,7 +98,7 @@ class TB:
 
     # match packet with ruleset
     def match(self, pkt: bytes):
-        print(f'Current rule {self.rules}, mode {self.mode}')
+        self.log.debug(f'Current rule {self.rules}, mode {self.mode}')
 
         match_bytes = self.match_width // 8
         def match_single(ru: MatchRule):
@@ -91,7 +106,7 @@ class TB:
             # big endian
             i = reduce(lambda acc, v: (acc << 8) + v, r, 0)
             im = i & ru.mask
-            print(f'i={i:#x}\tim={im:#x}\tru.start={ru.start:#x}\tru.end={ru.end:#x}')
+            self.log.debug(f'i={i:#x}\tim={im:#x}\tru.start={ru.start:#x}\tru.end={ru.end:#x}')
             return ru.start <= im and im <= ru.end
         results = map(match_single, self.rules)
         if self.mode == MODE_AND:
@@ -117,7 +132,7 @@ class TB:
         assert self.mode >= 0 and self.mode < self.match_modes, \
             'unrecognised mode %d' % self.mode
 
-        print(f'Setting rule {self.rules}, mode {self.mode}')
+        self.log.info(f'Setting rule {self.rules}, mode {self.mode}')
 
         self.dut.match_valid.value = 0
         # deassert valid to clear matching rule for at least one cycle
@@ -151,11 +166,11 @@ class TB:
 
         await self.pkt_src.send(frame)
         if self.match(pkt):
-            print('Packet matches')
+            self.log.debug('Packet matches')
             sink = self.matched_sink
             ret = True
         else:
-            print('Packet does not match')
+            self.log.debug('Packet does not match')
             sink = self.unmatched_sink
             ret = False
         out: AxiStreamFrame = await WithTimeout(sink.recv())
@@ -170,27 +185,19 @@ def load_packets(limit=None):
         load_packets.pkts = list(map(bytes, rdpcap('sample.pcap')))
         return load_packets(limit)
 
-async def run_test_all_bypass(dut):
+async def run_test_rule(dut, rule_conf, idle_inserter=None, backpressure_inserter=None):
     tb = TB(dut)
     await tb.cycle_reset()
 
-    pkts = load_packets(10)
-    expected_count, count = 0, 0
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
 
-    tb.all_bypass()
-    await tb.set_rule()
-    for p in pkts:
-        count += await tb.push_pkt(p)
-    assert count == expected_count, 'wrong number of packets matched'
+    limit, rule, expected_count = rule_conf
 
-async def run_test_all_match(dut):
-    tb = TB(dut)
-    await tb.cycle_reset()
+    pkts = load_packets(limit)
+    count = 0
 
-    pkts = load_packets(10)
-    expected_count, count = 10, 0
-
-    tb.all_match()
+    rule(tb)
     await tb.set_rule()
     for p in pkts:
         count += await tb.push_pkt(p)
@@ -214,33 +221,21 @@ async def run_test_switch_rule(dut):
         count += await tb.push_pkt(p)
     assert count == expected_count, 'wrong number of packets matched'
 
-async def run_test_tcp_dport(dut):
-    tb = TB(dut)
-    await tb.cycle_reset()
-
-    pkts = load_packets() # 74 in total
-    expected_count, count = 42, 0
-
-    tb.tcp_dportnum(22)
-    await tb.set_rule()
-    for p in pkts:
-        count += await tb.push_pkt(p)
-    assert count == expected_count, 'wrong number of packets matched'
-
-async def run_test_tcp_and_udp(dut):
-    tb = TB(dut)
-    await tb.cycle_reset()
-
-    pkts = load_packets() # 74 in total
-    expected_count, count = 69, 0
-
-    tb.tcp_or_udp()
-    await tb.set_rule()
-    for p in pkts:
-        count += await tb.push_pkt(p)
-    assert count == expected_count, 'wrong number of packets matched'
+def cycle_pause():
+    # 1 cycle ready in 4 cycles
+    return cycle([1, 1, 1, 0])
 
 if cocotb.SIM_NAME:
-    for test in [run_test_all_bypass, run_test_all_match, run_test_switch_rule, run_test_tcp_dport, run_test_tcp_and_udp]:
-        factory = TestFactory(test)
-        factory.generate_tests()
+    factory = TestFactory(run_test_rule)
+    factory.add_option('rule_conf', [
+        (10, TB.all_bypass, 0),
+        (10, TB.all_match, 10),
+        (None, lambda tb: TB.tcp_dportnum(tb, 22), 42),
+        (None, TB.tcp_or_udp, 69)
+    ])
+    factory.add_option('idle_inserter', [None, cycle_pause])
+    factory.add_option('backpressure_inserter', [None, cycle_pause])
+    factory.generate_tests()
+
+    factory = TestFactory(run_test_switch_rule)
+    factory.generate_tests()
