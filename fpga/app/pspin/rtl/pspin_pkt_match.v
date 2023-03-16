@@ -9,6 +9,10 @@
  *     1: OR of all rules
  * To disable a rule, put UMATCH_WIDTH{1'b0} in mask.  The rule would generate
  * the respective unit value in the combining modes.
+ *
+ * The matcher only inspects packets for matching up to UMATCH_MAX_LEN for
+ * making the decision if a packet matched or not.  The matchers with an index
+ * over this limit are turned off (same as with mask == 0).
  */
 
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
@@ -18,7 +22,7 @@ module pspin_pkt_match #(
     parameter UMATCH_ENTRIES = 16,
     parameter UMATCH_MODES = 2,
 
-    parameter UMATCH_MTU = 1500,
+    parameter UMATCH_MAX_LEN = 66, // TCP + IP + ETH
     parameter UMATCH_BUF_FRAMES = 2,
 
     parameter AXIS_IF_DATA_WIDTH = 512,
@@ -69,7 +73,7 @@ module pspin_pkt_match #(
     input  wire                                   match_valid
 );
 
-localparam MATCHER_BEATS = (UMATCH_MTU * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
+localparam MATCHER_BEATS = (UMATCH_MAX_LEN * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
 localparam MATCHER_IDX_WIDTH = $clog2(MATCHER_BEATS);
 localparam MATCHER_WIDTH = MATCHER_BEATS * AXIS_IF_DATA_WIDTH;
 localparam BUFFER_FIFO_DEPTH = UMATCH_BUF_FRAMES * MATCHER_BEATS * AXIS_IF_KEEP_WIDTH;
@@ -96,14 +100,20 @@ reg [AXIS_IF_RX_DEST_WIDTH-1:0]       send_tdest;
 reg [AXIS_IF_RX_USER_WIDTH-1:0]       send_tuser;
 
 // state
-localparam [2:0]
-    IDLE = 3'h0,
-    RECV = 3'h1,
-    RECV_LAST = 3'h2,
-    MATCH = 3'h3,
-    SEND = 3'h4,
-    SEND_LAST = 3'h5;
-reg [2:0] state_q, state_d;
+localparam [3:0]
+    IDLE = 4'h0,            // waiting for incoming packet
+    RECV = 4'h1,            // recv into matcher
+    RECV_WAIT = 4'h2,       // wait for upstream
+    RECV_LAST = 4'h3,       // recv last beat of matcher
+    MATCH = 4'h4,           // match against matcher
+    SEND = 4'h5,            // send from matcher
+    SEND_WAIT = 4'h6,       // wait for downstream
+    SEND_LAST = 4'h7,       // send last beat of matcher
+    PASSTHROUGH = 4'h8,     // pass through pending data
+    PASSTHROUGH_WAIT = 4'h9,// wait for downstream
+    PASSTHROUGH_LAST = 4'ha;// pass through pending data, last beat
+reg [3:0] state_q, state_d;
+reg passthrough_q, passthrough_d;
 
 // outputs
 reg [MATCHER_WIDTH-1:0] matcher;
@@ -143,7 +153,10 @@ initial begin
         $error("Error: exactly 2 modes supported: AND and OR");
         $finish;
     end
-    $display("Pkt match engine: %d rules, %d data width, %d MTU", UMATCH_ENTRIES, AXIS_IF_DATA_WIDTH, UMATCH_MTU);
+    $display("Pkt match engine:");
+    $display("\t%d rules", UMATCH_ENTRIES);
+    $display("\t%d bit beat width", AXIS_IF_DATA_WIDTH);
+    $display("\t%d bytes max matching length", UMATCH_MAX_LEN);
 
     // dump for icarus verilog
     for (idx = 0; idx < UMATCH_ENTRIES; idx = idx + 1) begin
@@ -179,14 +192,17 @@ endgenerate
 always @(posedge clk) begin
     if (!rstn) begin
         state_q <= IDLE;
+        passthrough_q <= 1'b0;
     end else begin
         state_q <= state_d;
+        passthrough_q <= passthrough_d;
     end
 end
 
 // state transition
 always @* begin
     state_d = state_q;
+    passthrough_d = passthrough_q;
 
     case (state_q)
         IDLE: if (buffered_tvalid && buffered_tready) begin
@@ -194,17 +210,50 @@ always @* begin
                 state_d = RECV_LAST;
             else
                 state_d = RECV;
+            if (matcher_idx == MATCHER_BEATS - 1) begin
+                state_d = RECV_LAST;
+                passthrough_d = 1'b1;
+            end
         end
-        RECV: if (buffered_tvalid && buffered_tready && buffered_tlast)
-            state_d = RECV_LAST;
+        RECV, RECV_WAIT: if (buffered_tvalid && buffered_tready) begin
+            if (buffered_tlast)
+                state_d = RECV_LAST;
+            else if (matcher_idx == MATCHER_BEATS - 1) begin
+                state_d = RECV_LAST;
+                passthrough_d = 1'b1;
+            end else
+                state_d = RECV;
+        end else
+            state_d = RECV_WAIT;
         RECV_LAST: state_d = MATCH;
         MATCH: if (last_idx == matcher_idx) // only one beat
             state_d = SEND_LAST;
         else
             state_d = SEND;
-        SEND: if (send_tvalid && send_tready && last_idx == matcher_idx)
-            state_d = SEND_LAST;
-        SEND_LAST: state_d = IDLE;
+        SEND, SEND_WAIT: if (send_tvalid && send_tready) begin
+            if (last_idx == matcher_idx)
+                state_d = SEND_LAST;
+            else
+                state_d = SEND;
+        end else
+            state_d = SEND_WAIT;
+        SEND_LAST: if (send_tvalid && send_tready)
+            if (passthrough_q)
+                state_d = PASSTHROUGH;
+            else
+                state_d = IDLE;
+        PASSTHROUGH, PASSTHROUGH_WAIT:
+        if (buffered_tvalid && buffered_tready) begin
+            if (buffered_tlast)
+                state_d = PASSTHROUGH_LAST;
+            else
+                state_d = PASSTHROUGH;
+        end else
+            state_d = PASSTHROUGH_WAIT;
+        PASSTHROUGH_LAST: if (send_tvalid && send_tready) begin
+            state_d = IDLE;
+            passthrough_d = 1'b0;
+        end
     endcase
 end
 
@@ -245,6 +294,7 @@ always @(posedge clk) begin
             end
         end
         RECV: begin
+            // FIXME: handle tkeep correctly
             `SLICE(matcher, matcher_idx, AXIS_IF_DATA_WIDTH) <= buffered_tdata;
             matcher_idx <= matcher_idx + 1;
             saved_tkeep[matcher_idx] <= buffered_tkeep;
@@ -252,6 +302,7 @@ always @(posedge clk) begin
             saved_tid[matcher_idx] <= buffered_tid;
             saved_tdest[matcher_idx] <= buffered_tdest;
         end
+        // RECV_WAIT: nothing
         RECV_LAST: begin
             `SLICE(matcher, matcher_idx, AXIS_IF_DATA_WIDTH) <= buffered_tdata;
             matcher_idx <= {MATCHER_IDX_WIDTH{1'b0}};
@@ -275,6 +326,7 @@ always @(posedge clk) begin
             send_tid <= saved_tid[matcher_idx];
             send_tdest <= saved_tdest[matcher_idx];
         end
+        // SEND_WAIT: nothing
         SEND_LAST: begin
             send_tdata <= `SLICE(matcher, matcher_idx, AXIS_IF_DATA_WIDTH);
             send_tvalid <= 1'b1;
@@ -282,6 +334,29 @@ always @(posedge clk) begin
             send_tuser <= saved_tuser[matcher_idx];
             send_tid <= saved_tid[matcher_idx];
             send_tdest <= saved_tdest[matcher_idx];
+            if (!passthrough_d)
+                send_tlast <= 1'b1;
+        end
+        PASSTHROUGH: begin
+            buffered_tready <= send_tready;
+            send_tdata <= buffered_tdata;
+            send_tvalid <= buffered_tvalid;
+            send_tkeep <= buffered_tkeep;
+            send_tuser <= buffered_tuser;
+            send_tid <= buffered_tid;
+            send_tdest <= buffered_tdest;
+        end
+        PASSTHROUGH_WAIT: begin
+            buffered_tready <= 1'b0;
+        end
+        PASSTHROUGH_LAST: begin
+            buffered_tready <= send_tready;
+            send_tdata <= buffered_tdata;
+            send_tvalid <= buffered_tvalid;
+            send_tkeep <= buffered_tkeep;
+            send_tuser <= buffered_tuser;
+            send_tid <= buffered_tid;
+            send_tdest <= buffered_tdest;
             send_tlast <= 1'b1;
         end
     endcase
