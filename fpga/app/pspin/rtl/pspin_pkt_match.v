@@ -375,6 +375,7 @@ assign m_axis_pspin_rx_tid = matched ? send_comb_tid : {AXIS_IF_RX_ID_WIDTH{1'b0
 assign m_axis_pspin_rx_tdest = matched ? send_comb_tdest : {AXIS_IF_RX_DEST_WIDTH{1'b0}};
 assign m_axis_pspin_rx_tuser = matched ? send_comb_tuser : {AXIS_IF_RX_USER_WIDTH{1'b0}};
 
+if (BUFFER_FIFO_DEPTH != 0) begin
 // FIFO to buffer input packets
 axis_fifo #(
     .DEPTH(BUFFER_FIFO_DEPTH),
@@ -415,5 +416,17 @@ axis_fifo #(
     .status_bad_frame   (buffered_bad_frame),
     .status_good_frame  (buffered_good_frame)
 );
+end else begin
+
+assign buffered_tdata   = s_axis_nic_rx_tdata;
+assign buffered_tkeep   = s_axis_nic_rx_tkeep;
+assign buffered_tvalid  = s_axis_nic_rx_tvalid;
+assign s_axis_nic_rx_tready = send_comb_tready;
+assign buffered_tlast   = s_axis_nic_rx_tlast;
+assign buffered_tid     = s_axis_nic_rx_tid;
+assign buffered_tdest   = s_axis_nic_rx_tdest;
+assign buffered_tuser   = s_axis_nic_rx_tuser;
+
+end
 
 endmodule
