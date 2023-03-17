@@ -90,6 +90,8 @@ wire                                  buffered_overflow;
 wire                                  buffered_good_frame;
 wire                                  buffered_bad_frame;
 
+reg [31:0] pkt_counter = 32'h0;
+
 reg [AXIS_IF_DATA_WIDTH-1:0]          send_tdata;
 reg [AXIS_IF_KEEP_WIDTH-1:0]          send_tkeep;
 reg                                   send_tvalid;
@@ -98,6 +100,15 @@ reg                                   send_tlast;
 reg [AXIS_IF_RX_ID_WIDTH-1:0]         send_tid;
 reg [AXIS_IF_RX_DEST_WIDTH-1:0]       send_tdest;
 reg [AXIS_IF_RX_USER_WIDTH-1:0]       send_tuser;
+
+wire [AXIS_IF_DATA_WIDTH-1:0]         send_comb_tdata;
+wire [AXIS_IF_KEEP_WIDTH-1:0]         send_comb_tkeep;
+wire                                  send_comb_tvalid;
+wire                                  send_comb_tready;
+wire                                  send_comb_tlast;
+wire [AXIS_IF_RX_ID_WIDTH-1:0]        send_comb_tid;
+wire [AXIS_IF_RX_DEST_WIDTH-1:0]      send_comb_tdest;
+wire [AXIS_IF_RX_USER_WIDTH-1:0]      send_comb_tuser;
 
 // state
 localparam [3:0]
@@ -109,9 +120,7 @@ localparam [3:0]
     SEND = 4'h5,            // send from matcher
     SEND_WAIT = 4'h6,       // wait for downstream
     SEND_LAST = 4'h7,       // send last beat of matcher
-    PASSTHROUGH = 4'h8,     // pass through pending data
-    PASSTHROUGH_WAIT = 4'h9,// wait for downstream
-    PASSTHROUGH_LAST = 4'ha;// pass through pending data, last beat
+    PASSTHROUGH = 4'h8;     // pass through pending data
 reg [3:0] state_q, state_d;
 reg passthrough_q, passthrough_d;
 
@@ -193,6 +202,7 @@ always @(posedge clk) begin
     if (!rstn) begin
         state_q <= IDLE;
         passthrough_q <= 1'b0;
+        pkt_counter <= 32'b0;
     end else begin
         state_q <= state_d;
         passthrough_q <= passthrough_d;
@@ -242,15 +252,7 @@ always @* begin
                 state_d = PASSTHROUGH;
             else
                 state_d = IDLE;
-        PASSTHROUGH, PASSTHROUGH_WAIT:
-        if (buffered_tvalid && buffered_tready) begin
-            if (buffered_tlast)
-                state_d = PASSTHROUGH_LAST;
-            else
-                state_d = PASSTHROUGH;
-        end else
-            state_d = PASSTHROUGH_WAIT;
-        PASSTHROUGH_LAST: if (send_tvalid && send_tready) begin
+        PASSTHROUGH: if (send_comb_tvalid && send_comb_tready && send_comb_tlast) begin
             state_d = IDLE;
             passthrough_d = 1'b0;
         end
@@ -334,50 +336,41 @@ always @(posedge clk) begin
             send_tuser <= saved_tuser[matcher_idx];
             send_tid <= saved_tid[matcher_idx];
             send_tdest <= saved_tdest[matcher_idx];
+            pkt_counter <= pkt_counter + 32'b1;
             if (!passthrough_d)
                 send_tlast <= 1'b1;
         end
-        PASSTHROUGH: begin
-            buffered_tready <= send_tready;
-            send_tdata <= buffered_tdata;
-            send_tvalid <= buffered_tvalid;
-            send_tkeep <= buffered_tkeep;
-            send_tuser <= buffered_tuser;
-            send_tid <= buffered_tid;
-            send_tdest <= buffered_tdest;
-        end
-        PASSTHROUGH_WAIT: begin
-            buffered_tready <= 1'b0;
-        end
-        PASSTHROUGH_LAST: begin
-            buffered_tready <= send_tready;
-            send_tdata <= buffered_tdata;
-            send_tvalid <= buffered_tvalid;
-            send_tkeep <= buffered_tkeep;
-            send_tuser <= buffered_tuser;
-            send_tid <= buffered_tid;
-            send_tdest <= buffered_tdest;
-            send_tlast <= 1'b1;
-        end
+        // PASSTHROUGH: nothing
     endcase
 end
 assign send_tready = matched ? m_axis_pspin_rx_tready : m_axis_nic_rx_tready;
 
-assign m_axis_nic_rx_tdata = !matched ? send_tdata : {AXIS_IF_DATA_WIDTH{1'b0}};
-assign m_axis_nic_rx_tkeep = !matched ? send_tkeep : {AXIS_IF_KEEP_WIDTH{1'b0}};
-assign m_axis_nic_rx_tvalid = !matched ? send_tvalid : 1'b0;
-assign m_axis_nic_rx_tlast = !matched ? send_tlast : 1'b0;
-assign m_axis_nic_rx_tid = !matched ? send_tid : {AXIS_IF_RX_ID_WIDTH{1'b0}};
-assign m_axis_nic_rx_tdest = !matched ? send_tdest : {AXIS_IF_RX_DEST_WIDTH{1'b0}};
-assign m_axis_nic_rx_tuser = !matched ? send_tuser : {AXIS_IF_RX_USER_WIDTH{1'b0}};
+// passthrough logic
+wire do_pass = state_q == PASSTHROUGH;
+assign send_comb_tready = !do_pass ? buffered_tready : send_tready;
+assign send_comb_tdata = do_pass ? buffered_tdata : send_tdata;
+assign send_comb_tkeep = do_pass ? buffered_tkeep : send_tkeep;
+assign send_comb_tvalid = do_pass ? buffered_tvalid : send_tvalid;
+assign send_comb_tlast = do_pass ? buffered_tlast : send_tlast;
+assign send_comb_tid = do_pass ? buffered_tid : send_tid;
+assign send_comb_tdest = do_pass ? buffered_tdest : send_tdest;
+assign send_comb_tuser = do_pass ? buffered_tuser : send_tuser;
 
-assign m_axis_pspin_rx_tdata = matched ? send_tdata : {AXIS_IF_DATA_WIDTH{1'b0}};
-assign m_axis_pspin_rx_tkeep = matched ? send_tkeep : {AXIS_IF_KEEP_WIDTH{1'b0}};
-assign m_axis_pspin_rx_tvalid = matched ? send_tvalid : 1'b0;
-assign m_axis_pspin_rx_tlast = matched ? send_tlast : 1'b0;
-assign m_axis_pspin_rx_tid = matched ? send_tid : {AXIS_IF_RX_ID_WIDTH{1'b0}};
-assign m_axis_pspin_rx_tdest = matched ? send_tdest : {AXIS_IF_RX_DEST_WIDTH{1'b0}};
-assign m_axis_pspin_rx_tuser = matched ? send_tuser : {AXIS_IF_RX_USER_WIDTH{1'b0}};
+assign m_axis_nic_rx_tdata = !matched ? send_comb_tdata : {AXIS_IF_DATA_WIDTH{1'b0}};
+assign m_axis_nic_rx_tkeep = !matched ? send_comb_tkeep : {AXIS_IF_KEEP_WIDTH{1'b0}};
+assign m_axis_nic_rx_tvalid = !matched ? send_comb_tvalid : 1'b0;
+assign m_axis_nic_rx_tlast = !matched ? send_comb_tlast : 1'b0;
+assign m_axis_nic_rx_tid = !matched ? send_comb_tid : {AXIS_IF_RX_ID_WIDTH{1'b0}};
+assign m_axis_nic_rx_tdest = !matched ? send_comb_tdest : {AXIS_IF_RX_DEST_WIDTH{1'b0}};
+assign m_axis_nic_rx_tuser = !matched ? send_comb_tuser : {AXIS_IF_RX_USER_WIDTH{1'b0}};
+
+assign m_axis_pspin_rx_tdata = matched ? send_comb_tdata : {AXIS_IF_DATA_WIDTH{1'b0}};
+assign m_axis_pspin_rx_tkeep = matched ? send_comb_tkeep : {AXIS_IF_KEEP_WIDTH{1'b0}};
+assign m_axis_pspin_rx_tvalid = matched ? send_comb_tvalid : 1'b0;
+assign m_axis_pspin_rx_tlast = matched ? send_comb_tlast : 1'b0;
+assign m_axis_pspin_rx_tid = matched ? send_comb_tid : {AXIS_IF_RX_ID_WIDTH{1'b0}};
+assign m_axis_pspin_rx_tdest = matched ? send_comb_tdest : {AXIS_IF_RX_DEST_WIDTH{1'b0}};
+assign m_axis_pspin_rx_tuser = matched ? send_comb_tuser : {AXIS_IF_RX_USER_WIDTH{1'b0}};
 
 // FIFO to buffer input packets
 axis_fifo #(
@@ -409,7 +402,7 @@ axis_fifo #(
     .m_axis_tdata    (buffered_tdata),
     .m_axis_tkeep    (buffered_tkeep),
     .m_axis_tvalid   (buffered_tvalid),
-    .m_axis_tready   (buffered_tready),
+    .m_axis_tready   (send_comb_tready),
     .m_axis_tlast    (buffered_tlast),
     .m_axis_tid      (buffered_tid),
     .m_axis_tdest    (buffered_tdest),

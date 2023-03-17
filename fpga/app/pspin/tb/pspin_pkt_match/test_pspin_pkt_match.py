@@ -47,7 +47,7 @@ class TB:
         self.match_modes = self.dut.UMATCH_MODES.value
 
         self.log = logging.getLogger('cocotb.tb')
-        self.log.setLevel(logging.INFO)
+        self.log.setLevel(logging.DEBUG)
 
         self.log.info(f'Rule Width: {self.match_width}; Rule Count: {self.match_count}')
 
@@ -55,13 +55,13 @@ class TB:
 
         self.pkt_src = AxiStreamSource(AxiStreamBus.from_prefix(dut, 's_axis_nic_rx'),
                                        dut.clk, dut.rstn, reset_active_level=False)
-        self.pkt_src.log.setLevel(logging.WARNING)
+        # self.pkt_src.log.setLevel(logging.WARNING)
         self.unmatched_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, 'm_axis_nic_rx'),
                                             dut.clk, dut.rstn, reset_active_level=False)
-        self.unmatched_sink.log.setLevel(logging.WARNING)
+        # self.unmatched_sink.log.setLevel(logging.WARNING)
         self.matched_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, 'm_axis_pspin_rx'),
                                           dut.clk, dut.rstn, reset_active_level=False)
-        self.matched_sink.log.setLevel(logging.WARNING)
+        # self.matched_sink.log.setLevel(logging.WARNING)
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -98,7 +98,7 @@ class TB:
 
     # match packet with ruleset
     def match(self, pkt: bytes):
-        self.log.debug(f'Current rule {self.rules}, mode {self.mode}')
+        self.log.info(f'Current rule {self.rules}, mode {self.mode}')
 
         match_bytes = self.match_width // 8
         def match_single(ru: MatchRule):
@@ -118,14 +118,15 @@ class TB:
 
     async def cycle_reset(self):
         self.dut.rstn.setimmediatevalue(1)
-        await RisingEdge(self.dut.clk)
-        await RisingEdge(self.dut.clk)
+        clk_edge = RisingEdge(self.dut.clk)
+        await clk_edge
+        await clk_edge
         self.dut.rstn.value = 0
-        await RisingEdge(self.dut.clk)
-        await RisingEdge(self.dut.clk)
+        await clk_edge
+        await clk_edge
         self.dut.rstn.value = 1
-        await RisingEdge(self.dut.clk)
-        await RisingEdge(self.dut.clk)
+        await clk_edge
+        await clk_edge
 
     async def set_rule(self):
         assert len(self.rules) <= self.match_count, 'too many rules supplied'
@@ -160,22 +161,22 @@ class TB:
         # hold at least one cycle after setting matching rule
         await RisingEdge(self.dut.clk)
 
-    async def push_pkt(self, pkt):
+    async def push_pkt(self, pkt, id):
         frame = AxiStreamFrame(pkt)
         # not setting tid, tdest
 
         await self.pkt_src.send(frame)
         if self.match(pkt):
-            self.log.debug('Packet matches')
+            self.log.warning(f'Packet #{id} matches')
             sink = self.matched_sink
             ret = True
         else:
-            self.log.debug('Packet does not match')
+            self.log.warning(f'Packet #{id} does not match')
             sink = self.unmatched_sink
             ret = False
         out: AxiStreamFrame = await WithTimeout(sink.recv())
 
-        assert frame == out, f'mismatched frame {frame} vs received {out}'
+        assert frame == out, f'mismatched frame:\n{frame}\nvs received:\n{out}'
         return ret
 
 def load_packets(limit=None):
@@ -199,8 +200,8 @@ async def run_test_rule(dut, rule_conf, idle_inserter=None, backpressure_inserte
 
     rule(tb)
     await tb.set_rule()
-    for p in pkts:
-        count += await tb.push_pkt(p)
+    for idx, p in enumerate(pkts):
+        count += await tb.push_pkt(p, idx)
     assert count == expected_count, 'wrong number of packets matched'
 
 async def run_test_switch_rule(dut):
@@ -212,13 +213,13 @@ async def run_test_switch_rule(dut):
 
     tb.all_bypass()
     await tb.set_rule()
-    for p in pkts:
-        count += await tb.push_pkt(p)
+    for idx, p in enumerate(pkts):
+        count += await tb.push_pkt(p, idx)
 
     tb.all_match()
     await tb.set_rule()
-    for p in pkts:
-        count += await tb.push_pkt(p)
+    for idx, p in enumerate(pkts):
+        count += await tb.push_pkt(p, idx)
     assert count == expected_count, 'wrong number of packets matched'
 
 def cycle_pause():
