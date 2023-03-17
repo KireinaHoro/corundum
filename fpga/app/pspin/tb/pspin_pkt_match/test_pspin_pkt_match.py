@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from functools import reduce
 from itertools import cycle
+from math import ceil
 import operator
 
 import cocotb, cocotb_test
@@ -176,6 +177,15 @@ class TB:
             ret = False
         out: AxiStreamFrame = await WithTimeout(sink.recv())
 
+        await RisingEdge(self.dut.clk)
+
+        assert self.dut.packet_meta_valid.value == 1
+
+        beat_size = self.dut.AXIS_IF_DATA_WIDTH.value // 8
+        round_up_len = beat_size * ceil(len(pkt) / beat_size)
+        assert self.dut.packet_meta_size.value == round_up_len
+        assert self.dut.packet_meta_idx.value == id + 1  # packet id starts at 1
+
         assert frame == out, f'mismatched frame:\n{frame}\nvs received:\n{out}'
         return ret
 
@@ -218,7 +228,8 @@ async def run_test_switch_rule(dut):
 
     tb.all_match()
     await tb.set_rule()
-    for idx, p in enumerate(pkts):
+    for p in pkts:
+        idx += 1
         count += await tb.push_pkt(p, idx)
     assert count == expected_count, 'wrong number of packets matched'
 

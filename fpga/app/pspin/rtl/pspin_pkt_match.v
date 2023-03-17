@@ -13,6 +13,11 @@
  * The matcher only inspects packets for matching up to UMATCH_MATCHER_LEN for
  * making the decision if a packet matched or not.  The matchers with an index
  * over this limit are turned off (same as with mask == 0).
+ *
+ * The size and index of the packets are also reported with a simple valid
+ * interface.  This should be available for at least one cycle (the IDLE state)
+ * before the sending of the next packet takes place.  The DMA engine will need
+ * to have an AXI FIFO to delay the stream sufficiently for address generation.
  */
 
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
@@ -71,7 +76,12 @@ module pspin_pkt_match #(
     input  wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_mask,
     input  wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_start,
     input  wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_end,
-    input  wire                                   match_valid
+    input  wire                                   match_valid,
+
+    // packet metadata - size and index
+    output reg  [31:0]                           packet_meta_idx,
+    output reg  [31:0]                           packet_meta_size,
+    output reg                                   packet_meta_valid
 );
 
 localparam MATCHER_BEATS = (UMATCH_MATCHER_LEN * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
@@ -91,8 +101,6 @@ wire [AXIS_IF_RX_USER_WIDTH-1:0]      buffered_tuser;
 wire                                  buffered_overflow;
 wire                                  buffered_good_frame;
 wire                                  buffered_bad_frame;
-
-reg [31:0] pkt_counter = 32'h0;
 
 reg [AXIS_IF_DATA_WIDTH-1:0]          send_tdata;
 reg [AXIS_IF_KEEP_WIDTH-1:0]          send_tkeep;
@@ -201,11 +209,32 @@ for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
 end
 endgenerate
 
+// packet counting
+always @(posedge clk) begin
+    if (send_comb_tvalid && send_tready) begin
+        packet_meta_size <= packet_meta_size + AXIS_IF_DATA_WIDTH / 8;
+        if (send_comb_tlast) begin
+            packet_meta_idx <= packet_meta_idx + 1;
+            packet_meta_valid <= 1'b1;
+        end
+    end
+
+    if (state_q == RECV || state_q == RECV_LAST) begin
+        packet_meta_size <= 32'b0;
+        packet_meta_valid <= 1'b0;
+    end
+
+    if (!rstn) begin
+        packet_meta_idx <= 32'b0;
+        packet_meta_size <= 32'b0;
+        packet_meta_valid <= 1'b0;
+    end
+end
+
 always @(posedge clk) begin
     if (!rstn) begin
         state_q <= IDLE;
         passthrough_q <= 1'b0;
-        pkt_counter <= 32'b0;
     end else begin
         state_q <= state_d;
         passthrough_q <= passthrough_d;
@@ -262,8 +291,8 @@ always @* begin
     endcase
 end
 
+// state-machine output
 integer k;
-// moore output
 always @(posedge clk) begin
     case (state_d) // next state
         IDLE: begin
@@ -339,7 +368,6 @@ always @(posedge clk) begin
             send_tuser <= saved_tuser[matcher_idx];
             send_tid <= saved_tid[matcher_idx];
             send_tdest <= saved_tdest[matcher_idx];
-            pkt_counter <= pkt_counter + 32'b1;
             if (!passthrough_d)
                 send_tlast <= 1'b1;
         end
