@@ -20,6 +20,8 @@
  * to have an AXI FIFO to delay the stream sufficiently for address generation.
  */
 
+`timescale 1ns / 1ns
+
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
 
 module pspin_pkt_match #(

@@ -1,11 +1,15 @@
 import logging
+import pytest
+import os
 from dataclasses import dataclass
 from functools import reduce
+from itertools import product
 from itertools import cycle
 from math import ceil
 import operator
 
-import cocotb, cocotb_test
+import cocotb
+from cocotb_test.simulator import run
 from cocotb.clock import Clock, Timer
 from cocotb.triggers import RisingEdge, Edge, First
 from cocotb.regression import TestFactory
@@ -13,6 +17,11 @@ from cocotbext.axi import AxiStreamSource, AxiStreamSink, AxiStreamBus, AxiStrea
 
 # we only use the raw parser
 from scapy.utils import rdpcap
+
+tests_dir = os.path.dirname(__file__)
+pspin_rtl = os.path.join(tests_dir, '..', '..', 'rtl')
+axis_lib_rtl = os.path.join(tests_dir, '..', '..', 'lib', 'axis', 'rtl')
+pcap_file = os.path.join(tests_dir, 'sample.pcap')
 
 def round_align(number, multiple=64):
     return multiple * round(number / multiple)
@@ -193,7 +202,7 @@ def load_packets(limit=None):
     if hasattr(load_packets, 'pkts'):
         return load_packets.pkts[:limit]
     else:
-        load_packets.pkts = list(map(bytes, rdpcap('sample.pcap')))
+        load_packets.pkts = list(map(bytes, rdpcap(pcap_file)))
         return load_packets(limit)
 
 async def run_test_rule(dut, rule_conf, idle_inserter=None, backpressure_inserter=None):
@@ -251,3 +260,38 @@ if cocotb.SIM_NAME:
 
     factory = TestFactory(run_test_switch_rule)
     factory.generate_tests()
+
+# cocotb-test
+@pytest.mark.parametrize(
+    ['matcher_len', 'buf_frames', 'data_width'],
+    list(product([66, 2048], [0, 1, 2], [64, 512]))
+)
+def test_match_engine(request, matcher_len, buf_frames, data_width):
+    dut = 'pspin_pkt_match'
+    module = os.path.splitext(os.path.basename(__file__))[0]
+    toplevel = dut
+
+    verilog_sources = [
+        os.path.join(pspin_rtl, f'{dut}.v'),
+        os.path.join(axis_lib_rtl, f'axis_fifo.v'),
+    ]
+
+    parameters = {}
+    parameters['AXIS_IF_DATA_WIDTH'] = data_width
+    parameters['UMATCH_MATCHER_LEN'] = matcher_len
+    parameters['UMATCH_BUF_FRAMES'] = buf_frames
+
+    extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}
+
+    sim_build = os.path.join(tests_dir, 'sim_build',
+        request.node.name.replace('[', '-').replace(']', ''))
+    
+    run(
+        python_search=[tests_dir],
+        verilog_sources=verilog_sources,
+        toplevel=toplevel,
+        module=module,
+        parameters=parameters,
+        sim_build=sim_build,
+        extra_env=extra_env
+    )
