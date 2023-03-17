@@ -10,7 +10,7 @@
  * To disable a rule, put UMATCH_WIDTH{1'b0} in mask.  The rule would generate
  * the respective unit value in the combining modes.
  *
- * The matcher only inspects packets for matching up to UMATCH_MAX_LEN for
+ * The matcher only inspects packets for matching up to UMATCH_MATCHER_LEN for
  * making the decision if a packet matched or not.  The matchers with an index
  * over this limit are turned off (same as with mask == 0).
  */
@@ -22,8 +22,9 @@ module pspin_pkt_match #(
     parameter UMATCH_ENTRIES = 16,
     parameter UMATCH_MODES = 2,
 
-    parameter UMATCH_MAX_LEN = 66, // TCP + IP + ETH
-    parameter UMATCH_BUF_FRAMES = 2,
+    parameter UMATCH_MATCHER_LEN = 66, // TCP + IP + ETH
+    parameter UMATCH_MTU = 1500, // Ethernet MTU - set to 9000 for jumbo frames
+    parameter UMATCH_BUF_FRAMES = 3,
 
     parameter AXIS_IF_DATA_WIDTH = 512,
     parameter AXIS_IF_KEEP_WIDTH = AXIS_IF_DATA_WIDTH/8,
@@ -73,10 +74,11 @@ module pspin_pkt_match #(
     input  wire                                   match_valid
 );
 
-localparam MATCHER_BEATS = (UMATCH_MAX_LEN * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
+localparam MATCHER_BEATS = (UMATCH_MATCHER_LEN * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
 localparam MATCHER_IDX_WIDTH = $clog2(MATCHER_BEATS);
 localparam MATCHER_WIDTH = MATCHER_BEATS * AXIS_IF_DATA_WIDTH;
-localparam BUFFER_FIFO_DEPTH = UMATCH_BUF_FRAMES * MATCHER_BEATS * AXIS_IF_KEEP_WIDTH;
+localparam PACKET_BEATS = (UMATCH_MTU * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
+localparam BUFFER_FIFO_DEPTH = UMATCH_BUF_FRAMES * PACKET_BEATS * AXIS_IF_KEEP_WIDTH;
 
 wire [AXIS_IF_DATA_WIDTH-1:0]         buffered_tdata;
 wire [AXIS_IF_KEEP_WIDTH-1:0]         buffered_tkeep;
@@ -165,7 +167,8 @@ initial begin
     $display("Pkt match engine:");
     $display("\t%d rules", UMATCH_ENTRIES);
     $display("\t%d bit beat width", AXIS_IF_DATA_WIDTH);
-    $display("\t%d bytes max matching length", UMATCH_MAX_LEN);
+    $display("\t%d bytes max matching length", UMATCH_MATCHER_LEN);
+    $display("\t%d bytes mtu", UMATCH_MTU);
 
     // dump for icarus verilog
     for (idx = 0; idx < UMATCH_ENTRIES; idx = idx + 1) begin

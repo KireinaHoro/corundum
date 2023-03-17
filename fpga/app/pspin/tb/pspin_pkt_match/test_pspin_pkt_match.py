@@ -167,11 +167,11 @@ class TB:
 
         await self.pkt_src.send(frame)
         if self.match(pkt):
-            self.log.warning(f'Packet #{id} matches')
+            self.log.info(f'Packet #{id} matches')
             sink = self.matched_sink
             ret = True
         else:
-            self.log.warning(f'Packet #{id} does not match')
+            self.log.info(f'Packet #{id} does not match')
             sink = self.unmatched_sink
             ret = False
         out: AxiStreamFrame = await WithTimeout(sink.recv())
