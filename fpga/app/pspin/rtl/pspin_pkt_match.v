@@ -290,6 +290,7 @@ always @* begin
             state_d = IDLE;
             passthrough_d = 1'b0;
         end
+        default: state_d = IDLE;
     endcase
 end
 
@@ -374,6 +375,7 @@ always @(posedge clk) begin
                 send_tlast <= 1'b1;
         end
         // PASSTHROUGH: nothing
+        default: // nothing
     endcase
 end
 assign send_tready = matched ? m_axis_pspin_rx_tready : m_axis_nic_rx_tready;
