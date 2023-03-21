@@ -802,6 +802,72 @@ wire stdout_rd_en;
 wire [31:0] stdout_dout;
 wire stdout_data_valid;
 
+pspin_clk_wiz i_pspin_clk_wiz (
+    .clk_out1(pspin_clk),
+    .reset(rst),
+    .locked(mmcm_locked),
+    .clk_in1(clk)
+);
+
+proc_sys_reset_0 i_pspin_rst (
+  .slowest_sync_clk(pspin_clk),        // input wire slowest_sync_clk
+  .ext_reset_in(rst),                  // input wire ext_reset_in
+  .aux_reset_in('b0),                  // input wire aux_reset_in
+  .mb_debug_sys_rst('b0),              // input wire mb_debug_sys_rst
+  .dcm_locked(mmcm_locked),            // input wire dcm_locked
+  .mb_reset(pspin_rst),                // output wire mb_reset
+  .bus_struct_reset(),                 // output wire [0 : 0] bus_struct_reset
+  .peripheral_reset(),                 // output wire [0 : 0] peripheral_reset
+  .interconnect_aresetn,               // output wire [0 : 0] interconnect_aresetn
+  .peripheral_aresetn()                // output wire [0 : 0] peripheral_aresetn
+);
+
+pspin_host_clk_converter i_pspin_axi_conv (
+  .s_axi_aclk(clk),                         // input wire s_axi_aclk
+  .s_axi_aresetn(!rst),                     // input wire s_axi_aresetn
+  .s_axi_awaddr(s_axil_app_ctrl_awaddr),    // input wire [23 : 0] s_axi_awaddr
+  .s_axi_awprot(s_axil_app_ctrl_awprot),    // input wire [2 : 0] s_axi_awprot
+  .s_axi_awvalid(s_axil_app_ctrl_awvalid),  // input wire s_axi_awvalid
+  .s_axi_awready(s_axil_app_ctrl_awready),  // output wire s_axi_awready
+  .s_axi_wdata(s_axil_app_ctrl_wdata),      // input wire [31 : 0] s_axi_wdata
+  .s_axi_wstrb(s_axil_app_ctrl_wstrb),      // input wire [3 : 0] s_axi_wstrb
+  .s_axi_wvalid(s_axil_app_ctrl_wvalid),    // input wire s_axi_wvalid
+  .s_axi_wready(s_axil_app_ctrl_wready),    // output wire s_axi_wready
+  .s_axi_bresp(s_axil_app_ctrl_bresp),      // output wire [1 : 0] s_axi_bresp
+  .s_axi_bvalid(s_axil_app_ctrl_bvalid),    // output wire s_axi_bvalid
+  .s_axi_bready(s_axil_app_ctrl_bready),    // input wire s_axi_bready
+  .s_axi_araddr(s_axil_app_ctrl_araddr),    // input wire [23 : 0] s_axi_araddr
+  .s_axi_arprot(s_axil_app_ctrl_arprot),    // input wire [2 : 0] s_axi_arprot
+  .s_axi_arvalid(s_axil_app_ctrl_arvalid),  // input wire s_axi_arvalid
+  .s_axi_arready(s_axil_app_ctrl_arready),  // output wire s_axi_arready
+  .s_axi_rdata(s_axil_app_ctrl_rdata),      // output wire [31 : 0] s_axi_rdata
+  .s_axi_rresp(s_axil_app_ctrl_rresp),      // output wire [1 : 0] s_axi_rresp
+  .s_axi_rvalid(s_axil_app_ctrl_rvalid),    // output wire s_axi_rvalid
+  .s_axi_rready(s_axil_app_ctrl_rready),    // input wire s_axi_rready
+
+  .m_axi_aclk(pspin_clk),               // input wire m_axi_aclk
+  .m_axi_aresetn(interconnect_aresetn), // input wire m_axi_aresetn
+  .m_axi_awaddr(s_slow_axil_awaddr),    // output wire [23 : 0] m_axi_awaddr
+  .m_axi_awprot(s_slow_axil_awprot),    // output wire [2 : 0] m_axi_awprot
+  .m_axi_awvalid(s_slow_axil_awvalid),  // output wire m_axi_awvalid
+  .m_axi_awready(s_slow_axil_awready),  // input wire m_axi_awready
+  .m_axi_wdata(s_slow_axil_wdata),      // output wire [31 : 0] m_axi_wdata
+  .m_axi_wstrb(s_slow_axil_wstrb),      // output wire [3 : 0] m_axi_wstrb
+  .m_axi_wvalid(s_slow_axil_wvalid),    // output wire m_axi_wvalid
+  .m_axi_wready(s_slow_axil_wready),    // input wire m_axi_wready
+  .m_axi_bresp(s_slow_axil_bresp),      // input wire [1 : 0] m_axi_bresp
+  .m_axi_bvalid(s_slow_axil_bvalid),    // input wire m_axi_bvalid
+  .m_axi_bready(s_slow_axil_bready),    // output wire m_axi_bready
+  .m_axi_araddr(s_slow_axil_araddr),    // output wire [23 : 0] m_axi_araddr
+  .m_axi_arprot(s_slow_axil_arprot),    // output wire [2 : 0] m_axi_arprot
+  .m_axi_arvalid(s_slow_axil_arvalid),  // output wire m_axi_arvalid
+  .m_axi_arready(s_slow_axil_arready),  // input wire m_axi_arready
+  .m_axi_rdata(s_slow_axil_rdata),      // input wire [31 : 0] m_axi_rdata
+  .m_axi_rresp(s_slow_axil_rresp),      // input wire [1 : 0] m_axi_rresp
+  .m_axi_rvalid(s_slow_axil_rvalid),    // input wire m_axi_rvalid
+  .m_axi_rready(s_slow_axil_rready)     // output wire m_axi_rready
+);
+
 axil_interconnect_wrap_1x2 #(
     .DATA_WIDTH(AXIL_APP_CTRL_DATA_WIDTH),
     .ADDR_WIDTH(AXIL_APP_CTRL_ADDR_WIDTH),
@@ -914,72 +980,6 @@ pspin_ctrl_regs #(
     .stdout_rd_en,
     .stdout_dout,
     .stdout_data_valid
-);
-
-pspin_clk_wiz i_pspin_clk_wiz (
-    .clk_out1(pspin_clk),
-    .reset(rst),
-    .locked(mmcm_locked),
-    .clk_in1(clk)
-);
-
-pspin_host_clk_converter i_pspin_axi_conv (
-  .s_axi_aclk(clk),                         // input wire s_axi_aclk
-  .s_axi_aresetn(!rst),                     // input wire s_axi_aresetn
-  .s_axi_awaddr(s_axil_app_ctrl_awaddr),    // input wire [23 : 0] s_axi_awaddr
-  .s_axi_awprot(s_axil_app_ctrl_awprot),    // input wire [2 : 0] s_axi_awprot
-  .s_axi_awvalid(s_axil_app_ctrl_awvalid),  // input wire s_axi_awvalid
-  .s_axi_awready(s_axil_app_ctrl_awready),  // output wire s_axi_awready
-  .s_axi_wdata(s_axil_app_ctrl_wdata),      // input wire [31 : 0] s_axi_wdata
-  .s_axi_wstrb(s_axil_app_ctrl_wstrb),      // input wire [3 : 0] s_axi_wstrb
-  .s_axi_wvalid(s_axil_app_ctrl_wvalid),    // input wire s_axi_wvalid
-  .s_axi_wready(s_axil_app_ctrl_wready),    // output wire s_axi_wready
-  .s_axi_bresp(s_axil_app_ctrl_bresp),      // output wire [1 : 0] s_axi_bresp
-  .s_axi_bvalid(s_axil_app_ctrl_bvalid),    // output wire s_axi_bvalid
-  .s_axi_bready(s_axil_app_ctrl_bready),    // input wire s_axi_bready
-  .s_axi_araddr(s_axil_app_ctrl_araddr),    // input wire [23 : 0] s_axi_araddr
-  .s_axi_arprot(s_axil_app_ctrl_arprot),    // input wire [2 : 0] s_axi_arprot
-  .s_axi_arvalid(s_axil_app_ctrl_arvalid),  // input wire s_axi_arvalid
-  .s_axi_arready(s_axil_app_ctrl_arready),  // output wire s_axi_arready
-  .s_axi_rdata(s_axil_app_ctrl_rdata),      // output wire [31 : 0] s_axi_rdata
-  .s_axi_rresp(s_axil_app_ctrl_rresp),      // output wire [1 : 0] s_axi_rresp
-  .s_axi_rvalid(s_axil_app_ctrl_rvalid),    // output wire s_axi_rvalid
-  .s_axi_rready(s_axil_app_ctrl_rready),    // input wire s_axi_rready
-
-  .m_axi_aclk(pspin_clk),               // input wire m_axi_aclk
-  .m_axi_aresetn(interconnect_aresetn), // input wire m_axi_aresetn
-  .m_axi_awaddr(s_slow_axil_awaddr),    // output wire [23 : 0] m_axi_awaddr
-  .m_axi_awprot(s_slow_axil_awprot),    // output wire [2 : 0] m_axi_awprot
-  .m_axi_awvalid(s_slow_axil_awvalid),  // output wire m_axi_awvalid
-  .m_axi_awready(s_slow_axil_awready),  // input wire m_axi_awready
-  .m_axi_wdata(s_slow_axil_wdata),      // output wire [31 : 0] m_axi_wdata
-  .m_axi_wstrb(s_slow_axil_wstrb),      // output wire [3 : 0] m_axi_wstrb
-  .m_axi_wvalid(s_slow_axil_wvalid),    // output wire m_axi_wvalid
-  .m_axi_wready(s_slow_axil_wready),    // input wire m_axi_wready
-  .m_axi_bresp(s_slow_axil_bresp),      // input wire [1 : 0] m_axi_bresp
-  .m_axi_bvalid(s_slow_axil_bvalid),    // input wire m_axi_bvalid
-  .m_axi_bready(s_slow_axil_bready),    // output wire m_axi_bready
-  .m_axi_araddr(s_slow_axil_araddr),    // output wire [23 : 0] m_axi_araddr
-  .m_axi_arprot(s_slow_axil_arprot),    // output wire [2 : 0] m_axi_arprot
-  .m_axi_arvalid(s_slow_axil_arvalid),  // output wire m_axi_arvalid
-  .m_axi_arready(s_slow_axil_arready),  // input wire m_axi_arready
-  .m_axi_rdata(s_slow_axil_rdata),      // input wire [31 : 0] m_axi_rdata
-  .m_axi_rresp(s_slow_axil_rresp),      // input wire [1 : 0] m_axi_rresp
-  .m_axi_rvalid(s_slow_axil_rvalid),    // input wire m_axi_rvalid
-  .m_axi_rready(s_slow_axil_rready)     // output wire m_axi_rready
-);
-
-proc_sys_reset_0 i_pspin_rst (
-  .slowest_sync_clk(pspin_clk),        // input wire slowest_sync_clk
-  .ext_reset_in(rst),                  // input wire ext_reset_in
-  .aux_reset_in('b0),                  // input wire aux_reset_in
-  .mb_debug_sys_rst('b0),              // input wire mb_debug_sys_rst
-  .dcm_locked(mmcm_locked),            // input wire dcm_locked
-  .mb_reset(pspin_rst),                // output wire mb_reset
-  .bus_struct_reset(),                 // output wire [0 : 0] bus_struct_reset
-  .peripheral_reset(),                 // output wire [0 : 0] peripheral_reset
-  .interconnect_aresetn,               // output wire [0 : 0] interconnect_aresetn
-  .peripheral_aresetn()                // output wire [0 : 0] peripheral_aresetn
 );
 
 axi_protocol_converter_0 i_host_to_full (
