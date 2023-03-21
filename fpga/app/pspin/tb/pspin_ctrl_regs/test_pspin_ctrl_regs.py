@@ -55,28 +55,35 @@ async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.log.info('Testing cluster enable reg')
     assert tb.dut.cl_fetch_en_o.value == 0b00, 'cluster enable reset value mismatch'
 
-    await tb.axil_master.write_dword(0x0000, 0b11)
-    assert tb.dut.cl_fetch_en_o.value == 0b11, 'cluster enable mismatch'
-    await RisingEdge(dut.clk)
+    async def check_single(addr, val, name):
+        await tb.axil_master.write_dword(addr, val)
+        assert getattr(tb.dut, name).value == val, name + ' mismatch'
+        await RisingEdge(dut.clk)
 
-    await tb.axil_master.write_dword(0x0000, 0b00)
-    assert tb.dut.cl_fetch_en_o.value == 0b00, 'cluster enable mismatch'
-    await RisingEdge(dut.clk)
+    await check_single(0x0000, 0b11, 'cl_fetch_en_o')
+    await check_single(0x0000, 0b00, 'cl_fetch_en_o')
 
     tb.log.info('Testing reset reg')
     assert tb.dut.aux_rst_o.value == 0b1, 'aux rst reset value mismatch'
-    
-    await tb.axil_master.write_dword(0x0004, 0b0)
-    assert tb.dut.aux_rst_o.value == 0b0, 'aux rst mismatch'
-    await RisingEdge(dut.clk)
+    await check_single(0x0004, 0b0, 'aux_rst_o')
+    await check_single(0x0004, 0b1, 'aux_rst_o')
+    await check_single(0x0004, 0b0, 'aux_rst_o')
 
-    await tb.axil_master.write_dword(0x0004, 0b1)
-    assert tb.dut.aux_rst_o.value == 0b1, 'aux rst mismatch'
-    await RisingEdge(dut.clk)
+    tb.log.info('Testing matching engine reg')
+    await check_single(0x2000, 0x1, 'match_mode_o')
+    await check_single(0x2004, 0x1, 'match_valid_o')
+    acc = 0
+    for i in range(tb.dut.UMATCH_ENTRIES.value):
+        acc += (i << (i * tb.dut.UMATCH_WIDTH.value))
+        await tb.axil_master.write_dword(0x2100 + i * 4, i) # mode
+        await tb.axil_master.write_dword(0x2200 + i * 4, i) # mode
+        await tb.axil_master.write_dword(0x2300 + i * 4, i) # mode
+        await tb.axil_master.write_dword(0x2400 + i * 4, i) # mode
 
-    await tb.axil_master.write_dword(0x0004, 0b0)
-    assert tb.dut.aux_rst_o.value == 0b0, 'aux rst mismatch'
-    await RisingEdge(dut.clk)
+    assert tb.dut.match_idx_o.value == acc
+    assert tb.dut.match_mask_o.value == acc
+    assert tb.dut.match_start_o.value == acc
+    assert tb.dut.match_end_o.value == acc
 
     tb.log.info('Testing status reg readout')
     tb.dut.cl_eoc_i.value = 0b10
