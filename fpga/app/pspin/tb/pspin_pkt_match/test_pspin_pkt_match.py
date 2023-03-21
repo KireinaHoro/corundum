@@ -175,6 +175,8 @@ class TB:
         frame = AxiStreamFrame(pkt)
         # not setting tid, tdest
 
+        self.dut.packet_meta_ready.value = 1
+
         await self.pkt_src.send(frame)
         if self.match(pkt):
             self.log.info(f'Packet #{id} matches')
@@ -189,7 +191,6 @@ class TB:
         await RisingEdge(self.dut.clk)
 
         assert self.dut.packet_meta_valid.value == 1
-        self.dut.packet_meta_ready.value = 1
 
         beat_size = self.dut.AXIS_IF_DATA_WIDTH.value // 8
         round_up_len = beat_size * ceil(len(pkt) / beat_size)

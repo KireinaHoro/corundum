@@ -37,7 +37,7 @@ module pspin_pkt_match #(
     parameter AXIS_IF_KEEP_WIDTH = AXIS_IF_DATA_WIDTH/8,
     parameter AXIS_IF_RX_ID_WIDTH = 1,
     parameter AXIS_IF_RX_DEST_WIDTH = 8,
-    parameter AXIS_IF_RX_USER_WIDTH = 97
+    parameter AXIS_IF_RX_USER_WIDTH = 16
 ) (
     input wire clk,
     input wire rstn,
@@ -311,7 +311,8 @@ always @(posedge clk) begin
             send_tvalid <= 1'b0;
             send_tlast <= 1'b0;
             send_tkeep <= {AXIS_IF_KEEP_WIDTH{1'b0}};
-            buffered_tready <= 1'b1;
+            // ready if no back pressure from allocator
+            buffered_tready <= packet_meta_ready;
 
             for (k = 0; k < MATCHER_BEATS; k = k + 1) begin
                 saved_tkeep[k] <= {AXIS_IF_KEEP_WIDTH{1'b0}};
