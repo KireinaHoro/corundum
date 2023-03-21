@@ -65,6 +65,22 @@ module pspin_ingress_dma #(
     input  wire [1:0]                            m_axi_pspin_bresp,
     input  wire                                  m_axi_pspin_bvalid,
     output wire                                  m_axi_pspin_bready,
+    output wire [AXI_ID_WIDTH-1:0]               m_axi_pspin_arid,
+    output wire [AXI_ADDR_WIDTH-1:0]             m_axi_pspin_araddr,
+    output wire [7:0]                            m_axi_pspin_arlen,
+    output wire [2:0]                            m_axi_pspin_arsize,
+    output wire [1:0]                            m_axi_pspin_arburst,
+    output wire                                  m_axi_pspin_arlock,
+    output wire [3:0]                            m_axi_pspin_arcache,
+    output wire [2:0]                            m_axi_pspin_arprot,
+    output wire                                  m_axi_pspin_arvalid,
+    input  wire                                  m_axi_pspin_arready,
+    input  wire [AXI_ID_WIDTH-1:0]               m_axi_pspin_rid,
+    input  wire [AXI_DATA_WIDTH-1:0]             m_axi_pspin_rdata,
+    input  wire [1:0]                            m_axi_pspin_rresp,
+    input  wire                                  m_axi_pspin_rlast,
+    input  wire                                  m_axi_pspin_rvalid,
+    output wire                                  m_axi_pspin_rready,
 
     // to HER gen - no ready intf, shouldn't block
     output wire [AXI_ADDR_WIDTH-1:0]             her_gen_addr,
@@ -73,7 +89,7 @@ module pspin_ingress_dma #(
     output wire                                  her_gen_valid
 );
 
-localparam PACKET_BEATS = (UMATCH_MTU * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
+localparam PACKET_BEATS = (INGRESS_DMA_MTU * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
 localparam BUFFER_FIFO_DEPTH = 2 * PACKET_BEATS * AXIS_IF_KEEP_WIDTH;
 
 // encode addr in tag for HER gen
@@ -103,6 +119,17 @@ wire                                  desc_status_valid;
 assign her_gen_addr  = desc_status_addr;
 assign her_gen_len   = desc_status_len;
 assign her_gen_tag   = desc_status_tag;
+
+assign m_axi_pspin_arid = {AXI_ID_WIDTH{1'b0}};
+assign m_axi_pspin_araddr = {AXI_ADDR_WIDTH{1'b0}};
+assign m_axi_pspin_arlen = 8'b0;
+assign m_axi_pspin_arsize = 3'b0;
+assign m_axi_pspin_arburst = 2'b0;
+assign m_axi_pspin_arlock = 1'b0;
+assign m_axi_pspin_arcache = 4'b0;
+assign m_axi_pspin_arprot = 3'b0;
+assign m_axi_pspin_arvalid = 1'b0;
+assign m_axi_pspin_rready = 1'b0;
 
 // desc_status_error: axi_dma_wr.v
 assign her_gen_valid = desc_status_valid && desc_status_error == 4'd0;
@@ -150,10 +177,10 @@ axis_fifo #(
 );
 
 axi_dma_wr #(
-    .AXI_DATA_WIDTH,
-    .AXI_ADDR_WIDTH,
-    .AXI_STRB_WIDTH,
-    .AXI_ID_WIDTH,
+    .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+    .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+    .AXI_STRB_WIDTH(AXI_STRB_WIDTH),
+    .AXI_ID_WIDTH(AXI_ID_WIDTH),
     .AXIS_DATA_WIDTH(AXIS_IF_DATA_WIDTH),
     .AXIS_KEEP_WIDTH(AXIS_IF_KEEP_WIDTH),
     .AXIS_ID_ENABLE(1),
@@ -161,8 +188,8 @@ axi_dma_wr #(
     .AXIS_DEST_ENABLE(1),
     .AXIS_DEST_WIDTH(AXIS_IF_RX_DEST_WIDTH),
     .AXIS_USER_ENABLE(1),
-    .AXIS_USER_WIDTH(AXIS_IF_RX_USER_WIDTH)
-    .LEN_WIDTH,
+    .AXIS_USER_WIDTH(AXIS_IF_RX_USER_WIDTH),
+    .LEN_WIDTH(LEN_WIDTH),
     .TAG_WIDTH(DMA_TAG_WIDTH)
 ) i_ingress_dma (
     .clk,

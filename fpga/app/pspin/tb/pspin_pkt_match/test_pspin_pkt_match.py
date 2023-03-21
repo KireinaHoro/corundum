@@ -244,6 +244,8 @@ async def run_test_switch_rule(dut):
         count += await tb.push_pkt(p, idx)
     assert count == expected_count, 'wrong number of packets matched'
 
+# TODO: test packet alloc back pressure
+
 def cycle_pause():
     # 1 cycle ready in 4 cycles
     return cycle([1, 1, 1, 0])
