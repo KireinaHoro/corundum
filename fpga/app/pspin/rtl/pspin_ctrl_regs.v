@@ -2,8 +2,8 @@
 // - cluster fetch enable (RW) 0x0000
 // - cluster reset (high) (RW) 0x0004
 
-// - cluster eoc          (RO) 0x0108
-// - cluster busy         (RO) 0x010c
+// - cluster eoc          (RO) 0x0100
+// - cluster busy         (RO) 0x0104
 
 // - mpq full[ 31:  0]    (RO) 0x0200
 // - mpq full[ 63: 32]    (RO) 0x0204
@@ -134,26 +134,30 @@ wire [STRB_WIDTH-1:0] reg_intf_wr_strb;
 wire reg_intf_wr_en;
 reg reg_intf_wr_ack;
 
-`define GEN_DECODE(name) name``_BASE: regfile_idx = name``_REG_OFF + (block_offset >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
-
 // address decode
-reg [VALID_ADDR_WIDTH-1:0] regfile_idx;
-reg [15:0] block_id, block_offset;
-always @* begin
-    block_id     = reg_intf_wr_addr & 32'hff00;
-    block_offset = reg_intf_wr_addr & 32'h00ff;
-    case (block_id)
-        `GEN_DECODE(CL_CTRL)
-        `GEN_DECODE(MPQ)
-        `GEN_DECODE(FIFO)
-        `GEN_DECODE(ME)
-        `GEN_DECODE(ME_IDX)
-        `GEN_DECODE(ME_MASK)
-        `GEN_DECODE(ME_START)
-        `GEN_DECODE(ME_END)
-        default:  regfile_idx = `REGFILE_IDX_INVALID;
-    endcase
-end
+`define GEN_DECODE(op, name) name``_BASE: regfile_idx_``op = name``_REG_OFF + (block_offset_``op >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+`define DECODE_ADDR(op) \
+    reg [VALID_ADDR_WIDTH-1:0] regfile_idx_``op; \
+    reg [15:0] block_id_``op, block_offset_``op; \
+    always @* begin \
+        block_id_``op     = reg_intf_``op``_addr & 32'hff00; \
+        block_offset_``op = reg_intf_``op``_addr & 32'h00ff; \
+        case (block_id_``op) \
+            `GEN_DECODE(op, CL_CTRL) \
+            `GEN_DECODE(op, CL_STAT) \
+            `GEN_DECODE(op, MPQ) \
+            `GEN_DECODE(op, FIFO) \
+            `GEN_DECODE(op, ME) \
+            `GEN_DECODE(op, ME_IDX) \
+            `GEN_DECODE(op, ME_MASK) \
+            `GEN_DECODE(op, ME_START) \
+            `GEN_DECODE(op, ME_END) \
+            default:  regfile_idx_``op = `REGFILE_IDX_INVALID; \
+        endcase \
+    end
+
+`DECODE_ADDR(wr)
+`DECODE_ADDR(rd)
 
 integer i;
 // register output
@@ -194,8 +198,8 @@ always @(posedge clk) begin
                     reg_intf_rd_data <= stdout_dout;
                 end
             end else begin
-                if (regfile_idx != `REGFILE_IDX_INVALID)
-                    reg_intf_rd_data <= ctrl_regs[regfile_idx];
+                if (regfile_idx_rd != `REGFILE_IDX_INVALID)
+                    reg_intf_rd_data <= ctrl_regs[regfile_idx_rd];
                 else
                     reg_intf_rd_data <= {DATA_WIDTH{1'b1}};
             end
@@ -210,8 +214,8 @@ always @(posedge clk) begin
         // write
         for (i = 0; i < STRB_WIDTH; i = i + 1) begin
             if (reg_intf_wr_en && reg_intf_wr_strb[i]) begin
-                if (regfile_idx != `REGFILE_IDX_INVALID && !REGFILE_IDX_READONLY[regfile_idx]) begin
-                    ctrl_regs[regfile_idx][WORD_SIZE*i +: WORD_SIZE] <= reg_intf_wr_data[WORD_SIZE*i +: WORD_SIZE];
+                if (regfile_idx_wr != `REGFILE_IDX_INVALID && !REGFILE_IDX_READONLY[regfile_idx_wr]) begin
+                    ctrl_regs[regfile_idx_wr][WORD_SIZE*i +: WORD_SIZE] <= reg_intf_wr_data[WORD_SIZE*i +: WORD_SIZE];
                 end
                 reg_intf_wr_ack <= 'b1;
             end
@@ -225,7 +229,7 @@ always @(posedge clk) begin
         ctrl_regs[CL_STAT_REG_OFF]     <= cl_eoc_i;   // eoc
         ctrl_regs[CL_STAT_REG_OFF + 1] <= cl_busy_i;  // busy
         for (i = 0; i < 8; i = i + 1) begin
-            ctrl_regs[MPQ_REG_OFF] <= mpq_full_i[i*DATA_WIDTH +: DATA_WIDTH];
+            ctrl_regs[MPQ_REG_OFF + i] <= mpq_full_i[i*DATA_WIDTH +: DATA_WIDTH];
         end
     end
 end
