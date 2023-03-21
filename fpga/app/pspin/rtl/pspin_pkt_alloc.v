@@ -30,6 +30,7 @@ module pspin_pkt_alloc #
     input  wire rstn,
 
     // from matching engine
+    input  wire [TAG_WIDTH-1:0] pkt_idx_i,
     input  wire [LEN_WIDTH-1:0] pkt_len_i,
     input  wire pkt_valid_i,
     output wire pkt_ready_o,
@@ -212,6 +213,7 @@ always @* begin
     end
 
     if (pkt_valid_i && pkt_ready_o) begin
+        write_tag_o = pkt_idx_i;
         if (SLOT0_SIZE >= pkt_len_i && pkt_len_i > SLOT1_SIZE) begin
             slot0_deq_ready    = 1'b1;
             slot0_free_count_d = slot0_free_count_d - 1;
