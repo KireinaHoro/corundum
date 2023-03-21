@@ -189,6 +189,7 @@ class TB:
         await RisingEdge(self.dut.clk)
 
         assert self.dut.packet_meta_valid.value == 1
+        self.dut.packet_meta_ready.value = 1
 
         beat_size = self.dut.AXIS_IF_DATA_WIDTH.value // 8
         round_up_len = beat_size * ceil(len(pkt) / beat_size)

@@ -83,7 +83,8 @@ module pspin_pkt_match #(
     // packet metadata - size and index
     output reg  [31:0]                           packet_meta_idx,
     output reg  [31:0]                           packet_meta_size,
-    output reg                                   packet_meta_valid
+    output reg                                   packet_meta_valid,
+    input  wire                                  packet_meta_ready
 );
 
 localparam MATCHER_BEATS = (UMATCH_MATCHER_LEN * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
@@ -220,6 +221,9 @@ always @(posedge clk) begin
             packet_meta_valid <= 1'b1;
         end
     end
+
+    if (packet_meta_ready && packet_meta_valid)
+        packet_meta_valid <= 1'b0;
 
     if (state_q == RECV || state_q == RECV_LAST) begin
         packet_meta_size <= 32'b0;
@@ -375,7 +379,7 @@ always @(posedge clk) begin
                 send_tlast <= 1'b1;
         end
         // PASSTHROUGH: nothing
-        default: // nothing
+        default: begin /* nothing */ end
     endcase
 end
 assign send_tready = matched ? m_axis_pspin_rx_tready : m_axis_nic_rx_tready;
