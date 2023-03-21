@@ -84,7 +84,7 @@ async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.dut.mpq_full_i.value = 0xdeadbeef_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff
     assert await tb.axil_master.read_dword(0x0100) == 0b10
     assert await tb.axil_master.read_dword(0x0104) == 0b11
-    assert await tb.axil_master.read_dwords(0x0108, 8) == [0xffffffff] * 7 + [0xdeadbeef]
+    assert await tb.axil_master.read_dwords(0x0200, 8) == [0xffffffff] * 7 + [0xdeadbeef]
     
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
