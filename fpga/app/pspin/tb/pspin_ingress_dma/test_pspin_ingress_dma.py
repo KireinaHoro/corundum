@@ -29,7 +29,7 @@ async def Active(signal):
     if signal.value != 1:
         await RisingEdge(signal)
 
-async def WithTimeout(action, timeout_ns=1000):
+async def WithTimeout(action, timeout_ns=10000):
     # timeout
     timer = Timer(timeout_ns, 'ns')
     task = cocotb.start_soon(action)
@@ -50,7 +50,7 @@ class TB:
         self.src = AxiStreamSource(AxiStreamBus.from_prefix(dut, 's_axis_pspin_rx'),
                                    dut.clk, dut.rstn, reset_active_level=False)
         self.axi_ram = AxiRam(AxiBus.from_prefix(dut, 'm_axi_pspin'),
-                              dut.clk, dut.rstn, reset_active_level=False, size=2**16)
+                              dut.clk, dut.rstn, reset_active_level=False, size=2**18)
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -74,7 +74,8 @@ class TB:
         await clk_edge
         await clk_edge
 
-    async def push_frame(self, pkt, addr, idx):
+    pending = {}
+    async def push_frame_nocheck(self, pkt, addr, idx):
         frame = AxiStreamFrame(pkt)
         # not setting tid, tdest
 
@@ -91,13 +92,24 @@ class TB:
         await RisingEdge(self.dut.clk)
         self.dut.write_desc_valid.value = 0
 
+        self.pending[idx] = pkt, addr
+
+    async def check_result(self):
         # wait for HER ready
         await WithTimeout(Active(self.dut.her_gen_valid))
+        tag = int(self.dut.her_gen_tag.value)
+        assert tag in self.pending.keys()
+
+        pkt, addr = self.pending[tag]
+
         assert self.dut.her_gen_addr.value == addr
         assert self.dut.her_gen_len.value == len(pkt)
-        assert self.dut.her_gen_tag.value == idx
 
         assert self.axi_ram.read(addr, len(pkt)) == pkt
+
+    async def push_frame(self, pkt, addr, idx):
+        await self.push_frame_nocheck(pkt, addr, idx)
+        await self.check_result()
 
 async def run_test_basic_dma(dut, idle_inserter=None, backpressure_inserter=None):
     tb = TB(dut)
@@ -116,17 +128,25 @@ async def run_test_pipelined(dut, idle_inserter=None, backpressure_inserter=None
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    await tb.push_frame(b'Hello, world!', 0x0000, 1)
+    checks = []
+    for i in range(10):
+        pkt = randbytes(512)
+        addr = i * len(pkt)
+        await tb.push_frame_nocheck(pkt, addr, i)
+        checks.append(cocotb.start_soon(tb.check_result()))
+    for c in checks:
+        await c
 
 def cycle_pause():
     # 1 cycle ready in 4 cycles
     return cycle([1, 1, 1, 0])
 
 if cocotb.SIM_NAME:
-    factory = TestFactory(run_test_basic_dma)
-    factory.add_option('idle_inserter', [None, cycle_pause])
-    factory.add_option('backpressure_inserter', [None, cycle_pause])
-    factory.generate_tests()
+    for test in [run_test_basic_dma, run_test_pipelined]:
+        factory = TestFactory(test)
+        factory.add_option('idle_inserter', [None, cycle_pause])
+        factory.add_option('backpressure_inserter', [None, cycle_pause])
+        factory.generate_tests()
 
 # cocotb-test
 '''
