@@ -12,28 +12,14 @@ from cocotb.regression import TestFactory
 
 from cocotbext.axi import AxiLiteBus, AxiLiteMaster
 
-def round_align(number, multiple=64):
-    return multiple * round(number / multiple)
-
-async def Active(signal):
-    if signal.value != 1:
-        await RisingEdge(signal)
-
-async def WithTimeout(action, timeout_ns=100):
-    # timeout
-    timer = Timer(timeout_ns, 'ns')
-    task = cocotb.start_soon(action)
-    result = await First(task, timer)
-    if result is timer:
-        assert False, 'Timeout waiting for action'
-    return result
+from common import *
 
 class TB:
     def __init__(self, dut):
         self.dut = dut
 
         print(f'Buffer BUF_START {hex(int(self.dut.BUF_START))} BUF_SIZE {hex(int(self.dut.BUF_SIZE))}')
-        
+
         self.log = logging.getLogger('cocotb.tb')
         self.log.setLevel(logging.DEBUG)
 
@@ -55,6 +41,7 @@ class TB:
     async def enqueue_pkt(self, size, timeout=1000):
         self.dut.pkt_len_i.value = size
         self.dut.pkt_valid_i.value = 1
+        self.dut.pkt_tag_i.value = 0xdeadbeef
         # make sure the beat had ready && valid and held for one cycle
         await RisingEdge(self.dut.clk)
         while self.dut.pkt_ready_o == 0 and timeout:
@@ -63,22 +50,21 @@ class TB:
         assert timeout > 0 or self.dut.pkt_ready_o.value == 1
         self.dut.pkt_valid_i.value = 0
         # do not advance clock such that we can allow lat=1 enqueue
-    
+
     async def dequeue_addr(self, timeout=1000):
-        await WithTimeout(Active(self.dut.write_ready_i), timeout_ns=timeout)
+        await WithTimeout(Active(self.dut, self.dut.write_ready_i), timeout_ns=timeout)
         # either packet is successfully allocated, or dropped
-        allocated = cocotb.start_soon(WithTimeout(Active(self.dut.write_valid_o), timeout_ns=timeout))
+        allocated = cocotb.start_soon(WithTimeout(Active(self.dut, self.dut.write_valid_o), timeout_ns=timeout))
         dropped = Edge(self.dut.dropped_pkts_o)
         result = await First(allocated, dropped)
         if result is dropped:
             allocated.kill()
             return -1, 0
-        res = self.dut.write_addr_o.value, self.dut.write_len_o.value
-        return res
+        return self.dut.write_addr_o.value, self.dut.write_len_o.value, self.dut.write_tag_o.value
 
     async def do_alloc(self, size, timeout=1000):
         await self.enqueue_pkt(size, timeout)
-        addr, len = await self.dequeue_addr()
+        addr, len, tag = await self.dequeue_addr()
         assert int(len) >= size or not int(len)
         assert int(addr) + int(len) <= int(self.dut.BUF_START) + int(self.dut.BUF_SIZE)
         return addr, len
@@ -116,7 +102,7 @@ async def run_test_alloc(dut, data_in=None, idle_inserter=None, backpressure_ins
 async def run_test_overflow(dut, data_in=None, idle_inserter=None, backpressure_inserter=None, max_size=1518):
     tb = TB(dut)
     await tb.cycle_reset()
-    
+
     # we have 128K space
     allocated = 0
     for i in range(128):

@@ -18,26 +18,12 @@ from cocotbext.axi import AxiStreamSource, AxiStreamSink, AxiStreamBus, AxiStrea
 # we only use the raw parser
 from scapy.utils import rdpcap
 
+from common import *
+
 tests_dir = os.path.dirname(__file__)
 pspin_rtl = os.path.join(tests_dir, '..', '..', 'rtl')
 axis_lib_rtl = os.path.join(tests_dir, '..', '..', 'lib', 'axis', 'rtl')
 pcap_file = os.path.join(tests_dir, 'sample.pcap')
-
-def round_align(number, multiple=64):
-    return multiple * round(number / multiple)
-
-async def Active(signal):
-    if signal.value != 1:
-        await RisingEdge(signal)
-
-async def WithTimeout(action, timeout_ns=1000):
-    # timeout
-    timer = Timer(timeout_ns, 'ns')
-    task = cocotb.start_soon(action)
-    result = await First(task, timer)
-    if result is timer:
-        assert False, 'Timeout waiting for action'
-    return result
 
 @dataclass(frozen=True)
 class MatchRule:
@@ -77,7 +63,7 @@ class TB:
         if generator:
             self.log.info('Setting idle generator')
             self.pkt_src.set_pause_generator(generator())
-    
+
     def set_backpressure_generator(self, generator=None):
         if generator:
             self.log.info('Setting back pressure generator')
@@ -160,13 +146,13 @@ class TB:
         self.dut.match_mask.value = int.from_bytes(concat_mask, byteorder='little')
         self.dut.match_start.value = int.from_bytes(concat_start, byteorder='little')
         self.dut.match_end.value = int.from_bytes(concat_end, byteorder='little')
-        
+
         # disable unused rules
         for idx in range(len(self.rules), self.match_count):
             self.dut.match_mask[idx].value = 0
-        
+
         self.dut.match_mode.value = self.mode
-        
+
         self.dut.match_valid.value = 1
         # hold at least one cycle after setting matching rule
         await RisingEdge(self.dut.clk)
@@ -289,7 +275,7 @@ def test_match_engine(request, matcher_len, buf_frames, data_width):
 
     sim_build = os.path.join(tests_dir, 'sim_build',
         request.node.name.replace('[', '-').replace(']', ''))
-    
+
     run(
         python_search=[tests_dir],
         verilog_sources=verilog_sources,
