@@ -35,14 +35,17 @@ class TB:
 
         self.src = AxiStreamSource(AxiStreamBus.from_prefix(dut, 's_axis_pspin_rx'),
                                    dut.clk, dut.rstn, reset_active_level=False)
+        # 1MB test RAM
         self.axi_ram = AxiRam(AxiBus.from_prefix(dut, 'm_axi_pspin'),
-                              dut.clk, dut.rstn, reset_active_level=False, size=2**18)
+                              dut.clk, dut.rstn, reset_active_level=False, size=2**20)
+
+        self.dut.her_gen_ready.value = 1
 
     def set_idle_generator(self, generator=None):
         if generator:
             self.src.set_pause_generator(generator())
             self.axi_ram.write_if.b_channel.set_pause_generator(generator())
-    
+
     def set_backpressure_generator(self, generator=None):
         if generator:
             self.axi_ram.write_if.aw_channel.set_pause_generator(generator())
@@ -79,49 +82,73 @@ class TB:
         self.dut.write_desc_valid.value = 0
 
         self.pending[idx] = pkt, addr
+        self.log.debug(f'Pending tags after push_frame_nocheck: {self.pending.keys()}')
 
-    async def check_result(self):
-        # wait for HER ready
-        await WithTimeout(Active(self.dut.her_gen_valid))
+    async def check_result(self, after=None):
+        if after:
+            self.log.debug('Joining previous check')
+            await after.join()
+            await RisingEdge(self.dut.clk)
+
+        await WithTimeout(Active(self.dut, self.dut.her_gen_valid))
+        await WithTimeout(Active(self.dut, self.dut.her_gen_ready))
+        self.log.debug('check_result handshake ok')
+        self.log.debug(f'Pending tags before check_result: {self.pending.keys()}')
         tag = int(self.dut.her_gen_tag.value)
+
         assert tag in self.pending.keys()
 
-        pkt, addr = self.pending[tag]
+        pkt, addr = self.pending.pop(tag)
 
         assert self.dut.her_gen_addr.value == addr
         assert self.dut.her_gen_len.value == len(pkt)
 
         assert self.axi_ram.read(addr, len(pkt)) == pkt
 
+        self.log.debug('check_result finished')
+
     async def push_frame(self, pkt, addr, idx):
         await self.push_frame_nocheck(pkt, addr, idx)
         await self.check_result()
 
-async def run_test_basic_dma(dut, idle_inserter=None, backpressure_inserter=None):
+async def backpressure_completion(dut):
+    pattern = cycle([0, 0, 0, 1])
+    for p in pattern:
+        dut.her_gen_ready.value = p
+        await RisingEdge(dut.clk)
+
+async def run_test_basic_dma(dut, stall=False, idle_inserter=None, backpressure_inserter=None):
     tb = TB(dut)
     await tb.cycle_reset()
 
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
+
+    if stall:
+        cocotb.start_soon(backpressure_completion(dut))
 
     await tb.push_frame(b'Hello, world!', 0x0000, 1)
     await tb.push_frame(randbytes(1300), 0x0040, 2)
 
-async def run_test_pipelined(dut, idle_inserter=None, backpressure_inserter=None):
+async def run_test_pipelined(dut, stall=False, idle_inserter=None, backpressure_inserter=None):
     tb = TB(dut)
     await tb.cycle_reset()
 
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
-    checks = []
+    if stall:
+        cocotb.start_soon(backpressure_completion(dut))
+
+    task = None
     for i in range(10):
         pkt = randbytes(512)
-        addr = i * len(pkt)
+        addr = round_align(i * len(pkt))
+        tb.log.info(f'Pushing packet of length {len(pkt)} to {addr}, tag {i}')
         await tb.push_frame_nocheck(pkt, addr, i)
-        checks.append(cocotb.start_soon(tb.check_result()))
-    for c in checks:
-        await c
+        # chain checks and wait on the last one
+        task = cocotb.start_soon(tb.check_result(task))
+    await task.join()
 
 def cycle_pause():
     # 1 cycle ready in 4 cycles
@@ -132,6 +159,7 @@ if cocotb.SIM_NAME:
         factory = TestFactory(test)
         factory.add_option('idle_inserter', [None, cycle_pause])
         factory.add_option('backpressure_inserter', [None, cycle_pause])
+        factory.add_option('stall', [True, False])
         factory.generate_tests()
 
 # cocotb-test
@@ -159,7 +187,7 @@ def test_match_engine(request, matcher_len, buf_frames, data_width):
 
     sim_build = os.path.join(tests_dir, 'sim_build',
         request.node.name.replace('[', '-').replace(']', ''))
-    
+
     run(
         python_search=[tests_dir],
         verilog_sources=verilog_sources,

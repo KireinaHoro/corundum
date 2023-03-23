@@ -82,11 +82,12 @@ module pspin_ingress_dma #(
     input  wire                                  m_axi_pspin_rvalid,
     output wire                                  m_axi_pspin_rready,
 
-    // to HER gen - no ready intf, shouldn't block
-    output wire [AXI_ADDR_WIDTH-1:0]             her_gen_addr,
-    output wire [LEN_WIDTH-1:0]                  her_gen_len,
-    output wire [TAG_WIDTH-1:0]                  her_gen_tag,
-    output wire                                  her_gen_valid
+    // to HER gen, with backpressure
+    output reg  [AXI_ADDR_WIDTH-1:0]             her_gen_addr,
+    output reg  [LEN_WIDTH-1:0]                  her_gen_len,
+    output reg  [TAG_WIDTH-1:0]                  her_gen_tag,
+    output reg                                   her_gen_valid,
+    input  wire                                  her_gen_ready
 );
 
 localparam PACKET_BEATS = (INGRESS_DMA_MTU * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
@@ -116,9 +117,29 @@ wire [AXIS_IF_RX_USER_WIDTH-1:0]      desc_status_user;
 wire [3:0]                            desc_status_error;
 wire                                  desc_status_valid;
 
-assign her_gen_addr  = desc_status_addr;
-assign her_gen_len   = desc_status_len;
-assign her_gen_tag   = desc_status_tag;
+wire                                  dma_ready, dma_valid;
+
+// latch completion until acknowledgement
+always @(posedge clk) begin
+    // desc_status_error: axi_dma_wr.v
+    if (desc_status_valid && desc_status_error == 4'd0) begin
+        her_gen_addr  <= desc_status_addr;
+        her_gen_len   <= desc_status_len;
+        her_gen_tag   <= desc_status_tag;
+        her_gen_valid <= 1'b1;
+    end
+
+    if (her_gen_valid && her_gen_ready) begin
+        her_gen_valid <= 1'b0;
+    end
+
+    if (!rstn) begin
+        her_gen_valid <= 1'b0;
+        her_gen_addr  <= {AXI_ADDR_WIDTH{1'b0}};
+        her_gen_len   <= {LEN_WIDTH{1'b0}};
+        her_gen_tag   <= {TAG_WIDTH{1'b0}};
+    end
+end
 
 assign m_axi_pspin_arid = {AXI_ID_WIDTH{1'b0}};
 assign m_axi_pspin_araddr = {AXI_ADDR_WIDTH{1'b0}};
@@ -131,8 +152,12 @@ assign m_axi_pspin_arprot = 3'b0;
 assign m_axi_pspin_arvalid = 1'b0;
 assign m_axi_pspin_rready = 1'b0;
 
-// desc_status_error: axi_dma_wr.v
-assign her_gen_valid = desc_status_valid && desc_status_error == 4'd0;
+// we are ready if both PsPIN and the AXI DMA are ready
+// otherwise we risk being unable to deliver the completion (HER)
+// The MPQ engine in PsPIN has a queue so we should still be able to
+// parellelise
+assign write_desc_ready = dma_ready && her_gen_ready;
+assign dma_valid = write_desc_valid && her_gen_ready;
 
 // DMA does not ready streaming intf until receiving desc
 // but length always come after.  buffer here with a FIFO
@@ -198,8 +223,8 @@ axi_dma_wr #(
     .s_axis_write_desc_addr                     (write_desc_addr ),
     .s_axis_write_desc_len                      (write_desc_len  ),
     .s_axis_write_desc_tag                      ({write_desc_tag, write_desc_addr}),
-    .s_axis_write_desc_valid                    (write_desc_valid),
-    .s_axis_write_desc_ready                    (write_desc_ready),
+    .s_axis_write_desc_valid                    (dma_valid),
+    .s_axis_write_desc_ready                    (dma_ready),
 
     .m_axis_write_desc_status_len               (desc_status_len  ),
     .m_axis_write_desc_status_tag               ({desc_status_tag, desc_status_addr}),
