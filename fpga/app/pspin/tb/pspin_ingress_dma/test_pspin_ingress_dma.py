@@ -17,26 +17,12 @@ from cocotb.regression import TestFactory
 from cocotbext.axi import AxiStreamSource, AxiStreamBus, AxiStreamFrame
 from cocotbext.axi import AxiBus, AxiRam
 
+from common import *
+
 tests_dir = os.path.dirname(__file__)
 pspin_rtl = os.path.join(tests_dir, '..', '..', 'rtl')
 axis_lib_rtl = os.path.join(tests_dir, '..', '..', 'lib', 'axis', 'rtl')
 axi_lib_rtl = os.path.join(tests_dir, '..', '..', 'lib', 'axi', 'rtl')
-
-def round_align(number, multiple=64):
-    return multiple * round(number / multiple)
-
-async def Active(signal):
-    if signal.value != 1:
-        await RisingEdge(signal)
-
-async def WithTimeout(action, timeout_ns=10000):
-    # timeout
-    timer = Timer(timeout_ns, 'ns')
-    task = cocotb.start_soon(action)
-    result = await First(task, timer)
-    if result is timer:
-        assert False, 'Timeout waiting for action'
-    return result
 
 class TB:
     def __init__(self, dut):
@@ -88,7 +74,7 @@ class TB:
         self.dut.write_desc_len.value = len(pkt)
         self.dut.write_desc_tag.value = idx
         self.dut.write_desc_valid.value = 1
-        await WithTimeout(Active(self.dut.write_desc_ready))
+        await WithTimeout(Active(self.dut, self.dut.write_desc_ready))
         await RisingEdge(self.dut.clk)
         self.dut.write_desc_valid.value = 0
 
