@@ -21,7 +21,7 @@ module pspin_ingress_dma #(
     parameter AXI_ID_WIDTH = 8,
 
     parameter LEN_WIDTH = 20,
-    parameter TAG_WIDTH = 8,
+    parameter TAG_WIDTH = 32,
 
     parameter INGRESS_DMA_MTU = 1500
 ) (

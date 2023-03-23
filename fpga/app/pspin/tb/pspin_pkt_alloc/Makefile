@@ -34,7 +34,7 @@ VERILOG_SOURCES += ../../lib/axis/rtl/axis_fifo.v
 
 # module parameters
 export PARAM_LEN_WIDTH ?= 20
-export PARAM_TAG_WIDTH ?= 8
+export PARAM_TAG_WIDTH ?= 32
 export PARAM_ADDR_WIDTH ?= 32
 export PARAM_INFLIGHT_WIDTH ?= 32
 export PARAM_MSGID_WIDTH ?= 10

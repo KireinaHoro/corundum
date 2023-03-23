@@ -1,4 +1,5 @@
 from ast import Assert
+import random
 import logging
 import os
 import itertools
@@ -41,7 +42,8 @@ class TB:
     async def enqueue_pkt(self, size, timeout=1000):
         self.dut.pkt_len_i.value = size
         self.dut.pkt_valid_i.value = 1
-        self.dut.pkt_tag_i.value = 0xdeadbeef
+        tag = random.randint(0, 2**32-1)
+        self.dut.pkt_tag_i.value = tag
         # make sure the beat had ready && valid and held for one cycle
         await RisingEdge(self.dut.clk)
         while self.dut.pkt_ready_o == 0 and timeout:
@@ -50,6 +52,7 @@ class TB:
         assert timeout > 0 or self.dut.pkt_ready_o.value == 1
         self.dut.pkt_valid_i.value = 0
         # do not advance clock such that we can allow lat=1 enqueue
+        return tag
 
     async def dequeue_addr(self, timeout=1000):
         await WithTimeout(Active(self.dut, self.dut.write_ready_i), timeout_ns=timeout)
@@ -59,14 +62,17 @@ class TB:
         result = await First(allocated, dropped)
         if result is dropped:
             allocated.kill()
-            return -1, 0
+            return -1, 0, 0
         return self.dut.write_addr_o.value, self.dut.write_len_o.value, self.dut.write_tag_o.value
 
     async def do_alloc(self, size, timeout=1000):
-        await self.enqueue_pkt(size, timeout)
+        expected_tag = await self.enqueue_pkt(size, timeout)
         addr, len, tag = await self.dequeue_addr()
         assert int(len) >= size or not int(len)
         assert int(addr) + int(len) <= int(self.dut.BUF_START) + int(self.dut.BUF_SIZE)
+        if len:
+            # only check tag for successfully allocated packet
+            assert expected_tag == tag
         return addr, len
 
     async def do_free(self, addr, size, timeout=100):
