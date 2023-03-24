@@ -12,6 +12,8 @@
  * should always be set up before enabling the matching engine.
  */
 
+`define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
+
 `define HER_META(X) \
     `X(handler_mem_addr, AXI_ADDR_WIDTH) \
     `X(handler_mem_size, AXI_ADDR_WIDTH) \
@@ -62,23 +64,14 @@ module pspin_her_gen #(
     output wire                             gen_ready,
 
     // execution context from ctrl regs
-`define INPUT_CFG(name, width) input wire [(width)-1:0] conf_``name,
+`define INPUT_CFG(name, width) input wire [NUM_HANDLER_CTX*(width)-1:0] conf_``name,
 `HER_META(INPUT_CFG)
-    input  wire                             conf_ctx_enabled,
-    input  wire [$clog2(NUM_HANDLER_CTX)-1:0] conf_ctx_id,
+    input  wire [NUM_HANDLER_CTX-1:0]       conf_ctx_enabled,
     input  wire                             conf_valid
 );
 
 localparam CTX_ID_WIDTH = $clog2(NUM_HANDLER_CTX);
 `define DEFAULT_CTX_ID {CTX_ID_WIDTH{1'b0}}
-
-initial begin
-    if (C_MSGID_WIDTH + 1 + CTX_ID_WIDTH > TAG_WIDTH) begin
-        $error("TAG_WIDTH = %d too small for C_MSGID_WIDTH = %d and CTX_ID_WIDTH = %d",
-            TAG_WIDTH, C_MSGID_WIDTH, CTX_ID_WIDTH);
-        $finish;
-    end
-end
 
 `define DEF_CTX_STORE(name, width) reg [(width)-1:0] name``_q [NUM_HANDLER_CTX-1:0];
 `HER_META(DEF_CTX_STORE)
@@ -87,6 +80,21 @@ reg conf_ctx_enabled_q [NUM_HANDLER_CTX-1:0];
 wire [C_MSGID_WIDTH-1:0] decode_msgid;
 wire decode_is_eom;
 wire [CTX_ID_WIDTH-1:0] decode_ctx_id;
+
+integer idx;
+initial begin
+    if (C_MSGID_WIDTH + 1 + CTX_ID_WIDTH > TAG_WIDTH) begin
+        $error("TAG_WIDTH = %d too small for C_MSGID_WIDTH = %d and CTX_ID_WIDTH = %d",
+            TAG_WIDTH, C_MSGID_WIDTH, CTX_ID_WIDTH);
+        $finish;
+    end
+
+    // dump for icarus verilog
+    for (idx = 0; idx < NUM_HANDLER_CTX; idx = idx + 1) begin
+`define DUMP_CTX_STORE(name, width) $dumpvars(0, name``_q[idx]);
+`HER_META(DUMP_CTX_STORE)
+    end
+end
 
 // latch the config
 integer i;
@@ -98,9 +106,11 @@ always @(posedge clk) begin
             conf_ctx_enabled_q[i] <= 1'b0;
         end
     end else if (conf_valid) begin
-`define SET_CTX_STORE(name, width) name``_q[conf_ctx_id] <= conf_``name;
+        for (i = 0; i < NUM_HANDLER_CTX; i = i + 1) begin
+`define SET_CTX_STORE(name, width) name``_q[i] <=  `SLICE(conf_``name, i, width);
 `HER_META(SET_CTX_STORE)
-            conf_ctx_enabled_q[conf_ctx_id] <= conf_ctx_enabled;
+            conf_ctx_enabled_q[i] <= conf_ctx_enabled[i];
+        end
     end
 end
 

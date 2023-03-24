@@ -62,9 +62,12 @@ class TB:
 
         self.msgid_width = self.dut.C_MSGID_WIDTH.value
         self.ctx_id_width = self.dut.CTX_ID_WIDTH.value
+        self.num_ctxs = self.dut.NUM_HANDLER_CTX.value
 
         self.log.info(f'msgid_width = {self.msgid_width}')
         self.log.info(f'ctx_id_width = {self.ctx_id_width}')
+
+        self.ctxs = {}
 
     async def cycle_reset(self):
         self.dut.rstn.setimmediatevalue(1)
@@ -81,13 +84,27 @@ class TB:
         await clk_edge
 
     async def set_ctx(self, id, ctx: Optional[ExecutionContext]):
+        self.dut.conf_valid.value = 0
+        await RisingEdge(self.dut.clk)
+
         if ctx:
-            for k, v in ctx.__dict__.items():
-                getattr(self.dut, f'conf_{k}').value = v
-            self.dut.conf_ctx_enabled.value = 1
+            self.ctxs[id] = ctx
         else:
-            self.dut.conf_ctx_enabled.value = 0
-        self.dut.conf_ctx_id.value = id
+            self.ctxs.pop(id)
+
+        metas = {}
+        enabled = 0
+        for k in ctx.__dict__.keys():
+            metas[k] = [(0).to_bytes(4, byteorder='little')] * self.num_ctxs
+
+        for idx, ctx in self.ctxs.items():
+            for k, v in ctx.__dict__.items():
+                metas[k][idx] = v.to_bytes(4, byteorder='little')
+                enabled |= (1 << idx)
+
+        for k, v in metas.items():
+            getattr(self.dut, f'conf_{k}').value = int.from_bytes(b''.join(v), byteorder='little')
+        self.dut.conf_ctx_enabled.value = enabled
         self.dut.conf_valid.value = 1
 
     async def push_gen(self, addr, length, tag):
