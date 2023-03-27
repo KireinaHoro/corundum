@@ -37,7 +37,7 @@ export PARAM_AXI_ADDR_WIDTH ?= 32
 export PARAM_AXI_HOST_ADDR_WIDTH ?= 32
 export PARAM_LEN_WIDTH ?= 20
 export PARAM_TAG_WIDTH ?= 32
-export PARAM_NUM_HANDLER_CTX ?= 8
+export PARAM_NUM_HANDLER_CTX ?= 4
 
 ifeq ($(SIM), icarus)
 	PLUSARGS += -fst

@@ -40,7 +40,7 @@ module pspin_her_gen #(
     parameter AXI_HOST_ADDR_WIDTH = 64,
     parameter LEN_WIDTH = 20,
     parameter TAG_WIDTH = 32,
-    parameter NUM_HANDLER_CTX = 8
+    parameter NUM_HANDLER_CTX = 4
 ) (
     input                                   clk,
     input                                   rstn,

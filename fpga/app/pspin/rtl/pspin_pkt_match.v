@@ -26,18 +26,22 @@
 
 module pspin_pkt_match #(
     parameter UMATCH_WIDTH = 32,
-    parameter UMATCH_ENTRIES = 16,
+    parameter UMATCH_ENTRIES = 4,
     parameter UMATCH_MODES = 2,
+    parameter UMATCH_RULESETS = 4,     // same number as HER contexts
 
     parameter UMATCH_MATCHER_LEN = 66, // TCP + IP + ETH
-    parameter UMATCH_MTU = 1500, // Ethernet MTU - set to 9000 for jumbo frames
+    parameter UMATCH_MTU = 1500,       // Ethernet MTU - set to 9000 for jumbo frames
     parameter UMATCH_BUF_FRAMES = 3,
 
     parameter AXIS_IF_DATA_WIDTH = 512,
     parameter AXIS_IF_KEEP_WIDTH = AXIS_IF_DATA_WIDTH/8,
     parameter AXIS_IF_RX_ID_WIDTH = 1,
     parameter AXIS_IF_RX_DEST_WIDTH = 8,
-    parameter AXIS_IF_RX_USER_WIDTH = 16
+    parameter AXIS_IF_RX_USER_WIDTH = 16,
+
+    parameter TAG_WIDTH = 32,
+    parameter MSG_ID_WIDTH = 10
 ) (
     input wire clk,
     input wire rstn,
@@ -73,15 +77,16 @@ module pspin_pkt_match #(
     output wire [AXIS_IF_RX_USER_WIDTH-1:0]      m_axis_pspin_rx_tuser,
 
     // matching rules
-    input  wire [$clog2(UMATCH_MODES)-1:0]        match_mode,
-    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_idx,
-    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_mask,
-    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_start,
-    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_end,
-    input  wire                                   match_valid,
+    input  wire [$clog2(UMATCH_MODES)*UMATCH_RULESETS-1:0]        match_mode,
+    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_idx,
+    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_mask,
+    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_start,
+    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_end,
+    input  wire [$clog2(UMATCH_RULESETS)*UMATCH_RULESETS-1:0]     match_dest_ctx,
+    input  wire                                                   match_valid,
 
     // packet metadata - size and index
-    output reg  [31:0]                           packet_meta_idx,
+    output wire [TAG_WIDTH-1:0]                  packet_meta_tag,
     output reg  [31:0]                           packet_meta_size,
     output reg                                   packet_meta_valid,
     input  wire                                  packet_meta_ready
@@ -90,6 +95,7 @@ module pspin_pkt_match #(
 localparam MATCHER_BEATS = (UMATCH_MATCHER_LEN * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
 localparam MATCHER_WIDTH = MATCHER_BEATS * AXIS_IF_DATA_WIDTH;
 localparam MATCHER_IDX_WIDTH = $clog2(MATCHER_WIDTH / UMATCH_WIDTH);
+localparam NUM_MATCHERS = UMATCH_ENTRIES * UMATCH_RULESETS;
 localparam PACKET_BEATS = (UMATCH_MTU * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
 localparam BUFFER_FIFO_DEPTH = UMATCH_BUF_FRAMES * PACKET_BEATS * AXIS_IF_KEEP_WIDTH;
 
@@ -144,7 +150,6 @@ reg [MATCHER_IDX_WIDTH-1:0] last_idx;
 localparam
     MATCH_AND = 1'b0,
     MATCH_OR = 1'b1;
-reg matched;
 
 // saved axis metadata
 reg [AXIS_IF_KEEP_WIDTH-1:0] saved_tkeep [MATCHER_BEATS-1:0];
@@ -153,61 +158,100 @@ reg [AXIS_IF_RX_ID_WIDTH-1:0] saved_tid [MATCHER_BEATS-1:0];
 reg [AXIS_IF_RX_DEST_WIDTH-1:0] saved_tdest [MATCHER_BEATS-1:0];
 
 // saved matching rules - only updated when in IDLE
-reg [$clog2(UMATCH_MODES)-1:0]        match_mode_q;
-reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_idx_q;
-reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_mask_q;
-reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_start_q;
-reg [UMATCH_WIDTH*UMATCH_ENTRIES-1:0] match_end_q;
+reg [$clog2(UMATCH_MODES)*UMATCH_RULESETS-1:0]        match_mode_q;
+reg [UMATCH_WIDTH*NUM_MATCHERS-1:0] match_idx_q;
+reg [UMATCH_WIDTH*NUM_MATCHERS-1:0] match_mask_q;
+reg [UMATCH_WIDTH*NUM_MATCHERS-1:0] match_start_q;
+reg [UMATCH_WIDTH*NUM_MATCHERS-1:0] match_end_q;
 
-// matching units
-reg [UMATCH_WIDTH-1:0] mu_data [UMATCH_ENTRIES-1:0];
-reg [UMATCH_WIDTH-1:0] mu_mask [UMATCH_ENTRIES-1:0];
-reg [UMATCH_WIDTH-1:0] mu_start [UMATCH_ENTRIES-1:0];
-reg [UMATCH_WIDTH-1:0] mu_end [UMATCH_ENTRIES-1:0];
-reg [MATCHER_IDX_WIDTH-1:0] mu_idx [UMATCH_ENTRIES-1:0];
-reg [UMATCH_ENTRIES-1:0] mu_matched;
-wire and_matched = &mu_matched;
-wire or_matched = |mu_matched;
+// matching units, in rulesets
+reg [UMATCH_WIDTH-1:0]      mu_data  [UMATCH_RULESETS-1:0][UMATCH_ENTRIES-1:0];
+reg [UMATCH_WIDTH-1:0]      mu_mask  [UMATCH_RULESETS-1:0][UMATCH_ENTRIES-1:0];
+reg [UMATCH_WIDTH-1:0]      mu_start [UMATCH_RULESETS-1:0][UMATCH_ENTRIES-1:0];
+reg [UMATCH_WIDTH-1:0]      mu_end   [UMATCH_RULESETS-1:0][UMATCH_ENTRIES-1:0];
+reg [MATCHER_IDX_WIDTH-1:0] mu_idx   [UMATCH_RULESETS-1:0][UMATCH_ENTRIES-1:0];
+reg [UMATCH_ENTRIES-1:0] mu_matched  [UMATCH_RULESETS-1:0];
+
+reg [UMATCH_RULESETS-1:0] and_matched;
+reg [UMATCH_RULESETS-1:0] or_matched;
+reg [UMATCH_RULESETS-1:0] ruleset_matched;
+reg matched_d, matched_q;
+reg [$clog2(UMATCH_RULESETS)-1:0] matched_ruleset_id_d, matched_ruleset_id_q;
+
+// tag output
+reg [MSG_ID_WIDTH-1:0] packet_idx;
 
 integer idx;
+always @* begin
+    for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
+        and_matched[idx] = &mu_matched[idx];
+        or_matched [idx] = |mu_matched[idx];
+        ruleset_matched[idx] = match_mode_q[idx] == MATCH_AND ? and_matched[idx] : or_matched[idx];
+    end
+
+    matched_d = 1'b0;
+    matched_ruleset_id_d = {$clog2(UMATCH_RULESETS){1'b0}};
+    // priority encoder
+    for (idx = UMATCH_RULESETS-1; idx >= 0; idx = idx - 1) begin
+        if (ruleset_matched[idx]) begin
+            matched_ruleset_id_d = idx;
+            matched_d = 1'b1;
+        end
+    end
+end
+
+integer jdx;
 initial begin
     if (UMATCH_MODES != 2) begin
         $error("Error: exactly 2 modes supported: AND and OR");
         $finish;
     end
+    if (TAG_WIDTH < MSG_ID_WIDTH + 1 + $clog2(UMATCH_RULESETS)) begin
+        $error("Error: TAG_WIDTH (%d) cannot fit packet id, EOM, and ruleset id", TAG_WIDTH);
+        $finish;
+    end
+
     $display("Pkt match engine:");
-    $display("\t%d rules", UMATCH_ENTRIES);
+    $display("\t%d rules per ruleset", UMATCH_ENTRIES);
+    $display("\t%d rulesets", UMATCH_RULESETS);
     $display("\t%d bit beat width", AXIS_IF_DATA_WIDTH);
     $display("\t%d bytes max matching length", UMATCH_MATCHER_LEN);
     $display("\t%d bytes mtu", UMATCH_MTU);
 
     // dump for icarus verilog
-    for (idx = 0; idx < UMATCH_ENTRIES; idx = idx + 1) begin
-        $dumpvars(0, mu_data[idx]);
-        $dumpvars(0, mu_mask[idx]);
-        $dumpvars(0, mu_idx[idx]);
-        $dumpvars(0, mu_start[idx]);
-        $dumpvars(0, mu_end[idx]);
+    /*
+    for (jdx = 0; jdx < UMATCH_RULESETS; jdx = jdx + 1) begin
+        for (idx = 0; idx < UMATCH_ENTRIES; idx = idx + 1) begin
+            $dumpvars(0, mu_data [jdx][idx]);
+            $dumpvars(0, mu_mask [jdx][idx]);
+            $dumpvars(0, mu_idx  [jdx][idx]);
+            $dumpvars(0, mu_start[jdx][idx]);
+            $dumpvars(0, mu_end  [jdx][idx]);
+        end
     end
+    */
 end
 
 generate
-genvar i;
-for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
-    always @* begin
-        mu_idx[i] = `SLICE(match_idx_q, i, UMATCH_WIDTH);
-        mu_mask[i] = `SLICE(match_mask_q, i, UMATCH_WIDTH);
-        mu_data[i] = `SLICE(matcher, mu_idx[i], UMATCH_WIDTH) & mu_mask[i];
-        mu_start[i] = `SLICE(match_start_q, i, UMATCH_WIDTH);
-        mu_end[i] = `SLICE(match_end_q, i, UMATCH_WIDTH);
-        if (mu_mask[i] == {UMATCH_WIDTH{1'b0}}) // mask all zero - MU off
-            case (match_mode_q)
-                MATCH_AND: mu_matched[i] = 1'b1;
-                MATCH_OR:  mu_matched[i] = 1'b0;
-            endcase
-        else
-            mu_matched[i] =
-                mu_start[i] <= mu_data[i] && mu_end[i] >= mu_data[i];
+genvar i, j;
+// per matching unit
+for (j = 0; j < UMATCH_RULESETS; j = j + 1) begin
+    for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
+        always @* begin
+            mu_idx  [j][i] = `SLICE(match_idx_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
+            mu_mask [j][i] = `SLICE(match_mask_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
+            mu_data [j][i] = `SLICE(matcher, j * UMATCH_RULESETS + mu_idx[j][i], UMATCH_WIDTH) & mu_mask[j][i];
+            mu_start[j][i] = `SLICE(match_start_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
+            mu_end  [j][i] = `SLICE(match_end_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
+            if (mu_mask[j][i] == {UMATCH_WIDTH{1'b0}}) // mask all zero - MU off
+                case (match_mode_q[j])
+                    MATCH_AND: mu_matched[j][i] = 1'b1;
+                    MATCH_OR:  mu_matched[j][i] = 1'b0;
+                endcase
+            else
+                mu_matched[j][i] =
+                    mu_start[j][i] <= mu_data[j][i] && mu_end[j][i] >= mu_data[j][i];
+        end
     end
 end
 endgenerate
@@ -217,7 +261,7 @@ always @(posedge clk) begin
     if (send_comb_tvalid && send_tready) begin
         packet_meta_size <= packet_meta_size + AXIS_IF_DATA_WIDTH / 8;
         if (send_comb_tlast) begin
-            packet_meta_idx <= packet_meta_idx + 1;
+            packet_idx <= packet_idx + 1;
             packet_meta_valid <= 1'b1;
         end
     end
@@ -231,11 +275,13 @@ always @(posedge clk) begin
     end
 
     if (!rstn) begin
-        packet_meta_idx <= 32'b0;
+        packet_idx <= 32'b0;
         packet_meta_size <= 32'b0;
         packet_meta_valid <= 1'b0;
     end
 end
+// TODO: match for end-of-message properly
+assign packet_meta_tag = {packet_idx, 1'b1, matched_ruleset_id_q};
 
 always @(posedge clk) begin
     if (!rstn) begin
@@ -306,7 +352,7 @@ always @(posedge clk) begin
             matcher <= {MATCHER_WIDTH{1'b0}};
             matcher_idx <= {MATCHER_IDX_WIDTH{1'b0}};
             last_idx <= {MATCHER_IDX_WIDTH{1'b0}};
-            matched <= 1'b0;
+            matched_q <= 1'b0;
             send_tdata <= {AXIS_IF_DATA_WIDTH{1'b0}};
             send_tvalid <= 1'b0;
             send_tlast <= 1'b0;
@@ -328,12 +374,15 @@ always @(posedge clk) begin
                 match_start_q <= match_start;
                 match_end_q <= match_end;
             end else begin
-                match_mode_q <= {$clog2(UMATCH_MODES){1'b0}};
-                match_idx_q <= {UMATCH_WIDTH*UMATCH_ENTRIES{1'b0}};
-                match_mask_q <= {UMATCH_WIDTH*UMATCH_ENTRIES{1'b0}};
-                match_start_q <= {UMATCH_WIDTH*UMATCH_ENTRIES{1'b0}};
-                match_end_q <= {UMATCH_WIDTH*UMATCH_ENTRIES{1'b0}};
+                match_mode_q <= {$clog2(UMATCH_MODES)*UMATCH_RULESETS{1'b0}};
+                match_idx_q <= {UMATCH_WIDTH*NUM_MATCHERS{1'b0}};
+                match_mask_q <= {UMATCH_WIDTH*NUM_MATCHERS{1'b0}};
+                match_start_q <= {UMATCH_WIDTH*NUM_MATCHERS{1'b0}};
+                match_end_q <= {UMATCH_WIDTH*NUM_MATCHERS{1'b0}};
             end
+
+            matched_ruleset_id_q <= {$clog2(UMATCH_RULESETS){1'b0}};
+            matched_q <= 1'b0;
         end
         RECV: begin
             // FIXME: handle tkeep correctly
@@ -356,8 +405,8 @@ always @(posedge clk) begin
             buffered_tready <= 1'b0;
         end
         MATCH: begin
-            matched <= 
-                match_mode_q == MATCH_AND ? and_matched : or_matched;
+            matched_ruleset_id_q <= matched_ruleset_id_d;
+            matched_q <= matched_d;
         end
         SEND: begin
             send_tdata <= `SLICE(matcher, matcher_idx, AXIS_IF_DATA_WIDTH);
@@ -383,7 +432,7 @@ always @(posedge clk) begin
         default: begin /* nothing */ end
     endcase
 end
-assign send_tready = matched ? m_axis_pspin_rx_tready : m_axis_nic_rx_tready;
+assign send_tready = matched_q ? m_axis_pspin_rx_tready : m_axis_nic_rx_tready;
 
 // passthrough logic
 wire do_pass = state_q == PASSTHROUGH;
@@ -396,21 +445,21 @@ assign send_comb_tid = do_pass ? buffered_tid : send_tid;
 assign send_comb_tdest = do_pass ? buffered_tdest : send_tdest;
 assign send_comb_tuser = do_pass ? buffered_tuser : send_tuser;
 
-assign m_axis_nic_rx_tdata = !matched ? send_comb_tdata : {AXIS_IF_DATA_WIDTH{1'b0}};
-assign m_axis_nic_rx_tkeep = !matched ? send_comb_tkeep : {AXIS_IF_KEEP_WIDTH{1'b0}};
-assign m_axis_nic_rx_tvalid = !matched ? send_comb_tvalid : 1'b0;
-assign m_axis_nic_rx_tlast = !matched ? send_comb_tlast : 1'b0;
-assign m_axis_nic_rx_tid = !matched ? send_comb_tid : {AXIS_IF_RX_ID_WIDTH{1'b0}};
-assign m_axis_nic_rx_tdest = !matched ? send_comb_tdest : {AXIS_IF_RX_DEST_WIDTH{1'b0}};
-assign m_axis_nic_rx_tuser = !matched ? send_comb_tuser : {AXIS_IF_RX_USER_WIDTH{1'b0}};
+assign m_axis_nic_rx_tdata = !matched_q ? send_comb_tdata : {AXIS_IF_DATA_WIDTH{1'b0}};
+assign m_axis_nic_rx_tkeep = !matched_q ? send_comb_tkeep : {AXIS_IF_KEEP_WIDTH{1'b0}};
+assign m_axis_nic_rx_tvalid = !matched_q ? send_comb_tvalid : 1'b0;
+assign m_axis_nic_rx_tlast = !matched_q ? send_comb_tlast : 1'b0;
+assign m_axis_nic_rx_tid = !matched_q ? send_comb_tid : {AXIS_IF_RX_ID_WIDTH{1'b0}};
+assign m_axis_nic_rx_tdest = !matched_q ? send_comb_tdest : {AXIS_IF_RX_DEST_WIDTH{1'b0}};
+assign m_axis_nic_rx_tuser = !matched_q ? send_comb_tuser : {AXIS_IF_RX_USER_WIDTH{1'b0}};
 
-assign m_axis_pspin_rx_tdata = matched ? send_comb_tdata : {AXIS_IF_DATA_WIDTH{1'b0}};
-assign m_axis_pspin_rx_tkeep = matched ? send_comb_tkeep : {AXIS_IF_KEEP_WIDTH{1'b0}};
-assign m_axis_pspin_rx_tvalid = matched ? send_comb_tvalid : 1'b0;
-assign m_axis_pspin_rx_tlast = matched ? send_comb_tlast : 1'b0;
-assign m_axis_pspin_rx_tid = matched ? send_comb_tid : {AXIS_IF_RX_ID_WIDTH{1'b0}};
-assign m_axis_pspin_rx_tdest = matched ? send_comb_tdest : {AXIS_IF_RX_DEST_WIDTH{1'b0}};
-assign m_axis_pspin_rx_tuser = matched ? send_comb_tuser : {AXIS_IF_RX_USER_WIDTH{1'b0}};
+assign m_axis_pspin_rx_tdata = matched_q ? send_comb_tdata : {AXIS_IF_DATA_WIDTH{1'b0}};
+assign m_axis_pspin_rx_tkeep = matched_q ? send_comb_tkeep : {AXIS_IF_KEEP_WIDTH{1'b0}};
+assign m_axis_pspin_rx_tvalid = matched_q ? send_comb_tvalid : 1'b0;
+assign m_axis_pspin_rx_tlast = matched_q ? send_comb_tlast : 1'b0;
+assign m_axis_pspin_rx_tid = matched_q ? send_comb_tid : {AXIS_IF_RX_ID_WIDTH{1'b0}};
+assign m_axis_pspin_rx_tdest = matched_q ? send_comb_tdest : {AXIS_IF_RX_DEST_WIDTH{1'b0}};
+assign m_axis_pspin_rx_tuser = matched_q ? send_comb_tuser : {AXIS_IF_RX_USER_WIDTH{1'b0}};
 
 if (BUFFER_FIFO_DEPTH != 0) begin
 // FIFO to buffer input packets
