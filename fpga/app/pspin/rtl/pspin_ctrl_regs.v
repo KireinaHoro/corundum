@@ -24,6 +24,32 @@
 //   match start          (RW) 0x2300 - 0x2340
 //   match end            (RW) 0x2400 - 0x2440
 
+// - HER generator
+//   conf_valid           (RW) 0x3000
+//   conf_ctx_enabled     (RW) 0x3100 -
+//   handler_mem_addr     (RW) 0x3200 -
+//   handler_mem_size     (RW) 0x3300 -
+//   host_mem_addr_lo     (RW) 0x3400 -
+//   host_mem_addr_hi     (RW) 0x3500 -
+//   host_mem_size        (RW) 0x3600 -
+//   hh_addr              (RW) 0x3700 -
+//   hh_size              (RW) 0x3800 -
+//   ph_addr              (RW) 0x3900 -
+//   ph_size              (RW) 0x3a00 -
+//   th_addr              (RW) 0x3b00 -
+//   th_size              (RW) 0x3c00 -
+//   scratchpad_0_addr    (RW) 0x3d00 -
+//   scratchpad_0_size    (RW) 0x3e00 -
+//   scratchpad_1_addr    (RW) 0x3f00 -
+//   scratchpad_1_size    (RW) 0x4000 -
+//   scratchpad_2_addr    (RW) 0x4100 -
+//   scratchpad_2_size    (RW) 0x4200 -
+//   scratchpad_3_addr    (RW) 0x4300 -
+//   scratchpad_3_size    (RW) 0x4400 -
+
+// XXX: We are latching most of the configuration again at the consumer side.
+//      Should we only latch it once here / at the consumer (timing
+//      considerations)?
 module pspin_ctrl_regs #
 (
     parameter ADDR_WIDTH = 16,
@@ -34,7 +60,9 @@ module pspin_ctrl_regs #
 
     parameter UMATCH_WIDTH = 32,
     parameter UMATCH_ENTRIES = 16,
-    parameter UMATCH_MODES = 2
+    parameter UMATCH_MODES = 2,
+
+    parameter HER_NUM_HANDLER_CTX = 4
 ) (
     input  wire                   clk,
     input  wire                   rst,
@@ -80,14 +108,36 @@ module pspin_ctrl_regs #
     output reg  [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_mask_o,
     output reg  [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_start_o,
     output reg  [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_end_o,
-    output reg                                              match_valid_o
+    output reg                                              match_valid_o,
+
+    // HER generator execution context
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_handler_mem_addr,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_handler_mem_size,
+    output reg  [HER_NUM_HANDLER_CTX*64-1:0]                her_gen_host_mem_addr,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_host_mem_size,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_hh_addr,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_hh_size,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_ph_addr,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_ph_size,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_th_addr,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_th_size,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_0_addr,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_0_size,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_1_addr,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_1_size,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_2_addr,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_2_size,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_3_addr,
+    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_3_size,
+    output reg  [HER_NUM_HANDLER_CTX-1:0]                   her_gen_enabled,
+    output reg                                              her_gen_valid
 );
 
 localparam VALID_ADDR_WIDTH = ADDR_WIDTH - $clog2(STRB_WIDTH);
 localparam WORD_WIDTH = STRB_WIDTH;
 localparam WORD_SIZE = DATA_WIDTH/WORD_WIDTH;
 
-localparam NUM_REGS = 4 + 8 + 1 + 2 + UMATCH_ENTRIES * 4;
+localparam NUM_REGS = 4 + 8 + 1 + 2 + UMATCH_ENTRIES * 4 + HER_NUM_HANDLER_CTX * 20 + 1;
 reg [DATA_WIDTH-1:0] ctrl_regs [NUM_REGS-1:0];
 
 `define REGFILE_IDX_INVALID {VALID_ADDR_WIDTH{1'b1}}
@@ -116,11 +166,34 @@ generate
 `DECL_REG(CL_STAT,  2,               1'b1,   32'h0100, CL_CTRL)
 `DECL_REG(MPQ,      8,               1'b1,   32'h0200, CL_STAT)
 `DECL_REG(FIFO,     1,               1'b1,   32'h1000, MPQ)
+
 `DECL_REG(ME,       2,               1'b0,   32'h2000, FIFO)
 `DECL_REG(ME_IDX,   UMATCH_ENTRIES,  1'b0,   32'h2100, ME)
 `DECL_REG(ME_MASK,  UMATCH_ENTRIES,  1'b0,   32'h2200, ME_IDX)
 `DECL_REG(ME_START, UMATCH_ENTRIES,  1'b0,   32'h2300, ME_MASK)
 `DECL_REG(ME_END,   UMATCH_ENTRIES,  1'b0,   32'h2400, ME_START)
+
+`DECL_REG(HER,                      1,                      1'b0,   32'h3000, ME_END)
+`DECL_REG(HER_CTX_ENABLED,          HER_NUM_HANDLER_CTX,    1'b0,   32'h3100, HER)
+`DECL_REG(HER_HANDLER_MEM_ADDR,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3200, HER_CTX_ENABLED)
+`DECL_REG(HER_HANDLER_MEM_SIZE,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3300, HER_HANDLER_MEM_ADDR)
+`DECL_REG(HER_HOST_MEM_ADDR_LO,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3400, HER_HANDLER_MEM_SIZE)
+`DECL_REG(HER_HOST_MEM_ADDR_HI,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3500, HER_HOST_MEM_ADDR_LO)
+`DECL_REG(HER_HOST_MEM_SIZE,        HER_NUM_HANDLER_CTX,    1'b0,   32'h3600, HER_HOST_MEM_ADDR_HI)
+`DECL_REG(HER_HH_ADDR,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3700, HER_HOST_MEM_SIZE)
+`DECL_REG(HER_HH_SIZE,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3800, HER_HH_ADDR)
+`DECL_REG(HER_PH_ADDR,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3900, HER_HH_SIZE)
+`DECL_REG(HER_PH_SIZE,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3a00, HER_PH_ADDR)
+`DECL_REG(HER_TH_ADDR,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3b00, HER_PH_SIZE)
+`DECL_REG(HER_TH_SIZE,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3c00, HER_TH_ADDR)
+`DECL_REG(HER_SCRATCHPAD_0_ADDR,    HER_NUM_HANDLER_CTX,    1'b0,   32'h3d00, HER_TH_SIZE)
+`DECL_REG(HER_SCRATCHPAD_0_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h3e00, HER_SCRATCHPAD_0_ADDR)
+`DECL_REG(HER_SCRATCHPAD_1_ADDR,    HER_NUM_HANDLER_CTX,    1'b0,   32'h3f00, HER_SCRATCHPAD_0_SIZE)
+`DECL_REG(HER_SCRATCHPAD_1_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4000, HER_SCRATCHPAD_1_ADDR)
+`DECL_REG(HER_SCRATCHPAD_2_ADDR,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4100, HER_SCRATCHPAD_1_SIZE)
+`DECL_REG(HER_SCRATCHPAD_2_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4200, HER_SCRATCHPAD_2_ADDR)
+`DECL_REG(HER_SCRATCHPAD_3_ADDR,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4300, HER_SCRATCHPAD_2_SIZE)
+`DECL_REG(HER_SCRATCHPAD_3_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4400, HER_SCRATCHPAD_3_ADDR)
 endgenerate
 
 // register interface
@@ -152,6 +225,27 @@ reg reg_intf_wr_ack;
             `GEN_DECODE(op, ME_MASK) \
             `GEN_DECODE(op, ME_START) \
             `GEN_DECODE(op, ME_END) \
+            `GEN_DECODE(op, HER) \
+            `GEN_DECODE(op, HER_CTX_ENABLED) \
+            `GEN_DECODE(op, HER_HANDLER_MEM_ADDR) \
+            `GEN_DECODE(op, HER_HANDLER_MEM_SIZE) \
+            `GEN_DECODE(op, HER_HOST_MEM_ADDR_LO) \
+            `GEN_DECODE(op, HER_HOST_MEM_ADDR_HI) \
+            `GEN_DECODE(op, HER_HOST_MEM_SIZE) \
+            `GEN_DECODE(op, HER_HH_ADDR) \
+            `GEN_DECODE(op, HER_HH_SIZE) \
+            `GEN_DECODE(op, HER_PH_ADDR) \
+            `GEN_DECODE(op, HER_PH_SIZE) \
+            `GEN_DECODE(op, HER_TH_ADDR) \
+            `GEN_DECODE(op, HER_TH_SIZE) \
+            `GEN_DECODE(op, HER_SCRATCHPAD_0_ADDR) \
+            `GEN_DECODE(op, HER_SCRATCHPAD_0_SIZE) \
+            `GEN_DECODE(op, HER_SCRATCHPAD_1_ADDR) \
+            `GEN_DECODE(op, HER_SCRATCHPAD_1_SIZE) \
+            `GEN_DECODE(op, HER_SCRATCHPAD_2_ADDR) \
+            `GEN_DECODE(op, HER_SCRATCHPAD_2_SIZE) \
+            `GEN_DECODE(op, HER_SCRATCHPAD_3_ADDR) \
+            `GEN_DECODE(op, HER_SCRATCHPAD_3_SIZE) \
             default:  regfile_idx_``op = `REGFILE_IDX_INVALID; \
         endcase \
     end
@@ -168,10 +262,35 @@ always @* begin
     match_mode_o = ctrl_regs[ME_REG_OFF];
     match_valid_o = ctrl_regs[ME_REG_OFF + 1][0];
     for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
-        match_idx_o[i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_IDX_REG_OFF + i];
-        match_mask_o[i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_MASK_REG_OFF + i];
-        match_start_o[i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_START_REG_OFF + i];
-        match_end_o[i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_END_REG_OFF + i];
+        match_idx_o     [i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_IDX_REG_OFF + i];
+        match_mask_o    [i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_MASK_REG_OFF + i];
+        match_start_o   [i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_START_REG_OFF + i];
+        match_end_o     [i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_END_REG_OFF + i];
+    end
+
+    her_gen_valid = ctrl_regs[HER_REG_OFF][0];
+    for (i = 0; i < HER_NUM_HANDLER_CTX; i = i + 1) begin
+        her_gen_handler_mem_addr        [i * 32 +: 32] = ctrl_regs[HER_HANDLER_MEM_ADDR_REG_OFF + i];
+        her_gen_handler_mem_size        [i * 32 +: 32] = ctrl_regs[HER_HANDLER_MEM_SIZE_REG_OFF + i];
+        her_gen_host_mem_addr           [i * 64 +: 64] = {
+            ctrl_regs[HER_HOST_MEM_ADDR_HI_REG_OFF + i],
+            ctrl_regs[HER_HOST_MEM_ADDR_LO_REG_OFF + i]};
+        her_gen_host_mem_size           [i * 32 +: 32] = ctrl_regs[HER_HOST_MEM_SIZE_REG_OFF + i];
+        her_gen_hh_addr                 [i * 32 +: 32] = ctrl_regs[HER_HH_ADDR_REG_OFF + i];
+        her_gen_hh_size                 [i * 32 +: 32] = ctrl_regs[HER_HH_SIZE_REG_OFF + i];
+        her_gen_ph_addr                 [i * 32 +: 32] = ctrl_regs[HER_PH_ADDR_REG_OFF + i];
+        her_gen_ph_size                 [i * 32 +: 32] = ctrl_regs[HER_PH_SIZE_REG_OFF + i];
+        her_gen_th_addr                 [i * 32 +: 32] = ctrl_regs[HER_TH_ADDR_REG_OFF + i];
+        her_gen_th_size                 [i * 32 +: 32] = ctrl_regs[HER_TH_SIZE_REG_OFF + i];
+        her_gen_scratchpad_0_addr       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_0_ADDR_REG_OFF + i];
+        her_gen_scratchpad_0_size       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_0_ADDR_REG_OFF + i];
+        her_gen_scratchpad_1_addr       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_1_ADDR_REG_OFF + i];
+        her_gen_scratchpad_1_size       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_1_ADDR_REG_OFF + i];
+        her_gen_scratchpad_2_addr       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_2_ADDR_REG_OFF + i];
+        her_gen_scratchpad_2_size       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_2_ADDR_REG_OFF + i];
+        her_gen_scratchpad_3_addr       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
+        her_gen_scratchpad_3_size       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
+        her_gen_enabled                 [i * 32 +: 32] = ctrl_regs[HER_CTX_ENABLED_REG_OFF + i];
     end
 end
 

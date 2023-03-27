@@ -85,6 +85,46 @@ async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inse
     assert tb.dut.match_start_o.value == acc
     assert tb.dut.match_end_o.value == acc
 
+    tb.log.info('Testing HER generation reg')
+    await check_single(0x3000, 0x1, 'her_gen_valid')
+    acc, wide_acc = 0, 0
+    for i in range(tb.dut.HER_NUM_HANDLER_CTX.value):
+        acc += (i << (i * 32))
+        wide_acc += ((i << 32) + i) << (i * 64)
+        await tb.axil_master.write_dword(0x3100 + i * 4, 1) # enabled
+        await tb.axil_master.write_dword(0x3200 + i * 4, i)
+        await tb.axil_master.write_dword(0x3300 + i * 4, i)
+        await tb.axil_master.write_dword(0x3400 + i * 4, i)
+        await tb.axil_master.write_dword(0x3500 + i * 4, i)
+        await tb.axil_master.write_dword(0x3600 + i * 4, i)
+        await tb.axil_master.write_dword(0x3700 + i * 4, i)
+        await tb.axil_master.write_dword(0x3800 + i * 4, i)
+        await tb.axil_master.write_dword(0x3900 + i * 4, i)
+        await tb.axil_master.write_dword(0x3a00 + i * 4, i)
+        await tb.axil_master.write_dword(0x3b00 + i * 4, i)
+        await tb.axil_master.write_dword(0x3c00 + i * 4, i)
+        await tb.axil_master.write_dword(0x3d00 + i * 4, i)
+        await tb.axil_master.write_dword(0x3e00 + i * 4, i)
+        await tb.axil_master.write_dword(0x3f00 + i * 4, i)
+        await tb.axil_master.write_dword(0x4000 + i * 4, i)
+        await tb.axil_master.write_dword(0x4100 + i * 4, i)
+        await tb.axil_master.write_dword(0x4200 + i * 4, i)
+        await tb.axil_master.write_dword(0x4300 + i * 4, i)
+        await tb.axil_master.write_dword(0x4400 + i * 4, i)
+
+    for signal in ['handler_mem_addr', 'handler_mem_size',
+                   'host_mem_size',
+                   'hh_addr', 'hh_size',
+                   'ph_addr', 'ph_size',
+                   'th_addr', 'th_size',
+                   'scratchpad_0_addr', 'scratchpad_0_size',
+                   'scratchpad_1_addr', 'scratchpad_1_size',
+                   'scratchpad_2_addr', 'scratchpad_2_size',
+                   'scratchpad_3_addr', 'scratchpad_3_size',
+                   ]:
+        assert getattr(tb.dut, f'her_gen_{signal}').value == acc
+    assert tb.dut.her_gen_host_mem_addr.value == wide_acc
+
     tb.log.info('Testing status reg readout')
     tb.dut.cl_eoc_i.value = 0b10
     tb.dut.cl_busy_i.value = 0b11

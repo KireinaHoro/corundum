@@ -37,7 +37,7 @@
 module pspin_her_gen #(
     parameter C_MSGID_WIDTH = 10,
     parameter AXI_ADDR_WIDTH = 32,
-    parameter AXI_HOST_ADDR_WIDTH = 32,
+    parameter AXI_HOST_ADDR_WIDTH = 64,
     parameter LEN_WIDTH = 20,
     parameter TAG_WIDTH = 32,
     parameter NUM_HANDLER_CTX = 8
