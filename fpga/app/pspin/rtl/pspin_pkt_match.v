@@ -18,6 +18,11 @@
  * interface.  This should be available for at least one cycle (the IDLE state)
  * before the sending of the next packet takes place.  The DMA engine will need
  * to have an AXI FIFO to delay the stream sufficiently for address generation.
+ *
+ * The matching unit has multiple rulesets, each of which corresponds to one
+ * handler execution context later in the HER generator.  The ID of which ruleset
+ * matched is selected via a priority encoder and then passed in the packet tag
+ * to the allocator.  The allocator forwards this tag to the HER generator.
  */
 
 `timescale 1ns / 1ns
@@ -82,7 +87,6 @@ module pspin_pkt_match #(
     input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_mask,
     input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_start,
     input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_end,
-    input  wire [$clog2(UMATCH_RULESETS)*UMATCH_RULESETS-1:0]     match_dest_ctx,
     input  wire                                                   match_valid,
 
     // packet metadata - size and index
@@ -200,7 +204,6 @@ always @* begin
     end
 end
 
-integer jdx;
 initial begin
     if (UMATCH_MODES != 2) begin
         $error("Error: exactly 2 modes supported: AND and OR");
@@ -217,19 +220,6 @@ initial begin
     $display("\t%d bit beat width", AXIS_IF_DATA_WIDTH);
     $display("\t%d bytes max matching length", UMATCH_MATCHER_LEN);
     $display("\t%d bytes mtu", UMATCH_MTU);
-
-    // dump for icarus verilog
-    /*
-    for (jdx = 0; jdx < UMATCH_RULESETS; jdx = jdx + 1) begin
-        for (idx = 0; idx < UMATCH_ENTRIES; idx = idx + 1) begin
-            $dumpvars(0, mu_data [jdx][idx]);
-            $dumpvars(0, mu_mask [jdx][idx]);
-            $dumpvars(0, mu_idx  [jdx][idx]);
-            $dumpvars(0, mu_start[jdx][idx]);
-            $dumpvars(0, mu_end  [jdx][idx]);
-        end
-    end
-    */
 end
 
 generate
@@ -237,10 +227,18 @@ genvar i, j;
 // per matching unit
 for (j = 0; j < UMATCH_RULESETS; j = j + 1) begin
     for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
+        initial begin
+            $dumpvars(0, mu_data [j][i]);
+            $dumpvars(0, mu_mask [j][i]);
+            $dumpvars(0, mu_idx  [j][i]);
+            $dumpvars(0, mu_start[j][i]);
+            $dumpvars(0, mu_end  [j][i]);
+        end
+
         always @* begin
             mu_idx  [j][i] = `SLICE(match_idx_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
             mu_mask [j][i] = `SLICE(match_mask_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
-            mu_data [j][i] = `SLICE(matcher, j * UMATCH_RULESETS + mu_idx[j][i], UMATCH_WIDTH) & mu_mask[j][i];
+            mu_data [j][i] = `SLICE(matcher, mu_idx[j][i], UMATCH_WIDTH) & mu_mask[j][i];
             mu_start[j][i] = `SLICE(match_start_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
             mu_end  [j][i] = `SLICE(match_end_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
             if (mu_mask[j][i] == {UMATCH_WIDTH{1'b0}}) // mask all zero - MU off
