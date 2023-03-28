@@ -173,7 +173,7 @@ class TB:
         self.dut.packet_meta_ready.value = 1
 
         await self.pkt_src.send(frame)
-        if matched_idx := self.match(pkt) is not None:
+        if (matched_idx := self.match(pkt)) is not None:
             self.log.info(f'Packet #{id} matches with ctx id {matched_idx}')
             sink = self.matched_sink
             ret = True
@@ -199,7 +199,7 @@ class TB:
         assert self.dut.packet_meta_tag.value == tag
 
         assert frame == out, f'mismatched frame:\n{frame}\nvs received:\n{out}'
-        return ret
+        return ret, matched_idx
 
 def load_packets(limit=None):
     if hasattr(load_packets, 'pkts'):
@@ -223,7 +223,7 @@ async def run_test_rule(dut, rule_conf, idle_inserter=None, backpressure_inserte
     rule(tb, 1)
     await tb.set_rule()
     for idx, p in enumerate(pkts):
-        count += await tb.push_pkt(p, idx)
+        count += (await tb.push_pkt(p, idx))[0]
     assert count == expected_count, 'wrong number of packets matched'
 
 async def run_test_switch_rule(dut):
@@ -236,14 +236,35 @@ async def run_test_switch_rule(dut):
     tb.all_bypass(2)
     await tb.set_rule()
     for idx, p in enumerate(pkts):
-        count += await tb.push_pkt(p, idx)
+        count += (await tb.push_pkt(p, idx))[0]
 
     tb.all_match(2)
     await tb.set_rule()
     for p in pkts:
         idx += 1
-        count += await tb.push_pkt(p, idx)
+        count += (await tb.push_pkt(p, idx))[0]
     assert count == expected_count, 'wrong number of packets matched'
+
+async def run_test_simultaneous_rule(dut):
+    tb = TB(dut)
+    await tb.cycle_reset()
+
+    pkts = load_packets(10)
+    expected_count, count = 10, 0
+
+    # the TCP rule takes precedence
+    expected_tcps, tcps = [2, 4, 5, 7, 10], []
+    tb.tcp_dportnum(1, 22)
+    tb.all_match(2)
+    await tb.set_rule()
+    for idx, p in enumerate(pkts):
+        dc, matched_tag = await tb.push_pkt(p, idx)
+        count += dc
+        if matched_tag == 1:
+            tcps.append(idx + 1)
+
+    assert count == expected_count, 'wrong number of packets matched'
+    assert tcps == expected_tcps, 'tcp packets idx mismatch'
 
 # TODO: test packet alloc back pressure
 
@@ -264,6 +285,9 @@ if cocotb.SIM_NAME:
     factory.generate_tests()
 
     factory = TestFactory(run_test_switch_rule)
+    factory.generate_tests()
+
+    factory = TestFactory(run_test_simultaneous_rule)
     factory.generate_tests()
 
 # cocotb-test

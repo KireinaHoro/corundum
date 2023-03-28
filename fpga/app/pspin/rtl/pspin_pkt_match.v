@@ -21,8 +21,9 @@
  *
  * The matching unit has multiple rulesets, each of which corresponds to one
  * handler execution context later in the HER generator.  The ID of which ruleset
- * matched is selected via a priority encoder and then passed in the packet tag
- * to the allocator.  The allocator forwards this tag to the HER generator.
+ * matched is selected via a priority encoder (lower has higher priority) and
+ * then passed in the packet tag to the allocator.  The allocator forwards this
+ * tag to the HER generator.
  */
 
 `timescale 1ns / 1ns
@@ -276,6 +277,7 @@ always @(posedge clk) begin
         packet_idx <= 32'b0;
         packet_meta_size <= 32'b0;
         packet_meta_valid <= 1'b0;
+        matched_ruleset_id_q <= {$clog2(UMATCH_RULESETS){1'b0}};
     end
 end
 // TODO: match for end-of-message properly
@@ -379,7 +381,6 @@ always @(posedge clk) begin
                 match_end_q <= {UMATCH_WIDTH*NUM_MATCHERS{1'b0}};
             end
 
-            matched_ruleset_id_q <= {$clog2(UMATCH_RULESETS){1'b0}};
             matched_q <= 1'b0;
         end
         RECV: begin
