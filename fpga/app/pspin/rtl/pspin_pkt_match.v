@@ -228,6 +228,8 @@ genvar i, j;
 // per matching unit
 for (j = 0; j < UMATCH_RULESETS; j = j + 1) begin
     for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
+        // dumping multi-dimensional arrays needs generate block
+        // https://github.com/steveicarus/iverilog/issues/75#issuecomment-129031448
         initial begin
             $dumpvars(0, mu_data [j][i]);
             $dumpvars(0, mu_mask [j][i]);
