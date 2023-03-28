@@ -24,6 +24,9 @@
 //   match start          (RW) 0x2300 - 0x2340
 //   match end            (RW) 0x2400 - 0x2440
 
+// - packet allocator
+//   dropped packets      (RO) 0x2500
+
 // - HER generator
 //   conf_valid           (RW) 0x3000
 //   conf_ctx_enabled     (RW) 0x3100 -
@@ -102,6 +105,9 @@ module pspin_ctrl_regs #
     (* mark_debug = "true" *) input  wire [31:0]            stdout_dout,
     (* mark_debug = "true" *) input  wire                   stdout_data_valid,
 
+    // packet allocator dropped packets
+    input  wire [31:0]                                      alloc_dropped_pkts,
+
     // matching engine configuration
     output reg  [$clog2(UMATCH_MODES)-1:0]                  match_mode_o,
     output reg  [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_idx_o,
@@ -173,7 +179,9 @@ generate
 `DECL_REG(ME_START, UMATCH_ENTRIES,  1'b0,   32'h2300, ME_MASK)
 `DECL_REG(ME_END,   UMATCH_ENTRIES,  1'b0,   32'h2400, ME_START)
 
-`DECL_REG(HER,                      1,                      1'b0,   32'h3000, ME_END)
+`DECL_REG(ALLOC_DROPPED_PKTS,       1,                      1'b1,   32'h2500, ME_END)
+
+`DECL_REG(HER,                      1,                      1'b0,   32'h3000, ALLOC_DROPPED_PKTS)
 `DECL_REG(HER_CTX_ENABLED,          HER_NUM_HANDLER_CTX,    1'b0,   32'h3100, HER)
 `DECL_REG(HER_HANDLER_MEM_ADDR,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3200, HER_CTX_ENABLED)
 `DECL_REG(HER_HANDLER_MEM_SIZE,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3300, HER_HANDLER_MEM_ADDR)
@@ -225,6 +233,7 @@ reg reg_intf_wr_ack;
             `GEN_DECODE(op, ME_MASK) \
             `GEN_DECODE(op, ME_START) \
             `GEN_DECODE(op, ME_END) \
+            `GEN_DECODE(op, ALLOC_DROPPED_PKTS) \
             `GEN_DECODE(op, HER) \
             `GEN_DECODE(op, HER_CTX_ENABLED) \
             `GEN_DECODE(op, HER_HANDLER_MEM_ADDR) \
@@ -350,6 +359,7 @@ always @(posedge clk) begin
         for (i = 0; i < 8; i = i + 1) begin
             ctrl_regs[MPQ_REG_OFF + i] <= mpq_full_i[i*DATA_WIDTH +: DATA_WIDTH];
         end
+        ctrl_regs[ALLOC_DROPPED_PKTS_REG_OFF] <= alloc_dropped_pkts;
     end
 end
 
