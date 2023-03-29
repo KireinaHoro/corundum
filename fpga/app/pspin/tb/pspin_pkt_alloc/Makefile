@@ -36,7 +36,6 @@ VERILOG_SOURCES += ../../lib/axis/rtl/axis_fifo.v
 export PARAM_LEN_WIDTH ?= 20
 export PARAM_TAG_WIDTH ?= 32
 export PARAM_ADDR_WIDTH ?= 32
-export PARAM_INFLIGHT_WIDTH ?= 32
 export PARAM_MSGID_WIDTH ?= 10
 export PARAM_BUF_START ?= $(shell printf "%d" 0x1c400000)
 # smaller packet buffer for easier simulation

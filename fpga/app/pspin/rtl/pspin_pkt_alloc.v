@@ -11,7 +11,6 @@ module pspin_pkt_alloc #
     parameter LEN_WIDTH = 20,
     parameter TAG_WIDTH = 32,
     parameter ADDR_WIDTH = 32,
-    parameter INFLIGHT_WIDTH = 32,
     parameter MSGID_WIDTH = 10,
     // spin_hw_conf.h: L2_PKT_BUFF_START
     parameter [ADDR_WIDTH-1:0] BUF_START = 32'h1c100000,
