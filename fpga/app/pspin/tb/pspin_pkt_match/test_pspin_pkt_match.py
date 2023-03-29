@@ -32,6 +32,14 @@ class MatchRule:
     start: int
     end: int
 
+    @classmethod
+    def empty(cls): # always true
+        return cls(0, 0, 0, 0)
+
+    @classmethod
+    def false(cls): # always false
+        return cls(0, 0, 1, 0)
+
 MODE_AND = 0
 MODE_OR = 1
 
@@ -61,6 +69,8 @@ class TB:
         # self.matched_sink.log.setLevel(logging.WARNING)
 
         self.rulesets = [([], MODE_OR) for _ in range(4)]
+        for i in range(self.ruleset_count):
+            self.all_bypass(i)
 
     def set_idle_generator(self, generator=None):
         if generator:
@@ -73,22 +83,40 @@ class TB:
             self.unmatched_sink.set_pause_generator(generator())
             self.matched_sink.set_pause_generator(generator())
 
-    # ruleset generation
-    def all_match(self, idx):
-        self.rulesets[idx] = [], MODE_AND
+    # ruleset generation - last rule is the EOM condition
+    def all_match(self, idx, always_eom=True):
+        if always_eom:
+            eom_rule = MatchRule.empty()
+        else: # never eom
+            eom_rule = MatchRule.false()
+        self.rulesets[idx] = [
+            MatchRule.empty(),
+            MatchRule.empty(),
+            MatchRule.empty(),
+            eom_rule,
+        ], MODE_AND
     def all_bypass(self, idx):
-        self.rulesets[idx] = [], MODE_OR
+        self.rulesets[idx] = [
+            MatchRule.false(),
+            MatchRule.false(),
+            MatchRule.false(),
+            MatchRule.false(),
+        ], MODE_AND
     def tcp_dportnum(self, idx, dport):
         assert self.match_width == 32, 'only support 32-bit match atm'
         self.rulesets[idx] = [
             MatchRule(5, 0xff, 0x06, 0x06), # proto == TCP
             MatchRule(9, 0xffff0000, dport << 16, dport << 16), # dport
+            MatchRule.empty(),
+            MatchRule(11, 0x10, 0x10, 0x10) # TCP.ACK set
         ], MODE_AND
     def tcp_or_udp(self, idx):
         assert self.match_width == 32, 'only support 32-bit match atm'
         self.rulesets[idx] = [
             MatchRule(5, 0xff, 0x06, 0x06), # proto == TCP
             MatchRule(5, 0xff, 0x11, 0x11), # proto == UDP
+            MatchRule.false(),
+            MatchRule.false(), # never eom
         ], MODE_OR
 
     # match packet with ruleset
@@ -106,18 +134,21 @@ class TB:
                 im = i & ru.mask
                 self.log.debug(f'i={i:#x}\tim={im:#x}\tru.start={ru.start:#x}\tru.end={ru.end:#x}')
                 return ru.start <= im and im <= ru.end
-            results = map(match_single, self.rulesets[idx][0])
+            results = map(match_single, self.rulesets[idx][0][:-1])
+
+            is_eom = match_single(self.rulesets[idx][0][-1])
             if self.rulesets[idx][1] == MODE_AND:
-                return reduce(operator.and_, results, True)
+                return reduce(operator.and_, results, True), is_eom
             elif self.rulesets[idx][1] == MODE_OR:
-                return reduce(operator.or_, results, False)
+                return reduce(operator.or_, results, False), is_eom
             else:
                 raise ValueError(f'unknown matching mode {self.mode}')
-        for idx in range(self.ruleset_count):
-            if match_ruleset(idx):
-                return idx
+        for idx in range(self.ruleset_count - 1):
+            matched, eom = match_ruleset(idx)
+            if matched:
+                return idx, eom
         
-        return None
+        return None, eom
 
     async def cycle_reset(self):
         self.dut.rstn.setimmediatevalue(1)
@@ -144,11 +175,8 @@ class TB:
 
             self.log.info(f'Setting rule #{rs_idx} {rus}, mode {mo}')
 
-            for ru_idx in range(self.match_count):
-                if ru_idx < len(rus):
-                    ru = rus[ru_idx]
-                else:
-                    ru = MatchRule(0, 0, 0, 0)
+            assert self.match_count == len(rus), 'rule set not completely filled'
+            for ru in rus:
                 concat_idx += ru.idx.to_bytes(self.match_width // 8, byteorder='little')
                 concat_mask += ru.mask.to_bytes(self.match_width // 8, byteorder='big')
                 concat_start += ru.start.to_bytes(self.match_width // 8, byteorder='big')
@@ -173,12 +201,13 @@ class TB:
         self.dut.packet_meta_ready.value = 1
 
         await self.pkt_src.send(frame)
-        if (matched_idx := self.match(pkt)) is not None:
-            self.log.info(f'Packet #{id} matches with ctx id {matched_idx}')
+        if (match_result := self.match(pkt))[0] is not None:
+            matched_idx, eom = match_result
+            self.log.info(f'Packet #{id} matches with ctx id {matched_idx}, eom={eom}')
             sink = self.matched_sink
             ret = True
         else:
-            matched_idx = 0
+            matched_idx, eom = 0, match_result[1]
             self.log.info(f'Packet #{id} does not match')
             sink = self.unmatched_sink
             ret = False
@@ -194,8 +223,8 @@ class TB:
 
         idx = id + 1
         rulesetid_bits = self.ruleset_count.bit_length() - 1
-        self.log.debug(f'Tag components: idx={idx}, eom=1, matched_idx={matched_idx}')
-        tag = matched_idx + (1 << rulesetid_bits) + (idx << (rulesetid_bits + 1))
+        self.log.debug(f'Tag components: idx={idx}, eom={eom}, matched_idx={matched_idx}')
+        tag = matched_idx + (eom << rulesetid_bits) + (idx << (rulesetid_bits + 1))
         assert self.dut.packet_meta_tag.value == tag
 
         assert frame == out, f'mismatched frame:\n{frame}\nvs received:\n{out}'

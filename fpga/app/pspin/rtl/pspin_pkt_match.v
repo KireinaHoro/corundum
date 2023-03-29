@@ -24,6 +24,8 @@
  * matched is selected via a priority encoder (lower has higher priority) and
  * then passed in the packet tag to the allocator.  The allocator forwards this
  * tag to the HER generator.
+ *
+ * The end-of-message bit is generated from the last rule in the ruleset.
  */
 
 `timescale 1ns / 1ns
@@ -180,8 +182,10 @@ reg [UMATCH_ENTRIES-1:0] mu_matched  [UMATCH_RULESETS-1:0];
 reg [UMATCH_RULESETS-1:0] and_matched;
 reg [UMATCH_RULESETS-1:0] or_matched;
 reg [UMATCH_RULESETS-1:0] ruleset_matched;
+reg [UMATCH_RULESETS-1:0] ruleset_eom;
 reg matched_d, matched_q;
 reg [$clog2(UMATCH_RULESETS)-1:0] matched_ruleset_id_d, matched_ruleset_id_q;
+reg matched_ruleset_eom_d, matched_ruleset_eom_q;
 
 // tag output
 reg [MSG_ID_WIDTH-1:0] packet_idx;
@@ -189,16 +193,19 @@ reg [MSG_ID_WIDTH-1:0] packet_idx;
 integer idx;
 always @* begin
     for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
-        and_matched[idx] = &mu_matched[idx];
-        or_matched [idx] = |mu_matched[idx];
+        and_matched[idx] = &mu_matched[idx][UMATCH_ENTRIES-2:0];
+        or_matched [idx] = |mu_matched[idx][UMATCH_ENTRIES-2:0];
         ruleset_matched[idx] = match_mode_q[idx] == MATCH_AND ? and_matched[idx] : or_matched[idx];
+        ruleset_eom[idx] = mu_matched[idx][UMATCH_ENTRIES-1];
     end
 
     matched_d = 1'b0;
     matched_ruleset_id_d = {$clog2(UMATCH_RULESETS){1'b0}};
+    matched_ruleset_eom_d = 1'b0;
     // priority encoder
     for (idx = UMATCH_RULESETS-1; idx >= 0; idx = idx - 1) begin
         if (ruleset_matched[idx]) begin
+            matched_ruleset_eom_d = ruleset_eom[idx];
             matched_ruleset_id_d = idx;
             matched_d = 1'b1;
         end
@@ -227,6 +234,8 @@ generate
 genvar i, j;
 // per matching unit
 for (j = 0; j < UMATCH_RULESETS; j = j + 1) begin
+    initial $dumpvars(0, mu_matched[j]);
+
     for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
         // dumping multi-dimensional arrays needs generate block
         // https://github.com/steveicarus/iverilog/issues/75#issuecomment-129031448
@@ -244,14 +253,9 @@ for (j = 0; j < UMATCH_RULESETS; j = j + 1) begin
             mu_data [j][i] = `SLICE(matcher, mu_idx[j][i], UMATCH_WIDTH) & mu_mask[j][i];
             mu_start[j][i] = `SLICE(match_start_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
             mu_end  [j][i] = `SLICE(match_end_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
-            if (mu_mask[j][i] == {UMATCH_WIDTH{1'b0}}) // mask all zero - MU off
-                case (match_mode_q[j])
-                    MATCH_AND: mu_matched[j][i] = 1'b1;
-                    MATCH_OR:  mu_matched[j][i] = 1'b0;
-                endcase
-            else
-                mu_matched[j][i] =
-                    mu_start[j][i] <= mu_data[j][i] && mu_end[j][i] >= mu_data[j][i];
+
+            mu_matched[j][i] =
+                mu_start[j][i] <= mu_data[j][i] && mu_end[j][i] >= mu_data[j][i];
         end
     end
 end
@@ -280,10 +284,11 @@ always @(posedge clk) begin
         packet_meta_size <= 32'b0;
         packet_meta_valid <= 1'b0;
         matched_ruleset_id_q <= {$clog2(UMATCH_RULESETS){1'b0}};
+        matched_ruleset_eom_q <= 1'b0;
     end
 end
 // TODO: match for end-of-message properly
-assign packet_meta_tag = {packet_idx, 1'b1, matched_ruleset_id_q};
+assign packet_meta_tag = {packet_idx, matched_ruleset_eom_q, matched_ruleset_id_q};
 
 always @(posedge clk) begin
     if (!rstn) begin
@@ -407,6 +412,7 @@ always @(posedge clk) begin
         end
         MATCH: begin
             matched_ruleset_id_q <= matched_ruleset_id_d;
+            matched_ruleset_eom_q <= matched_ruleset_eom_d;
             matched_q <= matched_d;
         end
         SEND: begin
