@@ -24,6 +24,12 @@ class TB:
 
         self.axil_master = AxiLiteMaster(AxiLiteBus.from_prefix(dut, 's_axil'), dut.clk, dut.rst)
 
+        self.ruleset_count = self.dut.UMATCH_RULESETS.value
+        self.rule_count = self.dut.UMATCH_ENTRIES.value
+
+        self.log.info(f'Ruleset count: {self.ruleset_count}')
+        self.log.info(f'Rule count: {self.rule_count}')
+
     def set_idle_generator(self, generator=None):
         if generator:
             self.axil_master.write_if.aw_channel.set_pause_generator(generator())
@@ -70,15 +76,22 @@ async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inse
     await check_single(0x0004, 0b0, 'aux_rst_o')
 
     tb.log.info('Testing matching engine reg')
-    await check_single(0x2000, 0x1, 'match_mode_o')
-    await check_single(0x2004, 0x1, 'match_valid_o')
+    await check_single(0x2000, 0x1, 'match_valid_o')
+    mode_acc = 0
+    for j in range(tb.ruleset_count):
+        mode_acc += 1 << (j * (tb.dut.UMATCH_MODES.value.bit_length() - 1))
+        await tb.axil_master.write_dword(0x2100 + j * 4, 1)
+    assert tb.dut.match_mode_o.value == mode_acc
+
     acc = 0
-    for i in range(tb.dut.UMATCH_ENTRIES.value):
-        acc += (i << (i * tb.dut.UMATCH_WIDTH.value))
-        await tb.axil_master.write_dword(0x2100 + i * 4, i) # mode
-        await tb.axil_master.write_dword(0x2200 + i * 4, i) # mode
-        await tb.axil_master.write_dword(0x2300 + i * 4, i) # mode
-        await tb.axil_master.write_dword(0x2400 + i * 4, i) # mode
+    for j in range(tb.ruleset_count):
+        for i in range(tb.rule_count):
+            gid = j * tb.rule_count + i
+            acc += (gid << (gid * tb.dut.UMATCH_WIDTH.value))
+            await tb.axil_master.write_dword(0x2200 + gid * 4, gid)
+            await tb.axil_master.write_dword(0x2300 + gid * 4, gid)
+            await tb.axil_master.write_dword(0x2400 + gid * 4, gid)
+            await tb.axil_master.write_dword(0x2500 + gid * 4, gid)
 
     assert tb.dut.match_idx_o.value == acc
     assert tb.dut.match_mask_o.value == acc
@@ -129,9 +142,11 @@ async def run_test_regs(dut, data_in=None, idle_inserter=None, backpressure_inse
     tb.dut.cl_eoc_i.value = 0b10
     tb.dut.cl_busy_i.value = 0b11
     tb.dut.mpq_full_i.value = 0xdeadbeef_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff_ffffffff
+    tb.dut.alloc_dropped_pkts.value = 1145
     assert await tb.axil_master.read_dword(0x0100) == 0b10
     assert await tb.axil_master.read_dword(0x0104) == 0b11
     assert await tb.axil_master.read_dwords(0x0200, 8) == [0xffffffff] * 7 + [0xdeadbeef]
+    assert await tb.axil_master.read_dword(0x2600) == 1145
     
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)

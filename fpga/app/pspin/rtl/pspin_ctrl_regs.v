@@ -17,12 +17,12 @@
 // - stdout FIFO          (RO) 0x1000
 
 // - matching engine
-//   match mode           (RW) 0x2000
-//   match valid          (RW) 0x2004
-//   match idx            (RW) 0x2100 - 0x2140
-//   match mask           (RW) 0x2200 - 0x2240
-//   match start          (RW) 0x2300 - 0x2340
-//   match end            (RW) 0x2400 - 0x2440
+//   match valid          (RW) 0x2000
+//   match mode           (RW) 0x2100 -
+//   match idx            (RW) 0x2200 -
+//   match mask           (RW) 0x2300 -
+//   match start          (RW) 0x2400 -
+//   match end            (RW) 0x2500 -
 
 // - packet allocator
 //   dropped packets      (RO) 0x2500
@@ -50,6 +50,8 @@
 //   scratchpad_3_addr    (RW) 0x4300 -
 //   scratchpad_3_size    (RW) 0x4400 -
 
+`define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
+
 // XXX: We are latching most of the configuration again at the consumer side.
 //      Should we only latch it once here / at the consumer (timing
 //      considerations)?
@@ -62,7 +64,8 @@ module pspin_ctrl_regs #
     parameter NUM_MPQ = 256,
 
     parameter UMATCH_WIDTH = 32,
-    parameter UMATCH_ENTRIES = 16,
+    parameter UMATCH_ENTRIES = 4,
+    parameter UMATCH_RULESETS = 4,
     parameter UMATCH_MODES = 2,
 
     parameter HER_NUM_HANDLER_CTX = 4
@@ -109,11 +112,11 @@ module pspin_ctrl_regs #
     input  wire [31:0]                                      alloc_dropped_pkts,
 
     // matching engine configuration
-    output reg  [$clog2(UMATCH_MODES)-1:0]                  match_mode_o,
-    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_idx_o,
-    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_mask_o,
-    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_start_o,
-    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_end_o,
+    output reg  [$clog2(UMATCH_MODES)*UMATCH_RULESETS-1:0]                  match_mode_o,
+    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0]           match_idx_o,
+    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0]           match_mask_o,
+    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0]           match_start_o,
+    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0]           match_end_o,
     output reg                                              match_valid_o,
 
     // HER generator execution context
@@ -143,7 +146,12 @@ localparam VALID_ADDR_WIDTH = ADDR_WIDTH - $clog2(STRB_WIDTH);
 localparam WORD_WIDTH = STRB_WIDTH;
 localparam WORD_SIZE = DATA_WIDTH/WORD_WIDTH;
 
-localparam NUM_REGS = 4 + 8 + 1 + 2 + UMATCH_ENTRIES * 4 + HER_NUM_HANDLER_CTX * 20 + 1;
+localparam NUM_REGS =
+    4 + 8 + 1 + // PsPIN
+    1 + UMATCH_RULESETS + UMATCH_RULESETS * UMATCH_ENTRIES * 4 + // MATCH
+    1 + // ALLOC
+    1 + HER_NUM_HANDLER_CTX * 20 + // HER
+    1; // GUARD
 reg [DATA_WIDTH-1:0] ctrl_regs [NUM_REGS-1:0];
 
 `define REGFILE_IDX_INVALID {VALID_ADDR_WIDTH{1'b1}}
@@ -173,13 +181,14 @@ generate
 `DECL_REG(MPQ,      8,               1'b1,   32'h0200, CL_STAT)
 `DECL_REG(FIFO,     1,               1'b1,   32'h1000, MPQ)
 
-`DECL_REG(ME,       2,               1'b0,   32'h2000, FIFO)
-`DECL_REG(ME_IDX,   UMATCH_ENTRIES,  1'b0,   32'h2100, ME)
-`DECL_REG(ME_MASK,  UMATCH_ENTRIES,  1'b0,   32'h2200, ME_IDX)
-`DECL_REG(ME_START, UMATCH_ENTRIES,  1'b0,   32'h2300, ME_MASK)
-`DECL_REG(ME_END,   UMATCH_ENTRIES,  1'b0,   32'h2400, ME_START)
+`DECL_REG(ME_VALID, 1,                               1'b0,   32'h2000, FIFO)
+`DECL_REG(ME_MODE,  UMATCH_RULESETS,                 1'b0,   32'h2100, ME_VALID)
+`DECL_REG(ME_IDX,   UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2200, ME_MODE)
+`DECL_REG(ME_MASK,  UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2300, ME_IDX)
+`DECL_REG(ME_START, UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2400, ME_MASK)
+`DECL_REG(ME_END,   UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2500, ME_START)
 
-`DECL_REG(ALLOC_DROPPED_PKTS,       1,                      1'b1,   32'h2500, ME_END)
+`DECL_REG(ALLOC_DROPPED_PKTS,       1,                      1'b1,   32'h2600, ME_END)
 
 `DECL_REG(HER,                      1,                      1'b0,   32'h3000, ALLOC_DROPPED_PKTS)
 `DECL_REG(HER_CTX_ENABLED,          HER_NUM_HANDLER_CTX,    1'b0,   32'h3100, HER)
@@ -202,7 +211,16 @@ generate
 `DECL_REG(HER_SCRATCHPAD_2_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4200, HER_SCRATCHPAD_2_ADDR)
 `DECL_REG(HER_SCRATCHPAD_3_ADDR,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4300, HER_SCRATCHPAD_2_SIZE)
 `DECL_REG(HER_SCRATCHPAD_3_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4400, HER_SCRATCHPAD_3_ADDR)
+
+`DECL_REG(GUARD,                    1,                      1'b1,   32'hff00, HER_SCRATCHPAD_3_SIZE)
 endgenerate
+
+initial begin
+    if (NUM_REGS != GUARD_REG_OFF + 1) begin
+        $error("NUM_REGS mismatch with end of reg declaration, please update");
+        $finish;
+    end
+end
 
 // register interface
 wire [ADDR_WIDTH-1:0] reg_intf_rd_addr;
@@ -228,7 +246,8 @@ reg reg_intf_wr_ack;
             `GEN_DECODE(op, CL_STAT) \
             `GEN_DECODE(op, MPQ) \
             `GEN_DECODE(op, FIFO) \
-            `GEN_DECODE(op, ME) \
+            `GEN_DECODE(op, ME_VALID) \
+            `GEN_DECODE(op, ME_MODE) \
             `GEN_DECODE(op, ME_IDX) \
             `GEN_DECODE(op, ME_MASK) \
             `GEN_DECODE(op, ME_START) \
@@ -268,38 +287,42 @@ always @* begin
     cl_fetch_en_o = ctrl_regs[CL_CTRL_REG_OFF];
     aux_rst_o = ctrl_regs[CL_CTRL_REG_OFF + 1][0];
 
-    match_mode_o = ctrl_regs[ME_REG_OFF];
-    match_valid_o = ctrl_regs[ME_REG_OFF + 1][0];
-    for (i = 0; i < UMATCH_ENTRIES; i = i + 1) begin
-        match_idx_o     [i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_IDX_REG_OFF + i];
-        match_mask_o    [i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_MASK_REG_OFF + i];
-        match_start_o   [i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_START_REG_OFF + i];
-        match_end_o     [i * UMATCH_WIDTH +: UMATCH_WIDTH] = ctrl_regs[ME_END_REG_OFF + i];
+    match_valid_o = ctrl_regs[ME_VALID_REG_OFF][0];
+
+    for (i = 0; i < UMATCH_RULESETS; i = i + 1) begin
+        `SLICE(match_mode_o , i, $clog2(UMATCH_MODES)) = ctrl_regs[ME_MODE_REG_OFF + i];
+    end
+
+    for (i = 0; i < UMATCH_ENTRIES*UMATCH_RULESETS; i = i + 1) begin
+        `SLICE(match_idx_o  , i, UMATCH_WIDTH) = ctrl_regs[ME_IDX_REG_OFF + i];
+        `SLICE(match_mask_o , i, UMATCH_WIDTH) = ctrl_regs[ME_MASK_REG_OFF + i];
+        `SLICE(match_start_o, i, UMATCH_WIDTH) = ctrl_regs[ME_START_REG_OFF + i];
+        `SLICE(match_end_o  , i, UMATCH_WIDTH) = ctrl_regs[ME_END_REG_OFF + i];
     end
 
     her_gen_valid = ctrl_regs[HER_REG_OFF][0];
     for (i = 0; i < HER_NUM_HANDLER_CTX; i = i + 1) begin
-        her_gen_handler_mem_addr        [i * 32 +: 32] = ctrl_regs[HER_HANDLER_MEM_ADDR_REG_OFF + i];
-        her_gen_handler_mem_size        [i * 32 +: 32] = ctrl_regs[HER_HANDLER_MEM_SIZE_REG_OFF + i];
-        her_gen_host_mem_addr           [i * 64 +: 64] = {
+        `SLICE(her_gen_handler_mem_addr , i, 32) = ctrl_regs[HER_HANDLER_MEM_ADDR_REG_OFF + i];
+        `SLICE(her_gen_handler_mem_size , i, 32) = ctrl_regs[HER_HANDLER_MEM_SIZE_REG_OFF + i];
+        `SLICE(her_gen_host_mem_addr    , i, 64) = {
             ctrl_regs[HER_HOST_MEM_ADDR_HI_REG_OFF + i],
             ctrl_regs[HER_HOST_MEM_ADDR_LO_REG_OFF + i]};
-        her_gen_host_mem_size           [i * 32 +: 32] = ctrl_regs[HER_HOST_MEM_SIZE_REG_OFF + i];
-        her_gen_hh_addr                 [i * 32 +: 32] = ctrl_regs[HER_HH_ADDR_REG_OFF + i];
-        her_gen_hh_size                 [i * 32 +: 32] = ctrl_regs[HER_HH_SIZE_REG_OFF + i];
-        her_gen_ph_addr                 [i * 32 +: 32] = ctrl_regs[HER_PH_ADDR_REG_OFF + i];
-        her_gen_ph_size                 [i * 32 +: 32] = ctrl_regs[HER_PH_SIZE_REG_OFF + i];
-        her_gen_th_addr                 [i * 32 +: 32] = ctrl_regs[HER_TH_ADDR_REG_OFF + i];
-        her_gen_th_size                 [i * 32 +: 32] = ctrl_regs[HER_TH_SIZE_REG_OFF + i];
-        her_gen_scratchpad_0_addr       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_0_ADDR_REG_OFF + i];
-        her_gen_scratchpad_0_size       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_0_ADDR_REG_OFF + i];
-        her_gen_scratchpad_1_addr       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_1_ADDR_REG_OFF + i];
-        her_gen_scratchpad_1_size       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_1_ADDR_REG_OFF + i];
-        her_gen_scratchpad_2_addr       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_2_ADDR_REG_OFF + i];
-        her_gen_scratchpad_2_size       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_2_ADDR_REG_OFF + i];
-        her_gen_scratchpad_3_addr       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
-        her_gen_scratchpad_3_size       [i * 32 +: 32] = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
-        her_gen_enabled                 [i * 32 +: 32] = ctrl_regs[HER_CTX_ENABLED_REG_OFF + i];
+        `SLICE(her_gen_host_mem_size    , i, 32) = ctrl_regs[HER_HOST_MEM_SIZE_REG_OFF + i];
+        `SLICE(her_gen_hh_addr          , i, 32) = ctrl_regs[HER_HH_ADDR_REG_OFF + i];
+        `SLICE(her_gen_hh_size          , i, 32) = ctrl_regs[HER_HH_SIZE_REG_OFF + i];
+        `SLICE(her_gen_ph_addr          , i, 32) = ctrl_regs[HER_PH_ADDR_REG_OFF + i];
+        `SLICE(her_gen_ph_size          , i, 32) = ctrl_regs[HER_PH_SIZE_REG_OFF + i];
+        `SLICE(her_gen_th_addr          , i, 32) = ctrl_regs[HER_TH_ADDR_REG_OFF + i];
+        `SLICE(her_gen_th_size          , i, 32) = ctrl_regs[HER_TH_SIZE_REG_OFF + i];
+        `SLICE(her_gen_scratchpad_0_addr, i, 32) = ctrl_regs[HER_SCRATCHPAD_0_ADDR_REG_OFF + i];
+        `SLICE(her_gen_scratchpad_0_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_0_ADDR_REG_OFF + i];
+        `SLICE(her_gen_scratchpad_1_addr, i, 32) = ctrl_regs[HER_SCRATCHPAD_1_ADDR_REG_OFF + i];
+        `SLICE(her_gen_scratchpad_1_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_1_ADDR_REG_OFF + i];
+        `SLICE(her_gen_scratchpad_2_addr, i, 32) = ctrl_regs[HER_SCRATCHPAD_2_ADDR_REG_OFF + i];
+        `SLICE(her_gen_scratchpad_2_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_2_ADDR_REG_OFF + i];
+        `SLICE(her_gen_scratchpad_3_addr, i, 32) = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
+        `SLICE(her_gen_scratchpad_3_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
+        `SLICE(her_gen_enabled          , i, 32) = ctrl_regs[HER_CTX_ENABLED_REG_OFF + i];
     end
 end
 
@@ -343,7 +366,7 @@ always @(posedge clk) begin
         for (i = 0; i < STRB_WIDTH; i = i + 1) begin
             if (reg_intf_wr_en && reg_intf_wr_strb[i]) begin
                 if (regfile_idx_wr != `REGFILE_IDX_INVALID && !REGFILE_IDX_READONLY[regfile_idx_wr]) begin
-                    ctrl_regs[regfile_idx_wr][WORD_SIZE*i +: WORD_SIZE] <= reg_intf_wr_data[WORD_SIZE*i +: WORD_SIZE];
+                    `SLICE(ctrl_regs[regfile_idx_wr], i, WORD_SIZE) <= `SLICE(reg_intf_wr_data, i, WORD_SIZE);
                 end
                 reg_intf_wr_ack <= 'b1;
             end
@@ -357,7 +380,7 @@ always @(posedge clk) begin
         ctrl_regs[CL_STAT_REG_OFF]     <= cl_eoc_i;   // eoc
         ctrl_regs[CL_STAT_REG_OFF + 1] <= cl_busy_i;  // busy
         for (i = 0; i < 8; i = i + 1) begin
-            ctrl_regs[MPQ_REG_OFF + i] <= mpq_full_i[i*DATA_WIDTH +: DATA_WIDTH];
+            ctrl_regs[MPQ_REG_OFF + i] <= `SLICE(mpq_full_i, i, DATA_WIDTH);
         end
         ctrl_regs[ALLOC_DROPPED_PKTS_REG_OFF] <= alloc_dropped_pkts;
     end
