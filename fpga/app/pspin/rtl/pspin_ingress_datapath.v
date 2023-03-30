@@ -52,17 +52,20 @@ module pspin_ingress_datapath #(
     parameter LEN_WIDTH = 32,
     parameter TAG_WIDTH = 32,
     parameter MSG_ID_WIDTH = 10,
+
+    parameter [AXI_ADDR_WIDTH-1:0] BUF_START = 32'h1c100000, // 1c000000 + MEM_HND_SIZE
+    parameter [AXI_ADDR_WIDTH-1:0] BUF_SIZE = 512*1024 // match with pspin_cfg_pkg.sv:MEM_PKT_SIZE
 ) (
     input wire                                             clk,
     input wire                                             rstn,
 
     // matching engine configuration
-    input wire [$clog2(UMATCH_MODES)-1:0]                  match_mode,
-    input wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_idx,
-    input wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_mask,
-    input wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_start,
-    input wire [UMATCH_WIDTH*UMATCH_ENTRIES-1:0]           match_end,
-    input wire                                             match_valid,
+    input wire [$clog2(UMATCH_MODES)*NUM_HANDLER_CTX-1:0]         match_mode,
+    input wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]  match_idx,
+    input wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]  match_mask,
+    input wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]  match_start,
+    input wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]  match_end,
+    input wire                                                    match_valid,
 
     // HER generator execution context
 `define INPUT_HER_CFG(name, width) input wire [NUM_HANDLER_CTX*(width)-1:0] her_gen_``name,
@@ -130,7 +133,7 @@ module pspin_ingress_datapath #(
     // HER to PsPIN wrapper
     input  wire                                            her_ready,
     output wire                                            her_valid,
-    output wire [C_MSGID_WIDTH-1:0]                        her_msgid,
+    output wire [MSG_ID_WIDTH-1:0]                         her_msgid,
     output wire                                            her_is_eom,
     output wire [AXI_ADDR_WIDTH-1:0]                       her_addr,
     output wire [AXI_ADDR_WIDTH-1:0]                       her_size,
@@ -141,9 +144,9 @@ module pspin_ingress_datapath #(
     // from PsPIN
     output wire                                            feedback_ready,
     input  wire                                            feedback_valid,
-    input  wire [ADDR_WIDTH-1:0]                           feedback_her_addr,
+    input  wire [AXI_ADDR_WIDTH-1:0]                       feedback_her_addr,
     input  wire [LEN_WIDTH-1:0]                            feedback_her_size,
-    input  wire [MSGID_WIDTH-1:0]                          feedback_msgid,
+    input  wire [MSG_ID_WIDTH-1:0]                         feedback_msgid,
 
     // alloc stats
     output wire [31:0]                                     alloc_dropped_pkts
@@ -241,7 +244,12 @@ pspin_pkt_alloc #(
     .LEN_WIDTH(LEN_WIDTH),
     .TAG_WIDTH(TAG_WIDTH),
     .ADDR_WIDTH(AXI_ADDR_WIDTH),
-    .MSG_ID_WIDTH(MSG_ID_WIDTH)
+    .MSGID_WIDTH(MSG_ID_WIDTH),
+    .BUF_SIZE(512*1024),
+    .SLOT0_COUNT(256),
+    .SLOT1_COUNT(2048),
+    .BUF_START(BUF_START),
+    .BUF_SIZE(BUF_SIZE)
 ) i_alloc (
     .clk,
     .rstn,
@@ -286,11 +294,11 @@ pspin_ingress_dma #(
     .clk,
     .rstn,
 
-    .write_desc_addr,                          (write_addr),
-    .write_desc_len,                           (write_len),
-    .write_desc_tag,                           (write_tag),
-    .write_desc_valid,                         (write_valid),
-    .write_desc_ready,                         (write_ready),
+    .write_desc_addr                           (write_addr),
+    .write_desc_len                            (write_len),
+    .write_desc_tag                            (write_tag),
+    .write_desc_valid                          (write_valid),
+    .write_desc_ready                          (write_ready),
 
     .s_axis_pspin_rx_tdata                     (m_axis_pspin_rx_tdata),
     .s_axis_pspin_rx_tkeep                     (m_axis_pspin_rx_tkeep),
@@ -345,7 +353,7 @@ pspin_ingress_dma #(
 );
 
 pspin_her_gen #(
-    .C_MSGID_WIDTH(MSGID_WIDTH),
+    .C_MSGID_WIDTH(MSG_ID_WIDTH),
     .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
     .AXI_HOST_ADDR_WIDTH(AXI_HOST_ADDR_WIDTH),
     .LEN_WIDTH(LEN_WIDTH),
