@@ -49,7 +49,10 @@ class ExecutionContext:
     async def from_dut(cls, dut):
         fields = inspect.getfullargspec(cls.__init__)[0][1:]
         await WithTimeout(Active(dut, dut.her_valid))
-        return cls(**{k: getattr(dut, f'her_meta_{k}').value for k in fields})
+        await WithTimeout(Active(dut, dut.her_ready))
+        ret = cls(**{k: getattr(dut, f'her_meta_{k}').value for k in fields})
+        await RisingEdge(dut.clk)
+        return ret
 
 class TB:
     def __init__(self, dut):

@@ -71,7 +71,10 @@ class ExecutionContext:
     async def from_dut(cls, dut):
         fields = inspect.getfullargspec(cls.__init__)[0][1:]
         await WithTimeout(Active(dut, dut.her_valid))
-        return cls(**{k: getattr(dut, f'her_meta_{k}').value for k in fields})
+        await WithTimeout(Active(dut, dut.her_ready))
+        ret = cls(**{k: getattr(dut, f'her_meta_{k}').value for k in fields})
+        await RisingEdge(dut.clk)
+        return ret
 
 class TB:
     def __init__(self, dut):
@@ -168,7 +171,7 @@ class TB:
                 # big endian
                 i = reduce(lambda acc, v: (acc << 8) + v, r, 0)
                 im = i & ru.mask
-                self.log.debug(f'i={i:#x}\tim={im:#x}\tru.start={ru.start:#x}\tru.end={ru.end:#x}')
+                # self.log.debug(f'i={i:#x}\tim={im:#x}\tru.start={ru.start:#x}\tru.end={ru.end:#x}')
                 return ru.start <= im and im <= ru.end
             results = map(match_single, self.rulesets[idx][0][:-1])
 
@@ -265,7 +268,11 @@ class TB:
         assert self.dut.her_is_eom.value == eom
         assert her_ctx == ctx
 
-        return self.dut.her_addr.value, self.dut.her_size.value, self.dut.her_xfer_size.value
+        return \
+            self.dut.her_addr.value, \
+            self.dut.her_size.value, \
+            self.dut.her_xfer_size.value, \
+            self.dut.her_msgid.value
 
     def pack_tag(self, msgid, is_eom, decode_ctx_id):
         def shift_mask(v, width, off):
@@ -285,6 +292,7 @@ class TB:
 
     async def push_pkt(self, pkt, id):
         frame = AxiStreamFrame(pkt)
+        self.log.debug(f'Pushing packet len={len(pkt)}')
         # not setting tid, tdest
 
         self.dut.packet_meta_ready.value = 1
@@ -294,18 +302,21 @@ class TB:
             matched_idx, eom = match_result
             self.log.info(f'Packet #{id} matches with ctx id {matched_idx}, eom={eom}')
 
-            addr, size, xfer_size = await self.pop_her(self.ctxs[matched_idx], eom)
-            self.log.info(f'Addr = {int(addr):#x}, size = {int(size)}, xfer_size = {int(xfer_size)}')
+            addr, size, xfer_size, msgid = await self.pop_her(self.ctxs[matched_idx], eom)
+            self.log.info(f'Addr = {int(addr):#x}, size = {int(size)}, xfer_size = {int(xfer_size)}, msgid = {int(msgid)}')
 
             assert size == len(pkt)
             assert self.axi_ram.read(addr, len(pkt)) == pkt
             
+            self.log.debug('Matched packet check finished')
             return True, matched_idx
         else:
             matched_idx, eom = 0, match_result[1]
             self.log.info(f'Packet #{id} does not match')
-            fr = self.unmatched_sink.recv()
-            assert fr == frame, f'mismatch unmatched frame: \n{frame}\nvs received:\n{fr}'
+            fr = await self.unmatched_sink.recv()
+            assert fr == frame, f'mismatched unmatched frame: \n{frame}\nvs received:\n{fr}'
+
+            self.log.debug('Unmatched packet check finished')
             return False, matched_idx
 
     async def do_free(self, addr, size):
