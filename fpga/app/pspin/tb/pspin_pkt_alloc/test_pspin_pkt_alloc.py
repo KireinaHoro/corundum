@@ -68,7 +68,8 @@ class TB:
     async def do_alloc(self, size, timeout=1000):
         expected_tag = await self.enqueue_pkt(size, timeout)
         addr, len, tag = await self.dequeue_addr()
-        assert int(len) >= size or not int(len)
+        # returned length should be packet length
+        assert int(len) == size or not int(len)
         assert int(addr) + int(len) <= int(self.dut.BUF_START) + int(self.dut.BUF_SIZE)
         if len:
             # only check tag for successfully allocated packet

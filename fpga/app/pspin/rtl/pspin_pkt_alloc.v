@@ -218,13 +218,15 @@ always @* begin
             slot0_free_count_d = slot0_free_count_d - 1;
             write_valid_o      = slot0_deq_valid;
             write_addr_o       = slot0_deq_data;
-            write_len_o        = SLOT0_SIZE;
+            // we should pass the packet length
+            write_len_o        = pkt_len_i;
         end else if (SLOT1_SIZE >= pkt_len_i) begin
             slot1_deq_ready    = 1'b1;
             slot1_free_count_d = slot1_free_count_d - 1;
             write_valid_o      = slot1_deq_valid;
             write_addr_o       = slot1_deq_data;
-            write_len_o        = SLOT1_SIZE;
+            // we should pass the packet length
+            write_len_o        = pkt_len_i;
         end else begin
             // packet too big, dropping
             $display("Packet of size %d too big, dropped", pkt_len_i);
@@ -233,11 +235,11 @@ always @* begin
     end
 
     if (feedback_valid_i && feedback_ready_o) begin
-        if (SLOT0_SIZE == feedback_her_size_i) begin
+        if (SLOT0_SIZE >= feedback_her_size_i && feedback_her_size_i > SLOT1_SIZE) begin
             slot0_free_enq_valid = 1'b1;
             slot0_free_enq_data  = feedback_her_addr_i;
             slot0_free_count_d   = slot0_free_count_d + 1;
-        end else if (SLOT1_SIZE == feedback_her_size_i) begin
+        end else if (SLOT1_SIZE >= feedback_her_size_i) begin
             slot1_free_enq_valid = 1'b1;
             slot1_free_enq_data  = feedback_her_addr_i;
             slot1_free_count_d   = slot1_free_count_d + 1;
