@@ -136,7 +136,9 @@ always @(posedge clk) begin
         ];
 `HER_META(ASSIGN_HER_META)
         her_valid <= 1'b1;
-    end else begin
+    end
+
+    if (her_valid && her_ready) begin
         her_valid <= 1'b0;
     end
 

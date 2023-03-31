@@ -73,8 +73,6 @@ class ExecutionContext:
         await WithTimeout(Active(dut, dut.her_valid))
         await WithTimeout(Active(dut, dut.her_ready))
         ret = cls(**{k: getattr(dut, f'her_meta_{k}').value for k in fields})
-        # wait 2 cycles to be sure ready is low, so we do not read the same HER
-        await RisingEdge(dut.clk)
         await RisingEdge(dut.clk)
         return ret
 
@@ -235,14 +233,14 @@ class TB:
         # hold at least one cycle after setting matching rule
         await RisingEdge(self.dut.clk)
 
-    async def set_ctx(self, id, ctx: Optional[ExecutionContext]):
+    async def set_ctx(self, idx, ctx: Optional[ExecutionContext]):
         self.dut.her_gen_valid.value = 0
         await RisingEdge(self.dut.clk)
 
         if ctx:
-            self.ctxs[id] = ctx
+            self.ctxs[idx] = ctx
         else:
-            self.ctxs.pop(id)
+            self.ctxs.pop(idx)
 
         metas = {}
         enabled = 0
@@ -259,7 +257,7 @@ class TB:
         self.dut.her_gen_enabled.value = enabled
         self.dut.her_gen_valid.value = 1
 
-    async def pop_her(self, pkt, ctx, eom):
+    async def pop_her(self, pkt, idx, ctx, eom):
         her_ctx = await ExecutionContext.from_dut(self.dut)
         # assert self.dut.her_msgid.value == self.unpack_tag(tag)[0]
         assert self.dut.her_is_eom.value == eom
@@ -272,6 +270,7 @@ class TB:
             self.dut.her_msgid.value
 
         self.log.info(f'Addr = {int(addr):#x}, size = {int(size)}, xfer_size = {int(xfer_size)}, msgid = {int(msgid)}')
+        assert idx == msgid, f'packet #{idx} missing'
 
         assert size == len(pkt)
         assert self.axi_ram.read(addr, len(pkt)) == pkt
@@ -292,9 +291,9 @@ class TB:
         ctx_id = extract(self.ctx_id_width, 0)
         return msgid, is_eom, ctx_id
 
-    async def check_pkt(self, pkt, id, after=None, prev_task_cb=None):
+    async def check_pkt(self, pkt, idx, after=None, prev_task_cb=None):
         if after:
-            self.log.debug('Joining previous task')
+            # self.log.debug('Joining previous task')
             val = await after.join()
             if prev_task_cb:
                 prev_task_cb(val)
@@ -303,27 +302,27 @@ class TB:
         frame = AxiStreamFrame(pkt)
         if (match_result := self.match(pkt))[0] is not None:
             matched_idx, eom = match_result
-            self.log.info(f'Packet #{id} matches with ctx id {matched_idx}, eom={eom}')
+            self.log.info(f'Packet #{idx} matches with ctx id {matched_idx}, eom={eom}')
 
-            await self.pop_her(pkt, self.ctxs[matched_idx], eom)
+            await self.pop_her(pkt, idx, self.ctxs[matched_idx], eom)
             self.log.debug('Matched packet check finished')
             return True, matched_idx
         else:
             matched_idx, eom = 0, match_result[1]
-            self.log.info(f'Packet #{id} does not match')
+            self.log.info(f'Packet #{idx} does not match')
             fr = await self.unmatched_sink.recv()
             assert fr == frame, f'mismatched unmatched frame: \n{frame}\nvs received:\n{fr}'
 
             self.log.debug('Unmatched packet check finished')
             return False, matched_idx
 
-    async def push_pkt(self, pkt, id):
+    async def push_pkt(self, pkt, idx):
         frame = AxiStreamFrame(pkt)
         self.log.debug(f'Pushing packet len={len(pkt)}')
         # not setting tid, tdest
 
         await self.pkt_src.send(frame)
-        return await self.check_pkt(pkt, id)
+        return await self.check_pkt(pkt, idx)
 
     async def do_free(self, addr, size):
         self.dut.feedback_her_size.value = size
@@ -361,6 +360,8 @@ default_ctx = ExecutionContext(
 async def setup_tb(dut, rule_conf, stall, idle_inserter, backpressure_inserter):
     tb = TB(dut)
     await tb.cycle_reset()
+
+    tb.log.info(f'Setting up test: {rule_conf}, stall={stall}, idle={idle_inserter is not None}, backpressure={backpressure_inserter is not None}')
 
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
