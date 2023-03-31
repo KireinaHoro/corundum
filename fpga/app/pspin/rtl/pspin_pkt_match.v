@@ -146,7 +146,8 @@ localparam [3:0]
     SEND = 4'h5,            // send from matcher
     SEND_WAIT = 4'h6,       // wait for downstream
     SEND_LAST = 4'h7,       // send last beat of matcher
-    PASSTHROUGH = 4'h8;     // pass through pending data
+    PASSTHROUGH = 4'h8,     // pass through pending data
+    META = 4'h9;            // wait for metadata transmit
 reg [3:0] state_q, state_d;
 reg passthrough_q, passthrough_d;
 
@@ -228,6 +229,7 @@ initial begin
     $display("\t%d bit beat width", AXIS_IF_DATA_WIDTH);
     $display("\t%d bytes max matching length", UMATCH_MATCHER_LEN);
     $display("\t%d bytes mtu", UMATCH_MTU);
+    $display("\t%d frames buffered", UMATCH_BUF_FRAMES);
 end
 
 generate
@@ -276,7 +278,9 @@ always @(posedge clk) begin
     if (packet_meta_ready && packet_meta_valid)
         packet_meta_valid <= 1'b0;
 
-    if (state_q == RECV || state_q == RECV_LAST) begin
+    // if IDLE, meta must have been successfully transmitted
+    // (otherwise in META)
+    if (state_q == IDLE) begin
         packet_meta_size <= 32'b0;
         packet_meta_valid <= 1'b0;
     end
@@ -343,12 +347,19 @@ always @* begin
         SEND_LAST: if (send_tvalid && send_tready)
             if (passthrough_q)
                 state_d = PASSTHROUGH;
-            else
+            else if (!matched_q)
                 state_d = IDLE;
+            else
+                state_d = META;
         PASSTHROUGH: if (send_comb_tvalid && send_comb_tready && send_comb_tlast) begin
-            state_d = IDLE;
+            if (!matched_q)
+                state_d = IDLE;
+            else
+                state_d = META;
             passthrough_d = 1'b0;
         end
+        META: if (packet_meta_ready && packet_meta_valid)
+            state_d = IDLE;
         default: state_d = IDLE;
     endcase
 end
@@ -357,7 +368,7 @@ end
 integer k;
 always @(posedge clk) begin
     case (state_d) // next state
-        IDLE: begin
+        META, IDLE: begin
             matcher <= {MATCHER_WIDTH{1'b0}};
             matcher_idx <= {MATCHER_IDX_WIDTH{1'b0}};
             last_idx <= {MATCHER_IDX_WIDTH{1'b0}};
@@ -366,8 +377,8 @@ always @(posedge clk) begin
             send_tvalid <= 1'b0;
             send_tlast <= 1'b0;
             send_tkeep <= {AXIS_IF_KEEP_WIDTH{1'b0}};
-            // ready if no back pressure from allocator
-            buffered_tready <= packet_meta_ready;
+            // wait until META finished
+            buffered_tready <= state_d == IDLE;
 
             for (k = 0; k < MATCHER_BEATS; k = k + 1) begin
                 saved_tkeep[k] <= {AXIS_IF_KEEP_WIDTH{1'b0}};
