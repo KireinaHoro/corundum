@@ -387,29 +387,51 @@ async def run_test_simple(dut, rule_conf, stall=False, idle_inserter=None, backp
 
     count = 0
     for idx, p in enumerate(pkts):
-        matched, idx = await tb.push_pkt(p, idx)
+        matched, idx = await tb.push_pkt(p, idx + 1)
         count += matched
 
     assert count == expected_count, 'wrong number of packets matched'
 
-async def run_test_pipelined():
-    pass
+async def run_test_pipelined(dut, rule_conf, stall=False, idle_inserter=None, backpressure_inserter=None):
+    tb, pkts, expected_count = await setup_tb(dut, rule_conf, stall, idle_inserter, backpressure_inserter)
+
+    count = 0
+    idx = 0
+    def proc_result(val):
+        nonlocal idx, count
+        matched, i = val
+        count += matched
+        idx = i
+    task = None
+    for idx, p in enumerate(pkts):
+        frame = AxiStreamFrame(p)
+        tb.log.debug(f'Pushing packet len={len(p)}')
+        await tb.pkt_src.send(frame)
+
+        task = cocotb.start_soon(
+            tb.check_pkt(p, idx + 1, after=task,
+                         prev_task_cb=proc_result))
+    proc_result(await task.join())
+
+    assert count == expected_count, 'wrong number of packets matched'
 
 def cycle_pause():
     # 1 cycle ready in 4 cycles
     return cycle([1, 1, 1, 0])
 
 if cocotb.SIM_NAME:
-    factory = TestFactory(run_test_simple)
-    factory.add_option('rule_conf', [
-        (10, TB.all_bypass, 0),
-        (10, TB.all_match, 10),
-        (None, lambda tb, idx: TB.tcp_dportnum(tb, idx, 22), 42),
-        (None, TB.tcp_or_udp, 69)
-    ])
-    factory.add_option('idle_inserter', [None, cycle_pause])
-    factory.add_option('backpressure_inserter', [None, cycle_pause])
-    factory.generate_tests()
+    for t in [run_test_simple, run_test_pipelined]:
+        factory = TestFactory(t)
+        factory.add_option('rule_conf', [
+            (10, TB.all_bypass, 0),
+            (10, TB.all_match, 10),
+            (None, lambda tb, idx: TB.tcp_dportnum(tb, idx, 22), 42),
+            (None, TB.tcp_or_udp, 69)
+        ])
+        factory.add_option('stall', [False, True])
+        factory.add_option('idle_inserter', [None, cycle_pause])
+        factory.add_option('backpressure_inserter', [None, cycle_pause])
+        factory.generate_tests()
 
 # cocotb-test
 @pytest.mark.parametrize(
