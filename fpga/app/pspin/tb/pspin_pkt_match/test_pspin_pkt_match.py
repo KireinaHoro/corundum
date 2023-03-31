@@ -215,17 +215,20 @@ class TB:
 
         await RisingEdge(self.dut.clk)
 
-        assert self.dut.packet_meta_valid.value == 1
+        if ret:
+            assert self.dut.packet_meta_valid.value == 1
 
-        beat_size = self.dut.AXIS_IF_DATA_WIDTH.value // 8
-        round_up_len = beat_size * ceil(len(pkt) / beat_size)
-        assert self.dut.packet_meta_size.value == round_up_len
+            beat_size = self.dut.AXIS_IF_DATA_WIDTH.value // 8
+            round_up_len = beat_size * ceil(len(pkt) / beat_size)
+            assert self.dut.packet_meta_size.value == round_up_len
 
-        idx = id + 1
-        rulesetid_bits = self.ruleset_count.bit_length() - 1
-        self.log.debug(f'Tag components: idx={idx}, eom={eom}, matched_idx={matched_idx}')
-        tag = matched_idx + (eom << rulesetid_bits) + (idx << (rulesetid_bits + 1))
-        assert self.dut.packet_meta_tag.value == tag
+            idx = id + 1
+            rulesetid_bits = self.ruleset_count.bit_length() - 1
+            self.log.debug(f'Tag components: idx={idx}, eom={eom}, matched_idx={matched_idx}')
+            tag = matched_idx + (eom << rulesetid_bits) + (idx << (rulesetid_bits + 1))
+            assert self.dut.packet_meta_tag.value == tag
+        else:
+            assert self.dut.packet_meta_valid.value == 0
 
         assert frame == out, f'mismatched frame:\n{frame}\nvs received:\n{out}'
         return ret, matched_idx

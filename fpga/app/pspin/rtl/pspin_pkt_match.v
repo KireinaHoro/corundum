@@ -267,7 +267,9 @@ always @(posedge clk) begin
         packet_meta_size <= packet_meta_size + AXIS_IF_DATA_WIDTH / 8;
         if (send_comb_tlast) begin
             packet_idx <= packet_idx + 1;
-            packet_meta_valid <= 1'b1;
+            // we should still be in PASSTHROUGH / SEND_TLAST, so capture matched_q
+            // we should only output meta if matched
+            packet_meta_valid <= matched_q;
         end
     end
 
