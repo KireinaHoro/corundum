@@ -247,7 +247,8 @@ pspin_pkt_alloc #(
     .MSGID_WIDTH(MSG_ID_WIDTH),
     .BUF_SIZE(512*1024),
     .SLOT0_COUNT(256),
-    .SLOT1_COUNT(2048),
+    .SLOT1_SIZE(128),
+    .SLOT1_COUNT(1024),
     .BUF_START(BUF_START),
     .BUF_SIZE(BUF_SIZE)
 ) i_alloc (
