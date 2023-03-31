@@ -73,6 +73,8 @@ class ExecutionContext:
         await WithTimeout(Active(dut, dut.her_valid))
         await WithTimeout(Active(dut, dut.her_ready))
         ret = cls(**{k: getattr(dut, f'her_meta_{k}').value for k in fields})
+        # wait 2 cycles to be sure ready is low, so we do not read the same HER
+        await RisingEdge(dut.clk)
         await RisingEdge(dut.clk)
         return ret
 
@@ -257,22 +259,22 @@ class TB:
         self.dut.her_gen_enabled.value = enabled
         self.dut.her_gen_valid.value = 1
 
-    async def pop_her(self, ctx, eom, after=None):
-        if after:
-            self.log.debug('Joining previous task')
-            await after.join()
-            await RisingEdge(self.dut.clk)
-
+    async def pop_her(self, pkt, ctx, eom):
         her_ctx = await ExecutionContext.from_dut(self.dut)
         # assert self.dut.her_msgid.value == self.unpack_tag(tag)[0]
         assert self.dut.her_is_eom.value == eom
         assert her_ctx == ctx
 
-        return \
+        addr, size, xfer_size, msgid = \
             self.dut.her_addr.value, \
             self.dut.her_size.value, \
             self.dut.her_xfer_size.value, \
             self.dut.her_msgid.value
+
+        self.log.info(f'Addr = {int(addr):#x}, size = {int(size)}, xfer_size = {int(xfer_size)}, msgid = {int(msgid)}')
+
+        assert size == len(pkt)
+        assert self.axi_ram.read(addr, len(pkt)) == pkt
 
     def pack_tag(self, msgid, is_eom, decode_ctx_id):
         def shift_mask(v, width, off):
@@ -290,24 +292,20 @@ class TB:
         ctx_id = extract(self.ctx_id_width, 0)
         return msgid, is_eom, ctx_id
 
-    async def push_pkt(self, pkt, id):
+    async def check_pkt(self, pkt, id, after=None, prev_task_cb=None):
+        if after:
+            self.log.debug('Joining previous task')
+            val = await after.join()
+            if prev_task_cb:
+                prev_task_cb(val)
+            await RisingEdge(self.dut.clk)
+
         frame = AxiStreamFrame(pkt)
-        self.log.debug(f'Pushing packet len={len(pkt)}')
-        # not setting tid, tdest
-
-        self.dut.packet_meta_ready.value = 1
-
-        await self.pkt_src.send(frame)
         if (match_result := self.match(pkt))[0] is not None:
             matched_idx, eom = match_result
             self.log.info(f'Packet #{id} matches with ctx id {matched_idx}, eom={eom}')
 
-            addr, size, xfer_size, msgid = await self.pop_her(self.ctxs[matched_idx], eom)
-            self.log.info(f'Addr = {int(addr):#x}, size = {int(size)}, xfer_size = {int(xfer_size)}, msgid = {int(msgid)}')
-
-            assert size == len(pkt)
-            assert self.axi_ram.read(addr, len(pkt)) == pkt
-            
+            await self.pop_her(pkt, self.ctxs[matched_idx], eom)
             self.log.debug('Matched packet check finished')
             return True, matched_idx
         else:
@@ -318,6 +316,14 @@ class TB:
 
             self.log.debug('Unmatched packet check finished')
             return False, matched_idx
+
+    async def push_pkt(self, pkt, id):
+        frame = AxiStreamFrame(pkt)
+        self.log.debug(f'Pushing packet len={len(pkt)}')
+        # not setting tid, tdest
+
+        await self.pkt_src.send(frame)
+        return await self.check_pkt(pkt, id)
 
     async def do_free(self, addr, size):
         self.dut.feedback_her_size.value = size
@@ -335,6 +341,12 @@ def load_packets(limit=None):
         load_packets.pkts = list(map(bytes, rdpcap(pcap_file)))
         return load_packets(limit)
 
+async def backpressure_her(dut):
+    pattern = cycle([0, 0, 0, 1])
+    for p in pattern:
+        dut.her_ready.value = p
+        await RisingEdge(dut.clk)
+
 default_ctx = ExecutionContext(
     0xdead00, 0x200,
     0x0, 0x0,
@@ -346,17 +358,19 @@ default_ctx = ExecutionContext(
     0x0, 0x0,
     0x0, 0x0)
 
-async def run_test_simple(dut, rule_conf, idle_inserter=None, backpressure_inserter=None):
+async def setup_tb(dut, rule_conf, stall, idle_inserter, backpressure_inserter):
     tb = TB(dut)
     await tb.cycle_reset()
 
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
+    if stall:
+        cocotb.start_soon(backpressure_her(dut))
+
     limit, rule, expected_count = rule_conf
 
     pkts = load_packets(limit)
-    count = 0
 
     idx = 1
     rule(tb, idx)
@@ -364,6 +378,13 @@ async def run_test_simple(dut, rule_conf, idle_inserter=None, backpressure_inser
     await tb.set_ctx(0, default_ctx)   # default ctx has to be set for HER gen to be ready
     await tb.set_ctx(idx, default_ctx)
 
+    return tb, pkts, expected_count
+
+
+async def run_test_simple(dut, rule_conf, stall=False, idle_inserter=None, backpressure_inserter=None):
+    tb, pkts, expected_count = await setup_tb(dut, rule_conf, stall, idle_inserter, backpressure_inserter)
+
+    count = 0
     for idx, p in enumerate(pkts):
         matched, idx = await tb.push_pkt(p, idx)
         count += matched
