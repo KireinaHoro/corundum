@@ -173,7 +173,7 @@ axis_fifo #(
     .USER_ENABLE(1),
     .USER_WIDTH(AXIS_IF_RX_USER_WIDTH),
     .FRAME_FIFO(1),
-    .DROP_WHEN_FULL(1)
+    .DROP_WHEN_FULL(0)
 ) i_fifo_rx (
     .clk             (clk),
     .rst             (!rstn),
