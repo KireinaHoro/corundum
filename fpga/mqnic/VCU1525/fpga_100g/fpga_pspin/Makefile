@@ -117,6 +117,11 @@ SYN_FILES += app/pspin/rtl/bus_cdc_wrap.v
 SYN_FILES += app/pspin/rtl/mqnic_app_block.v
 SYN_FILES += app/pspin/rtl/pspin_wrap.sv
 SYN_FILES += app/pspin/rtl/pspin_ctrl_regs.v
+SYN_FILES += app/pspin/rtl/pspin_her_gen.v
+SYN_FILES += app/pspin/rtl/pspin_ingress_datapath.v
+SYN_FILES += app/pspin/rtl/pspin_ingress_dma.v
+SYN_FILES += app/pspin/rtl/pspin_pkt_alloc.v
+SYN_FILES += app/pspin/rtl/pspin_pkt_match.v
 
 # PsPIN upstream
 SYN_FILES += app/pspin/deps/pspin/hw/deps/scm/fpga_scm/register_file_1r_1w.sv

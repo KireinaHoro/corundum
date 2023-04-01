@@ -37,6 +37,8 @@ either expressed or implied, of The Regents of the University of California.
 `timescale 1ns / 1ps
 `default_nettype none
 
+`define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
+
 /*
  * Application block
  */
@@ -616,6 +618,26 @@ module mqnic_app_block #
     input  wire                                           jtag_tck
 );
 
+`define HER_META(X) \
+    `X(handler_mem_addr, AXI_ADDR_WIDTH) \
+    `X(handler_mem_size, AXI_ADDR_WIDTH) \
+    `X(host_mem_addr, AXI_HOST_ADDR_WIDTH) \
+    `X(host_mem_size, AXI_ADDR_WIDTH) \
+    `X(hh_addr, AXI_ADDR_WIDTH) \
+    `X(hh_size, AXI_ADDR_WIDTH) \
+    `X(ph_addr, AXI_ADDR_WIDTH) \
+    `X(ph_size, AXI_ADDR_WIDTH) \
+    `X(th_addr, AXI_ADDR_WIDTH) \
+    `X(th_size, AXI_ADDR_WIDTH) \
+    `X(scratchpad_0_addr, AXI_ADDR_WIDTH) \
+    `X(scratchpad_0_size, AXI_ADDR_WIDTH) \
+    `X(scratchpad_1_addr, AXI_ADDR_WIDTH) \
+    `X(scratchpad_1_size, AXI_ADDR_WIDTH) \
+    `X(scratchpad_2_addr, AXI_ADDR_WIDTH) \
+    `X(scratchpad_2_size, AXI_ADDR_WIDTH) \
+    `X(scratchpad_3_addr, AXI_ADDR_WIDTH) \
+    `X(scratchpad_3_size, AXI_ADDR_WIDTH)
+
 // check configuration
 initial begin
     if (APP_ID != 32'h12340100) begin
@@ -626,6 +648,29 @@ end
 
 localparam NUM_CLUSTERS = 2;
 localparam NUM_MPQ = 256;
+
+localparam UMATCH_WIDTH = 32;
+localparam UMATCH_ENTRIES = 4;
+localparam UMATCH_MODES = 2;
+
+localparam UMATCH_MATCHER_LEN = 66;
+localparam UMATCH_MTU = 1500;
+localparam UMATCH_BUF_FRAMES = 3;
+localparam
+localparam NUM_HANDLER_CTX = 4;
+
+localparam AXI_HOST_ADDR_WIDTH = 64; // pspin_cfg_pkg::HOST_AXI_AW
+localparam AXI_DATA_WIDTH = 512; // pspin_cfg_pkg::data_t
+localparam AXI_ADDR_WIDTH = 32;
+localparam AXI_STRB_WIDTH = (AXI_DATA_WIDTH/8);
+localparam AXI_ID_WIDTH = 8;
+
+localparam LEN_WIDTH = 32;
+localparam TAG_WIDTH = 32;
+localparam MSG_ID_WIDTH = 10;
+
+localparam [AXI_ADDR_WIDTH-1:0] BUF_START = 32'h1c100000; // 1c000000 + MEM_HND_SIZE
+localparam [AXI_ADDR_WIDTH-1:0] BUF_SIZE = 512*1024; // match with pspin_cfg_pkg.sv:MEM_PKT_SIZE
 
 wire [NUM_CLUSTERS-1:0] cl_fetch_en;
 wire [NUM_CLUSTERS-1:0] cl_eoc;
@@ -804,6 +849,81 @@ wire stdout_rd_en;
 wire [31:0] stdout_dout;
 wire stdout_data_valid;
 
+wire [31:0]                                      alloc_dropped_pkts;
+
+wire [$clog2(UMATCH_MODES)*UMATCH_RULESETS-1:0]                  match_mode_o;
+wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]           match_idx_o;
+wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]           match_mask_o;
+wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]           match_start_o;
+wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]           match_end_o;
+wire                                             match_valid_o;
+
+`define CONF_HER_WIRE(name, width) wire [NUM_HANDLER_CTX*(width)-1:0] her_gen_``name;
+`HER_META(CONF_HER_WIRE)
+wire [NUM_HANDLER_CTX-1:0]                      her_gen_enabled;
+wire                                            her_gen_valid;
+
+wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_nic_rx_tdata;
+wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_nic_rx_tkeep;
+wire                                            m_axis_nic_rx_tvalid;
+wire                                            m_axis_nic_rx_tready;
+wire                                            m_axis_nic_rx_tlast;
+wire [AXIS_IF_RX_ID_WIDTH-1:0]                  m_axis_nic_rx_tid;
+wire [AXIS_IF_RX_DEST_WIDTH-1:0]                m_axis_nic_rx_tdest;
+wire [AXIS_IF_RX_USER_WIDTH-1:0]                m_axis_nic_rx_tuser;
+
+wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_awid;
+wire [AXI_ADDR_WIDTH-1:0]                       m_axi_pspin_awaddr;
+wire [7:0]                                      m_axi_pspin_awlen;
+wire [2:0]                                      m_axi_pspin_awsize;
+wire [1:0]                                      m_axi_pspin_awburst;
+wire                                            m_axi_pspin_awlock;
+wire [3:0]                                      m_axi_pspin_awcache;
+wire [2:0]                                      m_axi_pspin_awprot;
+wire                                            m_axi_pspin_awvalid;
+wire                                            m_axi_pspin_awready;
+wire [AXI_DATA_WIDTH-1:0]                       m_axi_pspin_wdata;
+wire [AXI_STRB_WIDTH-1:0]                       m_axi_pspin_wstrb;
+wire                                            m_axi_pspin_wlast;
+wire                                            m_axi_pspin_wvalid;
+wire                                            m_axi_pspin_wready;
+wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_bid;
+wire [1:0]                                      m_axi_pspin_bresp;
+wire                                            m_axi_pspin_bvalid;
+wire                                            m_axi_pspin_bready;
+wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_arid;
+wire [AXI_ADDR_WIDTH-1:0]                       m_axi_pspin_araddr;
+wire [7:0]                                      m_axi_pspin_arlen;
+wire [2:0]                                      m_axi_pspin_arsize;
+wire [1:0]                                      m_axi_pspin_arburst;
+wire                                            m_axi_pspin_arlock;
+wire [3:0]                                      m_axi_pspin_arcache;
+wire [2:0]                                      m_axi_pspin_arprot;
+wire                                            m_axi_pspin_arvalid;
+wire                                            m_axi_pspin_arready;
+wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_rid;
+wire [AXI_DATA_WIDTH-1:0]                       m_axi_pspin_rdata;
+wire [1:0]                                      m_axi_pspin_rresp;
+wire                                            m_axi_pspin_rlast;
+wire                                            m_axi_pspin_rvalid;
+wire                                            m_axi_pspin_rready;
+
+wire                                            her_ready;
+wire                                            her_valid;
+wire [MSG_ID_WIDTH-1:0]                         her_msgid;
+wire                                            her_is_eom;
+wire [AXI_ADDR_WIDTH-1:0]                       her_addr;
+wire [AXI_ADDR_WIDTH-1:0]                       her_size;
+wire [AXI_ADDR_WIDTH-1:0]                       her_xfer_size;
+`define HER_WIRE(name, width) wire [(width)-1:0] her_meta_``name;
+`HER_META(HER_WIRE)
+
+wire                                            feedback_ready;
+wire                                            feedback_valid;
+wire [AXI_ADDR_WIDTH-1:0]                       feedback_her_addr;
+wire [LEN_WIDTH-1:0]                            feedback_her_size;
+wire [MSG_ID_WIDTH-1:0]                         feedback_msgid;
+
 pspin_clk_wiz i_pspin_clk_wiz (
     .clk_out1(pspin_clk),
     .reset(rst),
@@ -948,7 +1068,15 @@ pspin_ctrl_regs #(
     .DATA_WIDTH(AXIL_APP_CTRL_DATA_WIDTH),
     .ADDR_WIDTH(16), // we only have 16 bits of addr
     .STRB_WIDTH(AXIL_APP_CTRL_STRB_WIDTH),
-    .NUM_CLUSTERS(NUM_CLUSTERS)
+    .NUM_CLUSTERS(NUM_CLUSTERS),
+    .NUM_MPQ(NUM_MPQ),
+
+    .UMATCH_WIDTH(UMATCH_WIDTH),
+    .UMATCH_ENTRIES(UMATCH_ENTRIES),
+    .UMATCH_RULESETS(NUM_HANDLER_CTX),
+    .UMATCH_MODES(UMATCH_MODES),
+
+    .HER_NUM_HANDLER_CTX(NUM_HANDLER_CTX)
 ) i_pspin_ctrl (
     .clk(pspin_clk),
     .rst(pspin_rst),
@@ -981,7 +1109,21 @@ pspin_ctrl_regs #(
 
     .stdout_rd_en,
     .stdout_dout,
-    .stdout_data_valid
+    .stdout_data_valid,
+
+    .alloc_dropped_pkts,
+
+    .match_mode_o,
+    .match_idx_o,
+    .match_mask_o,
+    .match_start_o,
+    .match_end_o,
+    .match_valid_o,
+
+`define CONF_HER_INST(name, width) .her_gen_``name,
+`HER_META(CONF_HER_INST)
+    .her_gen_enabled,
+    .her_gen_valid
 );
 
 axi_protocol_converter_0 i_host_to_full (
@@ -1118,6 +1260,123 @@ axi_dwidth_converter_0 i_pspin_upsize (
   .m_axi_rready(pspin_axi_full_rready)      // output wire m_axi_rready
 );
 
+pspin_ingress_datapath #(
+    .UMATCH_WIDTH(UMATCH_WIDTH),
+    .UMATCH_ENTRIES(UMATCH_ENTRIES),
+    .UMATCH_MODES(UMATCH_MODES),
+
+    .UMATCH_MATCHER_LEN(UMATCH_MATCHER_LEN),
+    .UMATCH_MTU(UMATCH_MTU),
+    .UMATCH_BUF_FRAMES(UMATCH_BUF_FRAMES),
+ 
+    .NUM_HANDLER_CTX(NUM_HANDLER_CTX),
+
+    .AXIS_IF_DATA_WIDTH(AXIS_IF_DATA_WIDTH),
+    .AXIS_IF_KEEP_WIDTH(AXIS_IF_KEEP_WIDTH),
+    .AXIS_IF_RX_ID_WIDTH(AXIS_IF_RX_ID_WIDTH),
+    .AXIS_IF_RX_DEST_WIDTH(AXIS_IF_RX_DEST_WIDTH),
+    .AXIS_IF_RX_USER_WIDTH(AXIS_IF_RX_USER_WIDTH),
+
+    .AXI_HOST_ADDR_WIDTH(AXI_HOST_ADDR_WIDTH),
+    .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+    .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+    .AXI_STRB_WIDTH(AXI_STRB_WIDTH),
+    .AXI_ID_WIDTH(AXI_ID_WIDTH),
+
+    .LEN_WIDTH(LEN_WIDTH),
+    .TAG_WIDTH(TAG_WIDTH),
+    .MSG_ID_WIDTH(MSG_ID_WIDTH),
+
+    .BUF_START(BUF_START),
+    .BUF_SIZE(BUF_SIZE)
+) i_ingress_path (
+    .clk(pspin_clk),
+    .rstn(!pspin_rst && !aux_rst),
+
+    .match_mode(match_mode_o),
+    .match_idx(match_idx_o),
+    .match_mask(match_mask_o),
+    .match_start(match_start_o),
+    .match_end(match_end_o),
+    .match_valid(match_valid_o),
+
+`HER_META(CONF_HER_INST)
+    .her_gen_enabled,
+    .her_gen_valid,
+
+    .s_axis_nic_rx_tdata(`SLICE(s_axis_if_rx_tdata, 0, AXIS_IF_DATA_WIDTH)),
+    .s_axis_nic_rx_tkeep(`SLICE(s_axis_if_rx_tkeep, 0, AXIS_IF_KEEP_WIDTH)),
+    .s_axis_nic_rx_tvalid(`SLICE(s_axis_if_rx_tvalid, 0, 1)),
+    .s_axis_nic_rx_tready(`SLICE(s_axis_if_rx_tready, 0, 1)),
+    .s_axis_nic_rx_tlast(`SLICE(s_axis_if_rx_tlast, 0, 1)),
+    .s_axis_nic_rx_tid(`SLICE(s_axis_if_rx_tid, 0, AXIS_IF_RX_ID_WIDTH)),
+    .s_axis_nic_rx_tdest(`SLICE(s_axis_if_rx_tdest, 0, AXIS_IF_RX_DEST_WIDTH)),
+    .s_axis_nic_rx_tuser(`SLICE(s_axis_if_rx_tuser, 0, AXIS_IF_RX_USER_WIDTH)),
+
+    .m_axis_nic_rx_tdata,
+    .m_axis_nic_rx_tkeep,
+    .m_axis_nic_rx_tvalid,
+    .m_axis_nic_rx_tready,
+    .m_axis_nic_rx_tlast,
+    .m_axis_nic_rx_tid,
+    .m_axis_nic_rx_tdest,
+    .m_axis_nic_rx_tuser,
+
+    .m_axi_pspin_awid,
+    .m_axi_pspin_awaddr,
+    .m_axi_pspin_awlen,
+    .m_axi_pspin_awsize,
+    .m_axi_pspin_awburst,
+    .m_axi_pspin_awlock,
+    .m_axi_pspin_awcache,
+    .m_axi_pspin_awprot,
+    .m_axi_pspin_awvalid,
+    .m_axi_pspin_awready,
+    .m_axi_pspin_wdata,
+    .m_axi_pspin_wstrb,
+    .m_axi_pspin_wlast,
+    .m_axi_pspin_wvalid,
+    .m_axi_pspin_wready,
+    .m_axi_pspin_bid,
+    .m_axi_pspin_bresp,
+    .m_axi_pspin_bvalid,
+    .m_axi_pspin_bready,
+    .m_axi_pspin_arid,
+    .m_axi_pspin_araddr,
+    .m_axi_pspin_arlen,
+    .m_axi_pspin_arsize,
+    .m_axi_pspin_arburst,
+    .m_axi_pspin_arlock,
+    .m_axi_pspin_arcache,
+    .m_axi_pspin_arprot,
+    .m_axi_pspin_arvalid,
+    .m_axi_pspin_arready,
+    .m_axi_pspin_rid,
+    .m_axi_pspin_rdata,
+    .m_axi_pspin_rresp,
+    .m_axi_pspin_rlast,
+    .m_axi_pspin_rvalid,
+    .m_axi_pspin_rready,
+
+    .her_ready,
+    .her_valid,
+    .her_msgid,
+    .her_is_eom,
+    .her_addr,
+    .her_size,
+    .her_xfer_size,
+`define HER_INST(name, width) .her_meta_``name,
+`HER_META(HER_INST)
+
+    .feedback_ready,
+    .feedback_valid,
+    .feedback_her_addr,
+    .feedback_her_size,
+    .feedback_msgid,
+
+    .alloc_dropped_pkts
+);
+
 pspin_wrap #(
     .N_CLUSTERS(NUM_CLUSTERS), // pspin_cfg_pkg::NUM_CLUSTERS
     .N_MPQ(NUM_MPQ)     // pspin_cfg_pkg::NUM_MPQ
@@ -1171,16 +1430,91 @@ pspin_inst (
     .host_slave_r_data_o    (pspin_axi_full_rdata),
     .host_slave_r_resp_o    (pspin_axi_full_rresp),
     .host_slave_r_last_o    (pspin_axi_full_rlast),
-    .host_slave_r_id_o      (),
-    .host_slave_r_user_o    (),
+    .host_slave_r_id_o      (6'b0),
+    .host_slave_r_user_o    (4'b0),
     .host_slave_r_valid_o   (pspin_axi_full_rvalid),
     .host_slave_r_ready_i   (pspin_axi_full_rready),
 
     .host_slave_b_resp_o    (pspin_axi_full_bresp),
-    .host_slave_b_id_o      (),
-    .host_slave_b_user_o    (),
+    .host_slave_b_id_o      (6'b0),
+    .host_slave_b_user_o    (4'b0),
     .host_slave_b_valid_o   (pspin_axi_full_bvalid),
     .host_slave_b_ready_i   (pspin_axi_full_bready),
+
+    .ni_slave_aw_addr_i(m_axi_pspin_awaddr), //
+    .ni_slave_aw_prot_i(m_axi_pspin_awprot), //
+    .ni_slave_aw_region_i(4'b0),
+    .ni_slave_aw_len_i(m_axi_pspin_awlen), //
+    .ni_slave_aw_size_i(m_axi_pspin_awsize), //
+    .ni_slave_aw_burst_i(m_axi_pspin_awburst), //
+    .ni_slave_aw_lock_i(m_axi_pspin_awlock), //
+    .ni_slave_aw_atop_i(6'b0),
+    .ni_slave_aw_cache_i(m_axi_pspin_awcache), //
+    .ni_slave_aw_qos_i(4'b0),
+    .ni_slave_aw_id_i(m_axi_pspin_awid), //
+    .ni_slave_aw_user_i(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
+    .ni_slave_aw_valid_i(m_axi_pspin_awvalid), //
+    .ni_slave_aw_ready_o(m_axi_pspin_awready), //
+
+    .ni_slave_ar_addr_i(m_axi_pspin_araddr), //
+    .ni_slave_ar_prot_i(m_axi_pspin_arprot), //
+    .ni_slave_ar_region_i(4'b0),
+    .ni_slave_ar_len_i(m_axi_pspin_arlen), //
+    .ni_slave_ar_size_i(m_axi_pspin_arsize), //
+    .ni_slave_ar_burst_i(m_axi_pspin_arburst), //
+    .ni_slave_ar_lock_i(m_axi_pspin_arlock), //
+    .ni_slave_ar_cache_i(m_axi_pspin_arcache), //
+    .ni_slave_ar_qos_i(4'b0),
+    .ni_slave_ar_id_i(m_axi_pspin_arid), //
+    .ni_slave_ar_user_i(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
+    .ni_slave_ar_valid_i(m_axi_pspin_arvalid), //
+    .ni_slave_ar_ready_o(m_axi_pspin_arready), //
+
+    .ni_slave_w_data_i(m_axi_pspin_wdata), //
+    .ni_slave_w_strb_i(m_axi_pspin_wstrb), //
+    .ni_slave_w_user_i(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
+    .ni_slave_w_last_i(m_axi_pspin_wlast), //
+    .ni_slave_w_valid_i(m_axi_pspin_wvalid), //
+    .ni_slave_w_ready_o(m_axi_pspin_wready), //
+
+    .ni_slave_r_data_o(m_axi_pspin_rdata), //
+    .ni_slave_r_resp_o(m_axi_pspin_rresp), //
+    .ni_slave_r_last_o(m_axi_pspin_rlast), //
+    .ni_slave_r_id_o(m_axi_pspin_rid), //
+    .ni_slave_r_user_o(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
+    .ni_slave_r_valid_o(m_axi_pspin_rvalid), //
+    .ni_slave_r_ready_i(m_axi_pspin_rready), //
+
+    .ni_slave_b_resp_o(m_axi_pspin_bresp), //
+    .ni_slave_b_id_o(m_axi_pspin_bid), //
+    .ni_slave_b_user_o(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
+    .ni_slave_b_valid_o(m_axi_pspin_bvalid), //
+    .ni_slave_b_ready_i(m_axi_pspin_bready), //
+
+    .no_slave_aw_valid_i(1'b0),
+    .no_slave_ar_valid_i(1'b0),
+    .no_slave_w_valid_i(1'b0),
+    .no_slave_r_ready_i(1'b0),
+    .no_slave_b_ready_i(1'b0),
+
+    .nic_cmd_req_ready_i(1'b0),
+    .nic_cmd_resp_valid_i(1'b0),
+
+    .her_ready_o(her_ready),
+    .her_valid_i(her_valid),
+    .her_msgid_i(her_msgid),
+    .her_is_eom_i(her_is_eom),
+    .her_addr_i(her_addr),
+    .her_size_i(her_size),
+    .her_xfer_size_i(her_xfer_size),
+`define HER_INST_PSPIN(name, width) .her_meta_``name``_i(her_meta_``name),
+`HER_META(HER_INST_PSPIN)
+
+    .feedback_ready_i(feedback_ready),
+    .feedback_valid_o(feedback_valid),
+    .feedback_her_addr_o(feedback_her_addr),
+    .feedback_her_size_o(feedback_her_size),
+    .feedback_msgid_o(feedback_msgid),
 
     .stdout_rd_en,
     .stdout_dout,
@@ -1311,14 +1645,15 @@ assign m_axis_if_tx_cpl_tag = s_axis_if_tx_cpl_tag;
 assign m_axis_if_tx_cpl_valid = s_axis_if_tx_cpl_valid;
 assign s_axis_if_tx_cpl_ready = m_axis_if_tx_cpl_ready;
 
-assign m_axis_if_rx_tdata = s_axis_if_rx_tdata;
-assign m_axis_if_rx_tkeep = s_axis_if_rx_tkeep;
-assign m_axis_if_rx_tvalid = s_axis_if_rx_tvalid;
-assign s_axis_if_rx_tready = m_axis_if_rx_tready;
-assign m_axis_if_rx_tlast = s_axis_if_rx_tlast;
-assign m_axis_if_rx_tid = s_axis_if_rx_tid;
-assign m_axis_if_rx_tdest = s_axis_if_rx_tdest;
-assign m_axis_if_rx_tuser = s_axis_if_rx_tuser;
+// from PsPIN Ingress Datapath
+assign m_axis_if_rx_tdata = m_axis_nic_rx_tdata;
+assign m_axis_if_rx_tkeep = m_axis_nic_rx_tkeep;
+assign m_axis_if_rx_tvalid = m_axis_nic_rx_tvalid;
+assign m_axis_nic_rx_tready = m_axis_if_rx_tready;
+assign m_axis_if_rx_tlast = m_axis_nic_rx_tlast;
+assign m_axis_if_rx_tid = m_axis_nic_rx_tid;
+assign m_axis_if_rx_tdest = m_axis_nic_rx_tdest;
+assign m_axis_if_rx_tuser = m_axis_nic_rx_tuser;
 
 /*
  * DDR
