@@ -656,7 +656,6 @@ localparam UMATCH_MODES = 2;
 localparam UMATCH_MATCHER_LEN = 66;
 localparam UMATCH_MTU = 1500;
 localparam UMATCH_BUF_FRAMES = 3;
-localparam
 localparam NUM_HANDLER_CTX = 4;
 
 localparam AXI_HOST_ADDR_WIDTH = 64; // pspin_cfg_pkg::HOST_AXI_AW
@@ -851,7 +850,7 @@ wire stdout_data_valid;
 
 wire [31:0]                                      alloc_dropped_pkts;
 
-wire [$clog2(UMATCH_MODES)*UMATCH_RULESETS-1:0]                  match_mode_o;
+wire [$clog2(UMATCH_MODES)*NUM_HANDLER_CTX-1:0]                  match_mode_o;
 wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]           match_idx_o;
 wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]           match_mask_o;
 wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]           match_start_o;

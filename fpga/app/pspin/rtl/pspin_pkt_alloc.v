@@ -63,12 +63,13 @@ endfunction
 
 localparam SLOT0_START = BUF_START;
 localparam SLOT1_START = SLOT0_START + SLOT0_COUNT * SLOT0_SIZE;
+
+localparam aligned_slot0_size = size_roundup(SLOT0_SIZE, PKT_MEM_ALIGNMENT);
+localparam aligned_slot1_size = size_roundup(SLOT1_SIZE, PKT_MEM_ALIGNMENT);
+localparam total_size = SLOT0_SIZE * SLOT0_COUNT + SLOT1_SIZE * SLOT1_COUNT;
+
 // size & alignment assertions
 initial begin
-    localparam aligned_slot0_size = size_roundup(SLOT0_SIZE, PKT_MEM_ALIGNMENT);
-    localparam aligned_slot1_size = size_roundup(SLOT1_SIZE, PKT_MEM_ALIGNMENT);
-    localparam total_size = SLOT0_SIZE * SLOT0_COUNT + SLOT1_SIZE * SLOT1_COUNT;
-
     if (aligned_slot0_size != SLOT0_SIZE) begin
         $error("Error: SLOT0 size not aligned: %d vs %d", aligned_slot0_size, SLOT0_SIZE);
         $finish;
@@ -94,7 +95,7 @@ reg [31:0] dropped_pkts_d;
 reg initialised_q, initialised_d;
 
 wire slot0_enq_ready, slot1_enq_ready;
-reg slot0_enq_valid, slot1_enq_valid;
+wire slot0_enq_valid, slot1_enq_valid;
 wire [ADDR_WIDTH-1:0] slot0_enq_data, slot1_enq_data;
 
 reg [ADDR_WIDTH-1:0] slot0_init_enq_data, slot1_init_enq_data;

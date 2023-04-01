@@ -322,7 +322,7 @@ always @* begin
         `SLICE(her_gen_scratchpad_2_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_2_ADDR_REG_OFF + i];
         `SLICE(her_gen_scratchpad_3_addr, i, 32) = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
         `SLICE(her_gen_scratchpad_3_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
-        `SLICE(her_gen_enabled          , i, 32) = ctrl_regs[HER_CTX_ENABLED_REG_OFF + i];
+        `SLICE(her_gen_enabled          , i, 1)  = ctrl_regs[HER_CTX_ENABLED_REG_OFF + i][0];
     end
 end
 
