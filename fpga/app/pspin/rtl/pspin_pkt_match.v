@@ -289,8 +289,6 @@ always @(posedge clk) begin
         packet_idx <= 32'b0;
         packet_meta_size <= 32'b0;
         packet_meta_valid <= 1'b0;
-        matched_ruleset_id_q <= {$clog2(UMATCH_RULESETS){1'b0}};
-        matched_ruleset_eom_q <= 1'b0;
     end
 end
 // TODO: match for end-of-message properly
@@ -451,6 +449,11 @@ always @(posedge clk) begin
         // PASSTHROUGH: nothing
         default: begin /* nothing */ end
     endcase
+
+    if (!rstn) begin
+        matched_ruleset_id_q <= {$clog2(UMATCH_RULESETS){1'b0}};
+        matched_ruleset_eom_q <= 1'b0;
+    end
 end
 assign send_tready = matched_q ? m_axis_pspin_rx_tready : m_axis_nic_rx_tready;
 
