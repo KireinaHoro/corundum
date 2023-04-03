@@ -655,7 +655,7 @@ localparam UMATCH_MODES = 2;
 
 localparam UMATCH_MATCHER_LEN = 66;
 localparam UMATCH_MTU = 1500;
-localparam UMATCH_BUF_FRAMES = 3;
+localparam UMATCH_BUF_FRAMES = 0;
 localparam NUM_HANDLER_CTX = 4;
 
 localparam AXI_HOST_ADDR_WIDTH = 64; // pspin_cfg_pkg::HOST_AXI_AW
@@ -670,6 +670,10 @@ localparam MSG_ID_WIDTH = 10;
 
 localparam [AXI_ADDR_WIDTH-1:0] BUF_START = 32'h1c100000; // 1c000000 + MEM_HND_SIZE
 localparam [AXI_ADDR_WIDTH-1:0] BUF_SIZE = 512*1024; // match with pspin_cfg_pkg.sv:MEM_PKT_SIZE
+
+// for cdc axis fifo
+localparam PACKET_BEATS = (UMATCH_MTU * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
+localparam IF_CDC_FIFO_DEPTH = 1 * PACKET_BEATS * AXIS_IF_KEEP_WIDTH;
 
 wire [NUM_CLUSTERS-1:0] cl_fetch_en;
 wire [NUM_CLUSTERS-1:0] cl_eoc;
@@ -861,6 +865,15 @@ wire                                             match_valid_o;
 `HER_META(CONF_HER_WIRE)
 wire [NUM_HANDLER_CTX-1:0]                      her_gen_enabled;
 wire                                            her_gen_valid;
+
+wire [AXIS_IF_DATA_WIDTH-1:0]                   s_axis_nic_rx_tdata;
+wire [AXIS_IF_KEEP_WIDTH-1:0]                   s_axis_nic_rx_tkeep;
+wire                                            s_axis_nic_rx_tvalid;
+wire                                            s_axis_nic_rx_tready;
+wire                                            s_axis_nic_rx_tlast;
+wire [AXIS_IF_RX_ID_WIDTH-1:0]                  s_axis_nic_rx_tid;
+wire [AXIS_IF_RX_DEST_WIDTH-1:0]                s_axis_nic_rx_tdest;
+wire [AXIS_IF_RX_USER_WIDTH-1:0]                s_axis_nic_rx_tuser;
 
 wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_nic_rx_tdata;
 wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_nic_rx_tkeep;
@@ -1184,6 +1197,95 @@ axi_protocol_converter_0 i_host_to_full (
   .m_axi_rready(pspin_axi_narrow_rready)      // output wire m_axi_rready
 );
 
+axis_async_fifo #(
+    .DEPTH(IF_CDC_FIFO_DEPTH),
+    .DATA_WIDTH(AXIS_IF_DATA_WIDTH),
+    .KEEP_ENABLE(1),
+    .KEEP_WIDTH(AXIS_IF_KEEP_WIDTH),
+    .ID_ENABLE(1),
+    .ID_WIDTH(AXIS_IF_RX_ID_WIDTH),
+    .DEST_ENABLE(1),
+    .DEST_WIDTH(AXIS_IF_RX_DEST_WIDTH),
+    .USER_ENABLE(1),
+    .USER_WIDTH(AXIS_IF_RX_USER_WIDTH),
+    .FRAME_FIFO(1),
+    .DROP_WHEN_FULL(0)
+) i_if_cdc_fifo_rx_to_pspin (
+    .s_clk(clk),
+    .s_rst(rst),
+
+    .s_axis_tdata(`SLICE(s_axis_if_rx_tdata, 0, AXIS_IF_DATA_WIDTH)),
+    .s_axis_tkeep(`SLICE(s_axis_if_rx_tkeep, 0, AXIS_IF_KEEP_WIDTH)),
+    .s_axis_tvalid(`SLICE(s_axis_if_rx_tvalid, 0, 1)),
+    .s_axis_tready(`SLICE(s_axis_if_rx_tready, 0, 1)),
+    .s_axis_tlast(`SLICE(s_axis_if_rx_tlast, 0, 1)),
+    .s_axis_tid(`SLICE(s_axis_if_rx_tid, 0, AXIS_IF_RX_ID_WIDTH)),
+    .s_axis_tdest(`SLICE(s_axis_if_rx_tdest, 0, AXIS_IF_RX_DEST_WIDTH)),
+    .s_axis_tuser(`SLICE(s_axis_if_rx_tuser, 0, AXIS_IF_RX_USER_WIDTH)),
+
+    .m_clk(pspin_clk),
+    .m_rst(pspin_rst),
+    .m_axis_tdata(s_axis_nic_rx_tdata),
+    .m_axis_tkeep(s_axis_nic_rx_tkeep),
+    .m_axis_tvalid(s_axis_nic_rx_tvalid),
+    .m_axis_tready(s_axis_nic_rx_tready),
+    .m_axis_tlast(s_axis_nic_rx_tlast),
+    .m_axis_tid(s_axis_nic_rx_tid),
+    .m_axis_tdest(s_axis_nic_rx_tdest),
+    .m_axis_tuser(s_axis_nic_rx_tuser),
+
+    .s_status_overflow(),
+    .s_status_bad_frame(),
+    .s_status_good_frame(),
+    .m_status_overflow(),
+    .m_status_bad_frame(),
+    .m_status_good_frame()
+);
+
+axis_async_fifo #(
+    .DEPTH(IF_CDC_FIFO_DEPTH),
+    .DATA_WIDTH(AXIS_IF_DATA_WIDTH),
+    .KEEP_ENABLE(1),
+    .KEEP_WIDTH(AXIS_IF_KEEP_WIDTH),
+    .ID_ENABLE(1),
+    .ID_WIDTH(AXIS_IF_RX_ID_WIDTH),
+    .DEST_ENABLE(1),
+    .DEST_WIDTH(AXIS_IF_RX_DEST_WIDTH),
+    .USER_ENABLE(1),
+    .USER_WIDTH(AXIS_IF_RX_USER_WIDTH),
+    .FRAME_FIFO(1),
+    .DROP_WHEN_FULL(0)
+) i_if_cdc_fifo_rx_to_nic (
+    .s_clk(pspin_clk),
+    .s_rst(pspin_rst),
+    .s_axis_tdata(m_axis_nic_rx_tdata),
+    .s_axis_tkeep(m_axis_nic_rx_tkeep),
+    .s_axis_tvalid(m_axis_nic_rx_tvalid),
+    .s_axis_tready(m_axis_nic_rx_tready),
+    .s_axis_tlast(m_axis_nic_rx_tlast),
+    .s_axis_tid(m_axis_nic_rx_tid),
+    .s_axis_tdest(m_axis_nic_rx_tdest),
+    .s_axis_tuser(m_axis_nic_rx_tuser),
+
+    .m_clk(clk),
+    .m_rst(rst),
+    .m_axis_tdata(`SLICE(m_axis_if_rx_tdata, 0, AXIS_IF_DATA_WIDTH)),
+    .m_axis_tkeep(`SLICE(m_axis_if_rx_tkeep, 0, AXIS_IF_KEEP_WIDTH)),
+    .m_axis_tvalid(`SLICE(m_axis_if_rx_tvalid, 0, 1)),
+    .m_axis_tready(`SLICE(m_axis_if_rx_tready, 0, 1)),
+    .m_axis_tlast(`SLICE(m_axis_if_rx_tlast, 0, 1)),
+    .m_axis_tid(`SLICE(m_axis_if_rx_tid, 0, AXIS_IF_RX_ID_WIDTH)),
+    .m_axis_tdest(`SLICE(m_axis_if_rx_tdest, 0, AXIS_IF_RX_DEST_WIDTH)),
+    .m_axis_tuser(`SLICE(m_axis_if_rx_tuser, 0, AXIS_IF_RX_USER_WIDTH)),
+
+    .s_status_overflow(),
+    .s_status_bad_frame(),
+    .s_status_good_frame(),
+    .m_status_overflow(),
+    .m_status_bad_frame(),
+    .m_status_good_frame()
+);
+
 axi_dwidth_converter_0 i_pspin_upsize (
   .s_axi_aclk(pspin_clk),          // input wire s_axi_aclk
   .s_axi_aresetn(!pspin_rst),    // input wire s_axi_aresetn
@@ -1303,14 +1405,14 @@ pspin_ingress_datapath #(
     .her_gen_enabled,
     .her_gen_valid,
 
-    .s_axis_nic_rx_tdata(`SLICE(s_axis_if_rx_tdata, 0, AXIS_IF_DATA_WIDTH)),
-    .s_axis_nic_rx_tkeep(`SLICE(s_axis_if_rx_tkeep, 0, AXIS_IF_KEEP_WIDTH)),
-    .s_axis_nic_rx_tvalid(`SLICE(s_axis_if_rx_tvalid, 0, 1)),
-    .s_axis_nic_rx_tready(`SLICE(s_axis_if_rx_tready, 0, 1)),
-    .s_axis_nic_rx_tlast(`SLICE(s_axis_if_rx_tlast, 0, 1)),
-    .s_axis_nic_rx_tid(`SLICE(s_axis_if_rx_tid, 0, AXIS_IF_RX_ID_WIDTH)),
-    .s_axis_nic_rx_tdest(`SLICE(s_axis_if_rx_tdest, 0, AXIS_IF_RX_DEST_WIDTH)),
-    .s_axis_nic_rx_tuser(`SLICE(s_axis_if_rx_tuser, 0, AXIS_IF_RX_USER_WIDTH)),
+    .s_axis_nic_rx_tdata,
+    .s_axis_nic_rx_tkeep,
+    .s_axis_nic_rx_tvalid,
+    .s_axis_nic_rx_tready,
+    .s_axis_nic_rx_tlast,
+    .s_axis_nic_rx_tid,
+    .s_axis_nic_rx_tdest,
+    .s_axis_nic_rx_tuser,
 
     .m_axis_nic_rx_tdata,
     .m_axis_nic_rx_tkeep,
@@ -1643,16 +1745,6 @@ assign m_axis_if_tx_cpl_ts = s_axis_if_tx_cpl_ts;
 assign m_axis_if_tx_cpl_tag = s_axis_if_tx_cpl_tag;
 assign m_axis_if_tx_cpl_valid = s_axis_if_tx_cpl_valid;
 assign s_axis_if_tx_cpl_ready = m_axis_if_tx_cpl_ready;
-
-// from PsPIN Ingress Datapath
-assign m_axis_if_rx_tdata = m_axis_nic_rx_tdata;
-assign m_axis_if_rx_tkeep = m_axis_nic_rx_tkeep;
-assign m_axis_if_rx_tvalid = m_axis_nic_rx_tvalid;
-assign m_axis_nic_rx_tready = m_axis_if_rx_tready;
-assign m_axis_if_rx_tlast = m_axis_nic_rx_tlast;
-assign m_axis_if_rx_tid = m_axis_nic_rx_tid;
-assign m_axis_if_rx_tdest = m_axis_nic_rx_tdest;
-assign m_axis_if_rx_tuser = m_axis_nic_rx_tuser;
 
 /*
  * DDR
