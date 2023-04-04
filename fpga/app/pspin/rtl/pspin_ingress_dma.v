@@ -114,6 +114,7 @@ wire [TAG_WIDTH-1:0]                  desc_status_tag;
 wire [AXIS_IF_RX_ID_WIDTH-1:0]        desc_status_id;
 wire [AXIS_IF_RX_DEST_WIDTH-1:0]      desc_status_dest;
 wire [AXIS_IF_RX_USER_WIDTH-1:0]      desc_status_user;
+// TODO: latch error and report to ctrl regs
 wire [3:0]                            desc_status_error;
 wire                                  desc_status_valid;
 

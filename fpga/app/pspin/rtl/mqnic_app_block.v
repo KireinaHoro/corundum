@@ -884,41 +884,41 @@ wire [AXIS_IF_RX_ID_WIDTH-1:0]                  m_axis_nic_rx_tid;
 wire [AXIS_IF_RX_DEST_WIDTH-1:0]                m_axis_nic_rx_tdest;
 wire [AXIS_IF_RX_USER_WIDTH-1:0]                m_axis_nic_rx_tuser;
 
-wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_awid;
-wire [AXI_ADDR_WIDTH-1:0]                       m_axi_pspin_awaddr;
-wire [7:0]                                      m_axi_pspin_awlen;
-wire [2:0]                                      m_axi_pspin_awsize;
-wire [1:0]                                      m_axi_pspin_awburst;
-wire                                            m_axi_pspin_awlock;
-wire [3:0]                                      m_axi_pspin_awcache;
-wire [2:0]                                      m_axi_pspin_awprot;
-wire                                            m_axi_pspin_awvalid;
-wire                                            m_axi_pspin_awready;
-wire [AXI_DATA_WIDTH-1:0]                       m_axi_pspin_wdata;
-wire [AXI_STRB_WIDTH-1:0]                       m_axi_pspin_wstrb;
-wire                                            m_axi_pspin_wlast;
-wire                                            m_axi_pspin_wvalid;
-wire                                            m_axi_pspin_wready;
-wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_bid;
-wire [1:0]                                      m_axi_pspin_bresp;
-wire                                            m_axi_pspin_bvalid;
-wire                                            m_axi_pspin_bready;
-wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_arid;
-wire [AXI_ADDR_WIDTH-1:0]                       m_axi_pspin_araddr;
-wire [7:0]                                      m_axi_pspin_arlen;
-wire [2:0]                                      m_axi_pspin_arsize;
-wire [1:0]                                      m_axi_pspin_arburst;
-wire                                            m_axi_pspin_arlock;
-wire [3:0]                                      m_axi_pspin_arcache;
-wire [2:0]                                      m_axi_pspin_arprot;
-wire                                            m_axi_pspin_arvalid;
-wire                                            m_axi_pspin_arready;
-wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_rid;
-wire [AXI_DATA_WIDTH-1:0]                       m_axi_pspin_rdata;
-wire [1:0]                                      m_axi_pspin_rresp;
-wire                                            m_axi_pspin_rlast;
-wire                                            m_axi_pspin_rvalid;
-wire                                            m_axi_pspin_rready;
+wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_ni_awid;
+wire [AXI_ADDR_WIDTH-1:0]                       m_axi_pspin_ni_awaddr;
+wire [7:0]                                      m_axi_pspin_ni_awlen;
+wire [2:0]                                      m_axi_pspin_ni_awsize;
+wire [1:0]                                      m_axi_pspin_ni_awburst;
+wire                                            m_axi_pspin_ni_awlock;
+wire [3:0]                                      m_axi_pspin_ni_awcache;
+wire [2:0]                                      m_axi_pspin_ni_awprot;
+wire                                            m_axi_pspin_ni_awvalid;
+wire                                            m_axi_pspin_ni_awready;
+wire [AXI_DATA_WIDTH-1:0]                       m_axi_pspin_ni_wdata;
+wire [AXI_STRB_WIDTH-1:0]                       m_axi_pspin_ni_wstrb;
+wire                                            m_axi_pspin_ni_wlast;
+wire                                            m_axi_pspin_ni_wvalid;
+wire                                            m_axi_pspin_ni_wready;
+wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_ni_bid;
+wire [1:0]                                      m_axi_pspin_ni_bresp;
+wire                                            m_axi_pspin_ni_bvalid;
+wire                                            m_axi_pspin_ni_bready;
+wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_ni_arid;
+wire [AXI_ADDR_WIDTH-1:0]                       m_axi_pspin_ni_araddr;
+wire [7:0]                                      m_axi_pspin_ni_arlen;
+wire [2:0]                                      m_axi_pspin_ni_arsize;
+wire [1:0]                                      m_axi_pspin_ni_arburst;
+wire                                            m_axi_pspin_ni_arlock;
+wire [3:0]                                      m_axi_pspin_ni_arcache;
+wire [2:0]                                      m_axi_pspin_ni_arprot;
+wire                                            m_axi_pspin_ni_arvalid;
+wire                                            m_axi_pspin_ni_arready;
+wire [AXI_ID_WIDTH-1:0]                         m_axi_pspin_ni_rid;
+wire [AXI_DATA_WIDTH-1:0]                       m_axi_pspin_ni_rdata;
+wire [1:0]                                      m_axi_pspin_ni_rresp;
+wire                                            m_axi_pspin_ni_rlast;
+wire                                            m_axi_pspin_ni_rvalid;
+wire                                            m_axi_pspin_ni_rready;
 
 wire                                            her_ready;
 wire                                            her_valid;
@@ -1423,41 +1423,41 @@ pspin_ingress_datapath #(
     .m_axis_nic_rx_tdest,
     .m_axis_nic_rx_tuser,
 
-    .m_axi_pspin_awid,
-    .m_axi_pspin_awaddr,
-    .m_axi_pspin_awlen,
-    .m_axi_pspin_awsize,
-    .m_axi_pspin_awburst,
-    .m_axi_pspin_awlock,
-    .m_axi_pspin_awcache,
-    .m_axi_pspin_awprot,
-    .m_axi_pspin_awvalid,
-    .m_axi_pspin_awready,
-    .m_axi_pspin_wdata,
-    .m_axi_pspin_wstrb,
-    .m_axi_pspin_wlast,
-    .m_axi_pspin_wvalid,
-    .m_axi_pspin_wready,
-    .m_axi_pspin_bid,
-    .m_axi_pspin_bresp,
-    .m_axi_pspin_bvalid,
-    .m_axi_pspin_bready,
-    .m_axi_pspin_arid,
-    .m_axi_pspin_araddr,
-    .m_axi_pspin_arlen,
-    .m_axi_pspin_arsize,
-    .m_axi_pspin_arburst,
-    .m_axi_pspin_arlock,
-    .m_axi_pspin_arcache,
-    .m_axi_pspin_arprot,
-    .m_axi_pspin_arvalid,
-    .m_axi_pspin_arready,
-    .m_axi_pspin_rid,
-    .m_axi_pspin_rdata,
-    .m_axi_pspin_rresp,
-    .m_axi_pspin_rlast,
-    .m_axi_pspin_rvalid,
-    .m_axi_pspin_rready,
+    .m_axi_pspin_ni_awid,
+    .m_axi_pspin_ni_awaddr,
+    .m_axi_pspin_ni_awlen,
+    .m_axi_pspin_ni_awsize,
+    .m_axi_pspin_ni_awburst,
+    .m_axi_pspin_ni_awlock,
+    .m_axi_pspin_ni_awcache,
+    .m_axi_pspin_ni_awprot,
+    .m_axi_pspin_ni_awvalid,
+    .m_axi_pspin_ni_awready,
+    .m_axi_pspin_ni_wdata,
+    .m_axi_pspin_ni_wstrb,
+    .m_axi_pspin_ni_wlast,
+    .m_axi_pspin_ni_wvalid,
+    .m_axi_pspin_ni_wready,
+    .m_axi_pspin_ni_bid,
+    .m_axi_pspin_ni_bresp,
+    .m_axi_pspin_ni_bvalid,
+    .m_axi_pspin_ni_bready,
+    .m_axi_pspin_ni_arid,
+    .m_axi_pspin_ni_araddr,
+    .m_axi_pspin_ni_arlen,
+    .m_axi_pspin_ni_arsize,
+    .m_axi_pspin_ni_arburst,
+    .m_axi_pspin_ni_arlock,
+    .m_axi_pspin_ni_arcache,
+    .m_axi_pspin_ni_arprot,
+    .m_axi_pspin_ni_arvalid,
+    .m_axi_pspin_ni_arready,
+    .m_axi_pspin_ni_rid,
+    .m_axi_pspin_ni_rdata,
+    .m_axi_pspin_ni_rresp,
+    .m_axi_pspin_ni_rlast,
+    .m_axi_pspin_ni_rvalid,
+    .m_axi_pspin_ni_rready,
 
     .her_ready,
     .her_valid,
@@ -1542,55 +1542,55 @@ pspin_inst (
     .host_slave_b_valid_o   (pspin_axi_full_bvalid),
     .host_slave_b_ready_i   (pspin_axi_full_bready),
 
-    .ni_slave_aw_addr_i(m_axi_pspin_awaddr), //
-    .ni_slave_aw_prot_i(m_axi_pspin_awprot), //
+    .ni_slave_aw_addr_i(m_axi_pspin_ni_awaddr), //
+    .ni_slave_aw_prot_i(m_axi_pspin_ni_awprot), //
     .ni_slave_aw_region_i(4'b0),
-    .ni_slave_aw_len_i(m_axi_pspin_awlen), //
-    .ni_slave_aw_size_i(m_axi_pspin_awsize), //
-    .ni_slave_aw_burst_i(m_axi_pspin_awburst), //
-    .ni_slave_aw_lock_i(m_axi_pspin_awlock), //
+    .ni_slave_aw_len_i(m_axi_pspin_ni_awlen), //
+    .ni_slave_aw_size_i(m_axi_pspin_ni_awsize), //
+    .ni_slave_aw_burst_i(m_axi_pspin_ni_awburst), //
+    .ni_slave_aw_lock_i(m_axi_pspin_ni_awlock), //
     .ni_slave_aw_atop_i(6'b0),
-    .ni_slave_aw_cache_i(m_axi_pspin_awcache), //
+    .ni_slave_aw_cache_i(m_axi_pspin_ni_awcache), //
     .ni_slave_aw_qos_i(4'b0),
-    .ni_slave_aw_id_i(m_axi_pspin_awid), //
+    .ni_slave_aw_id_i(m_axi_pspin_ni_awid), //
     .ni_slave_aw_user_i(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
-    .ni_slave_aw_valid_i(m_axi_pspin_awvalid), //
-    .ni_slave_aw_ready_o(m_axi_pspin_awready), //
+    .ni_slave_aw_valid_i(m_axi_pspin_ni_awvalid), //
+    .ni_slave_aw_ready_o(m_axi_pspin_ni_awready), //
 
-    .ni_slave_ar_addr_i(m_axi_pspin_araddr), //
-    .ni_slave_ar_prot_i(m_axi_pspin_arprot), //
+    .ni_slave_ar_addr_i(m_axi_pspin_ni_araddr), //
+    .ni_slave_ar_prot_i(m_axi_pspin_ni_arprot), //
     .ni_slave_ar_region_i(4'b0),
-    .ni_slave_ar_len_i(m_axi_pspin_arlen), //
-    .ni_slave_ar_size_i(m_axi_pspin_arsize), //
-    .ni_slave_ar_burst_i(m_axi_pspin_arburst), //
-    .ni_slave_ar_lock_i(m_axi_pspin_arlock), //
-    .ni_slave_ar_cache_i(m_axi_pspin_arcache), //
+    .ni_slave_ar_len_i(m_axi_pspin_ni_arlen), //
+    .ni_slave_ar_size_i(m_axi_pspin_ni_arsize), //
+    .ni_slave_ar_burst_i(m_axi_pspin_ni_arburst), //
+    .ni_slave_ar_lock_i(m_axi_pspin_ni_arlock), //
+    .ni_slave_ar_cache_i(m_axi_pspin_ni_arcache), //
     .ni_slave_ar_qos_i(4'b0),
-    .ni_slave_ar_id_i(m_axi_pspin_arid), //
+    .ni_slave_ar_id_i(m_axi_pspin_ni_arid), //
     .ni_slave_ar_user_i(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
-    .ni_slave_ar_valid_i(m_axi_pspin_arvalid), //
-    .ni_slave_ar_ready_o(m_axi_pspin_arready), //
+    .ni_slave_ar_valid_i(m_axi_pspin_ni_arvalid), //
+    .ni_slave_ar_ready_o(m_axi_pspin_ni_arready), //
 
-    .ni_slave_w_data_i(m_axi_pspin_wdata), //
-    .ni_slave_w_strb_i(m_axi_pspin_wstrb), //
+    .ni_slave_w_data_i(m_axi_pspin_ni_wdata), //
+    .ni_slave_w_strb_i(m_axi_pspin_ni_wstrb), //
     .ni_slave_w_user_i(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
-    .ni_slave_w_last_i(m_axi_pspin_wlast), //
-    .ni_slave_w_valid_i(m_axi_pspin_wvalid), //
-    .ni_slave_w_ready_o(m_axi_pspin_wready), //
+    .ni_slave_w_last_i(m_axi_pspin_ni_wlast), //
+    .ni_slave_w_valid_i(m_axi_pspin_ni_wvalid), //
+    .ni_slave_w_ready_o(m_axi_pspin_ni_wready), //
 
-    .ni_slave_r_data_o(m_axi_pspin_rdata), //
-    .ni_slave_r_resp_o(m_axi_pspin_rresp), //
-    .ni_slave_r_last_o(m_axi_pspin_rlast), //
-    .ni_slave_r_id_o(m_axi_pspin_rid), //
+    .ni_slave_r_data_o(m_axi_pspin_ni_rdata), //
+    .ni_slave_r_resp_o(m_axi_pspin_ni_rresp), //
+    .ni_slave_r_last_o(m_axi_pspin_ni_rlast), //
+    .ni_slave_r_id_o(m_axi_pspin_ni_rid), //
     .ni_slave_r_user_o(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
-    .ni_slave_r_valid_o(m_axi_pspin_rvalid), //
-    .ni_slave_r_ready_i(m_axi_pspin_rready), //
+    .ni_slave_r_valid_o(m_axi_pspin_ni_rvalid), //
+    .ni_slave_r_ready_i(m_axi_pspin_ni_rready), //
 
-    .ni_slave_b_resp_o(m_axi_pspin_bresp), //
-    .ni_slave_b_id_o(m_axi_pspin_bid), //
+    .ni_slave_b_resp_o(m_axi_pspin_ni_bresp), //
+    .ni_slave_b_id_o(m_axi_pspin_ni_bid), //
     .ni_slave_b_user_o(4'b0), // pulp_cluster_cfg_pkg::AXI_UW
-    .ni_slave_b_valid_o(m_axi_pspin_bvalid), //
-    .ni_slave_b_ready_i(m_axi_pspin_bready), //
+    .ni_slave_b_valid_o(m_axi_pspin_ni_bvalid), //
+    .ni_slave_b_ready_i(m_axi_pspin_ni_bready), //
 
     .no_slave_aw_valid_i(1'b0),
     .no_slave_ar_valid_i(1'b0),
