@@ -647,7 +647,7 @@ initial begin
 end
 
 localparam NUM_CLUSTERS = 2;
-localparam NUM_MPQ = 256;
+localparam NUM_MPQ = 16;  // pspin_cfg_pkg.sv
 
 localparam UMATCH_WIDTH = 32;
 localparam UMATCH_ENTRIES = 4;

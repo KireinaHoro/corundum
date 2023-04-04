@@ -61,7 +61,7 @@ module pspin_ctrl_regs #
     parameter DATA_WIDTH = 32,
     parameter STRB_WIDTH = DATA_WIDTH/8,
     parameter NUM_CLUSTERS = 2,
-    parameter NUM_MPQ = 256,
+    parameter NUM_MPQ = 16,
 
     parameter UMATCH_WIDTH = 32,
     parameter UMATCH_ENTRIES = 4,
@@ -147,7 +147,7 @@ localparam WORD_WIDTH = STRB_WIDTH;
 localparam WORD_SIZE = DATA_WIDTH/WORD_WIDTH;
 
 localparam NUM_REGS =
-    4 + 8 + 1 + // PsPIN
+    4 + 1 + 1 + // PsPIN
     1 + UMATCH_RULESETS + UMATCH_RULESETS * UMATCH_ENTRIES * 4 + // MATCH
     1 + // ALLOC
     1 + HER_NUM_HANDLER_CTX * 20 + // HER
@@ -178,7 +178,7 @@ wire [NUM_REGS-1:0] REGFILE_IDX_READONLY;
 generate
 `DECL_REG_HEAD(CL_CTRL, 2,           1'b0,   32'h0000)
 `DECL_REG(CL_STAT,  2,               1'b1,   32'h0100, CL_CTRL)
-`DECL_REG(MPQ,      8,               1'b1,   32'h0200, CL_STAT)
+`DECL_REG(MPQ,      1,               1'b1,   32'h0200, CL_STAT)
 `DECL_REG(FIFO,     1,               1'b1,   32'h1000, MPQ)
 
 `DECL_REG(ME_VALID, 1,                               1'b0,   32'h2000, FIFO)
@@ -379,9 +379,10 @@ always @(posedge clk) begin
         // register input
         ctrl_regs[CL_STAT_REG_OFF]     <= cl_eoc_i;   // eoc
         ctrl_regs[CL_STAT_REG_OFF + 1] <= cl_busy_i;  // busy
-        for (i = 0; i < 8; i = i + 1) begin
-            ctrl_regs[MPQ_REG_OFF + i] <= `SLICE(mpq_full_i, i, DATA_WIDTH);
-        end
+
+        // we only have 16 MPQs
+        ctrl_regs[MPQ_REG_OFF] <= {{DATA_WIDTH - NUM_MPQ{1'b0}}, mpq_full_i};
+
         ctrl_regs[ALLOC_DROPPED_PKTS_REG_OFF] <= alloc_dropped_pkts;
     end
 end
