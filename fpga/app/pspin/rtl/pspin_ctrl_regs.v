@@ -24,8 +24,9 @@
 //   match start          (RW) 0x2400 -
 //   match end            (RW) 0x2500 -
 
-// - packet allocator
-//   dropped packets      (RO) 0x2500
+// - in/e-gress datapath statistics
+//   alloc dropped pkts   (RO) 0x2600
+//   egress dma error     (RO) 0x2604
 
 // - HER generator
 //   conf_valid           (RW) 0x3000
@@ -139,7 +140,10 @@ module pspin_ctrl_regs #
     output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_3_addr,
     output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_3_size,
     output reg  [HER_NUM_HANDLER_CTX-1:0]                   her_gen_enabled,
-    output reg                                              her_gen_valid
+    output reg                                              her_gen_valid,
+
+    // egress datapath
+    input  wire [3:0]                                       egress_dma_last_error
 );
 
 localparam VALID_ADDR_WIDTH = ADDR_WIDTH - $clog2(STRB_WIDTH);
@@ -149,7 +153,7 @@ localparam WORD_SIZE = DATA_WIDTH/WORD_WIDTH;
 localparam NUM_REGS =
     4 + 1 + 1 + // PsPIN
     1 + UMATCH_RULESETS + UMATCH_RULESETS * UMATCH_ENTRIES * 4 + // MATCH
-    1 + // ALLOC
+    2 + // DATAPATH_STATS
     1 + HER_NUM_HANDLER_CTX * 20 + // HER
     1; // GUARD
 reg [DATA_WIDTH-1:0] ctrl_regs [NUM_REGS-1:0];
@@ -188,9 +192,9 @@ generate
 `DECL_REG(ME_START, UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2400, ME_MASK)
 `DECL_REG(ME_END,   UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2500, ME_START)
 
-`DECL_REG(ALLOC_DROPPED_PKTS,       1,                      1'b1,   32'h2600, ME_END)
+`DECL_REG(DATAPATH_STATS,           2,                      1'b1,   32'h2600, ME_END)
 
-`DECL_REG(HER,                      1,                      1'b0,   32'h3000, ALLOC_DROPPED_PKTS)
+`DECL_REG(HER,                      1,                      1'b0,   32'h3000, DATAPATH_STATS)
 `DECL_REG(HER_CTX_ENABLED,          HER_NUM_HANDLER_CTX,    1'b0,   32'h3100, HER)
 `DECL_REG(HER_HANDLER_MEM_ADDR,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3200, HER_CTX_ENABLED)
 `DECL_REG(HER_HANDLER_MEM_SIZE,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3300, HER_HANDLER_MEM_ADDR)
@@ -252,7 +256,7 @@ reg reg_intf_wr_ack;
             `GEN_DECODE(op, ME_MASK) \
             `GEN_DECODE(op, ME_START) \
             `GEN_DECODE(op, ME_END) \
-            `GEN_DECODE(op, ALLOC_DROPPED_PKTS) \
+            `GEN_DECODE(op, DATAPATH_STATS) \
             `GEN_DECODE(op, HER) \
             `GEN_DECODE(op, HER_CTX_ENABLED) \
             `GEN_DECODE(op, HER_HANDLER_MEM_ADDR) \
@@ -383,7 +387,8 @@ always @(posedge clk) begin
         // we only have 16 MPQs
         ctrl_regs[MPQ_REG_OFF] <= {{DATA_WIDTH - NUM_MPQ{1'b0}}, mpq_full_i};
 
-        ctrl_regs[ALLOC_DROPPED_PKTS_REG_OFF] <= alloc_dropped_pkts;
+        ctrl_regs[DATAPATH_STATS_REG_OFF] <= alloc_dropped_pkts;
+        ctrl_regs[DATAPATH_STATS_REG_OFF + 1] <= {28'b0, egress_dma_last_error};
     end
 end
 

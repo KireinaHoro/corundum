@@ -109,7 +109,7 @@ assign m_axi_pspin_no_awburst = 2'b0;
 assign m_axi_pspin_no_awlock = 1'b0;
 assign m_axi_pspin_no_awcache = 4'b0;
 assign m_axi_pspin_no_awprot = 3'b0;
-assign m_axi_pspin_no_arvalid = 1'b0;
+assign m_axi_pspin_no_awvalid = 1'b0;
 assign m_axi_pspin_no_wdata = {AXI_DATA_WIDTH{1'b0}};
 assign m_axi_pspin_no_wstrb = {AXI_STRB_WIDTH{1'b0}};
 assign m_axi_pspin_no_wlast = 1'b0;
@@ -142,11 +142,11 @@ axi_dma_rd #(
     .clk                                (clk),
     .rst                                (!rstn),
 
-    .s_axis_read_desc_addr              (nic_cmd_req_src_addr),
+    .s_axis_read_desc_addr              (nic_cmd_req_src_addr[31:0]),
     .s_axis_read_desc_len               (nic_cmd_req_length),
     .s_axis_read_desc_tag               (nic_cmd_req_id),
     // TODO: determine appropriate tdest,user,id
-    .s_axis_read_desc_id                ({AXIS_ID_WIDTH-AXInic_cmd_req_id),
+    .s_axis_read_desc_id                ({{AXIS_IF_TX_ID_WIDTH-CMD_ID_WIDTH{1'b0}}, nic_cmd_req_id}),
     .s_axis_read_desc_dest              ({AXIS_IF_TX_DEST_WIDTH{1'b0}}),
     .s_axis_read_desc_user              ({AXIS_IF_TX_USER_WIDTH{1'b0}}),
     .s_axis_read_desc_valid             (nic_cmd_req_valid),
