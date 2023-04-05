@@ -291,3 +291,6 @@ set_property verilog_define {TARGET_SYNTHESIS PULP_FPGA_EMUL} $fileset
 
 # top module
 set_property top fpga $fileset
+
+# performance explore
+set_property strategy Performance_ExplorePostRoutePhysOpt [get_runs impl_1]
