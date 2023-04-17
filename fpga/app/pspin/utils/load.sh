@@ -56,7 +56,7 @@ fi
 
 # cycle reset (mandated by kernel module)
 echo Disabling fetch...
-echo -n 00 > $FETCH
+echo -n 0 > $FETCH
 echo Resetting...
 echo -n 1 > $RESET
 echo Bringing cluster out of reset...
@@ -70,6 +70,6 @@ write_section $1 .text              1d000100
 
 echo Enabling fetch...
 # enable fetching - 2 clusters
-echo -n 11 > $FETCH
+echo -n 3 > $FETCH
 
 echo All done!

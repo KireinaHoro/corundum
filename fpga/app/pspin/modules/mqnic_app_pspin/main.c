@@ -62,23 +62,9 @@ MODULE_VERSION("0.1");
 // We expose the mapped L2/prog mem address space to userspace as a single
 // character-special file.  The userspace handler loader should undo the
 // mapping correctly.
-#define REG(app, offset) ((app)->app_hw_addr + 0x800000 + (offset))
-#define R_CLUSTER_FETCH_EN(app) (REG(app, 0x0000))
-#define R_CLUSTER_RESET(app) (REG(app, 0x0004))
-#define R_CLUSTER_EOC(app) (REG(app, 0x0100))
-#define R_CLUSTER_BUSY(app) (REG(app, 0x0104))
-#define R_MPQ_BUSY_0(app) (REG(app, 0x0108))
-#define R_MPQ_BUSY_1(app) (REG(app, 0x010c))
-#define R_MPQ_BUSY_2(app) (REG(app, 0x0110))
-#define R_MPQ_BUSY_3(app) (REG(app, 0x0114))
-#define R_MPQ_BUSY_4(app) (REG(app, 0x0118))
-#define R_MPQ_BUSY_5(app) (REG(app, 0x011c))
-#define R_MPQ_BUSY_6(app) (REG(app, 0x0120))
-#define R_MPQ_BUSY_7(app) (REG(app, 0x0124))
-#define R_STDOUT_FIFO(app) (REG(app, 0x1000))
-
-#define PSPIN_MEM(app, off) ((app)->app_hw_addr + (off))
-
+#define UMATCH_RULESETS 4
+#define UMATCH_ENTRIES 4
+#define HER_NUM_HANDLER_CTX 4
 #define PSPIN_DEVICE_NAME "pspin"
 #define PSPIN_NUM_CLUSTERS 2L
 struct mqnic_app_pspin {
@@ -95,93 +81,88 @@ struct mqnic_app_pspin {
   bool in_reset;
 };
 
-// NUM_CLUSTERS of 1 or 0
-static ssize_t cl_fetch_en_store(struct device *dev,
-                                 struct device_attribute *attr, const char *buf,
-                                 size_t count) {
-  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
-  u32 reg = 0;
-  int i;
+#define REG(app, offset) ((app)->app_hw_addr + 0x800000 + (offset))
+#define PSPIN_MEM(app, off) ((app)->app_hw_addr + (off))
 
-  if (count != PSPIN_NUM_CLUSTERS) {
-    dev_err(dev, "%s(): cluster count mismatch: expected %ld, got %ld\n",
-            __func__, PSPIN_NUM_CLUSTERS, count);
-    return -EINVAL;
+// X(name, count, ro, offset, check_func)
+#define REG_DECLS_RW(X) \
+  X(cl_ctrl, 2,              0x0000, check_cl_ctrl) \
+  X(me_valid, 1,                                  0x2000, NULL) \
+  X(me_mode,  UMATCH_RULESETS,                    0x2100, NULL) \
+  X(me_idx,   UMATCH_ENTRIES*UMATCH_RULESETS,     0x2200, NULL) \
+  X(me_mask,  UMATCH_ENTRIES*UMATCH_RULESETS,     0x2300, NULL) \
+  X(me_start, UMATCH_ENTRIES*UMATCH_RULESETS,     0x2400, NULL) \
+  X(me_end,   UMATCH_ENTRIES*UMATCH_RULESETS,     0x2500, NULL) \
+  X(her,                      1,                         0x3000, NULL) \
+  X(her_ctx_enabled,          HER_NUM_HANDLER_CTX,       0x3100, NULL) \
+  X(her_handler_mem_addr,     HER_NUM_HANDLER_CTX,       0x3200, NULL) \
+  X(her_handler_mem_size,     HER_NUM_HANDLER_CTX,       0x3300, NULL) \
+  X(her_host_mem_addr_lo,     HER_NUM_HANDLER_CTX,       0x3400, NULL) \
+  X(her_host_mem_addr_hi,     HER_NUM_HANDLER_CTX,       0x3500, NULL) \
+  X(her_host_mem_size,        HER_NUM_HANDLER_CTX,       0x3600, NULL) \
+  X(her_hh_addr,              HER_NUM_HANDLER_CTX,       0x3700, NULL) \
+  X(her_hh_size,              HER_NUM_HANDLER_CTX,       0x3800, NULL) \
+  X(her_ph_addr,              HER_NUM_HANDLER_CTX,       0x3900, NULL) \
+  X(her_ph_size,              HER_NUM_HANDLER_CTX,       0x3a00, NULL) \
+  X(her_th_addr,              HER_NUM_HANDLER_CTX,       0x3b00, NULL) \
+  X(her_th_size,              HER_NUM_HANDLER_CTX,       0x3c00, NULL) \
+  X(her_scratchpad_0_addr,    HER_NUM_HANDLER_CTX,       0x3d00, NULL) \
+  X(her_scratchpad_0_size,    HER_NUM_HANDLER_CTX,       0x3e00, NULL) \
+  X(her_scratchpad_1_addr,    HER_NUM_HANDLER_CTX,       0x3f00, NULL) \
+  X(her_scratchpad_1_size,    HER_NUM_HANDLER_CTX,       0x4000, NULL) \
+  X(her_scratchpad_2_addr,    HER_NUM_HANDLER_CTX,       0x4100, NULL) \
+  X(her_scratchpad_2_size,    HER_NUM_HANDLER_CTX,       0x4200, NULL) \
+  X(her_scratchpad_3_addr,    HER_NUM_HANDLER_CTX,       0x4300, NULL) \
+  X(her_scratchpad_3_size,    HER_NUM_HANDLER_CTX,       0x4400, NULL)
+#define REG_DECLS_RO(X) \
+  X(datapath_stats,           2,                      0b1,   0x2600, NULL) \
+  X(cl_stat,  2,               0b1,   0x0100, NULL) \
+  X(mpq,      1,               0b1,   0x0200, NULL) \
+  X(fifo,     1,               0b1,   0x1000, NULL)
+#define REG_DECLS(X) \
+  REG_DECLS_RO(X) \
+  REG_DECLS_RW(X)
+
+#define DEFINE_STORE(name, count, offset, check_func) \
+  static ssize_t name##_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count) { \
+    struct mqnic_app_pspin *app = dev_get_drvdata(dev); \
+    u32 reg = 0; \
+    sscanf(buf, "%d\n", &reg); \
+    if (check_func && !check_func(dev, offset, reg)) { \
+      dev_err(dev, "check failed for " #name "\n"); \
+      return -EINVAL; \
+    } \
+    iowrite32(reg, REG(app, offset)); \
+    return count; \
   }
 
-  for (i = 0; i < PSPIN_NUM_CLUSTERS; ++i) {
-    if (buf[i] == '1')
-      reg |= 1 << i;
+bool check_cl_ctrl(struct device *dev, u32 offset, u32 reg) {
+  u32 clusters = 32 - __builtin_clz(reg);
+  if (offset != 0 && reg > 1) {
+    dev_err(dev, "reset only takes 0 or 1; got %d\n", reg);
+    return false;
+  } else if (clusters > PSPIN_NUM_CLUSTERS) {
+    dev_err(dev, "%d clusters exist, got %d to enable\n", PSPIN_NUM_CLUSTERS, clusters);
+    return false;
   }
-  iowrite32(reg, R_CLUSTER_FETCH_EN(app));
-
-  return count;
+  return true;
 }
 
-static ssize_t cl_rst_store(struct device *dev, struct device_attribute *attr,
-                            const char *buf, size_t count) {
-  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
-  u32 reg = 0;
-
-  if (count != 1) {
-    dev_err(dev, "%s(): count mismatch: expected %ld, got %ld\n", __func__, 1L,
-            count);
-    return -EINVAL;
+#define DEFINE_SHOW(name, count, offset, check_func) \
+  static ssize_t name##_show(struct device *dev, struct device_attribute *attr, char *buf) { \
+    struct mqnic_app_pspin *app = dev_get_drvdata(dev); \
+    return scnprintf(buf, PAGE_SIZE, "%d\n", ioread32(REG(app, offset))); \
   }
 
-  if (buf[0] == '1')
-    reg = 1;
-  iowrite32(reg, R_CLUSTER_RESET(app));
-  app->in_reset = reg;
+#define DEFINE_ATTR_RW(name, count, offset, check_func) \
+  static struct device_attribute dev_attr_##name = __ATTR_RW(name);
+#define DEFINE_ATTR_RO(name, count, offset, check_func) \
+  static struct device_attribute dev_attr_##name = __ATTR_RO(name);
 
-  return count;
-}
-
-static ssize_t cl_eoc_show(struct device *dev, struct device_attribute *attr,
-                           char *buf) {
-  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
-
-  return scnprintf(buf, PAGE_SIZE, "0x%08x\n", ioread32(R_CLUSTER_EOC(app)));
-}
-
-static ssize_t cl_busy_show(struct device *dev, struct device_attribute *attr,
-                            char *buf) {
-  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
-
-  return scnprintf(buf, PAGE_SIZE, "0x%08x\n", ioread32(R_CLUSTER_BUSY(app)));
-}
-
-static ssize_t mpq_full_show(struct device *dev, struct device_attribute *attr,
-                             char *buf) {
-  struct mqnic_app_pspin *app = dev_get_drvdata(dev);
-
-  ssize_t count = 0;
-
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
-                     ioread32(R_MPQ_BUSY_0(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
-                     ioread32(R_MPQ_BUSY_1(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
-                     ioread32(R_MPQ_BUSY_2(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
-                     ioread32(R_MPQ_BUSY_3(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
-                     ioread32(R_MPQ_BUSY_4(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
-                     ioread32(R_MPQ_BUSY_5(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
-                     ioread32(R_MPQ_BUSY_6(app)));
-  count += scnprintf(buf + count, PAGE_SIZE - count, "0x%08x\n",
-                     ioread32(R_MPQ_BUSY_7(app)));
-
-  return count;
-}
-
-static struct device_attribute dev_attr_cl_fetch_en = __ATTR_WO(cl_fetch_en);
-static struct device_attribute dev_attr_cl_rst = __ATTR_WO(cl_rst);
-static struct device_attribute dev_attr_cl_eoc = __ATTR_RO(cl_eoc);
-static struct device_attribute dev_attr_cl_busy = __ATTR_RO(cl_busy);
-static struct device_attribute dev_attr_mpq_full = __ATTR_RO(mpq_full);
+REG_DECLS_RW(DEFINE_STORE)
+REG_DECLS(DEFINE_SHOW)
+REG_DECLS_RW(DEFINE_ATTR_RW)
+REG_DECLS_RO(DEFINE_ATTR_RO)
 
 struct pspin_cdev {
   enum {
