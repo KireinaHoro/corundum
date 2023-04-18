@@ -135,7 +135,7 @@ static const struct attribute_group *attr_groups[IDX_guard + 1];
 bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
   u32 clusters = 32 - __builtin_clz(reg);
   if (idx != 0 && reg > 1) {
-    dev_err(dev, "reset only takes 0 or 1; got %d\n", reg);
+    dev_err(dev, "reset only takes 0 or 1; got %u\n", reg);
     return false;
   } else if (clusters > PSPIN_NUM_CLUSTERS) {
     dev_err(dev, "%d clusters exist, got %d to enable\n", PSPIN_NUM_CLUSTERS, clusters);
@@ -158,7 +158,7 @@ static ssize_t pspin_reg_store(struct device *dev, struct device_attribute *attr
   struct pspin_device_attribute *dev_attr = to_pspin_dev_attr(attr);
   u32 off = dev_attr->offset + dev_attr->idx * 4;
   u32 reg = 0;
-  sscanf(buf, "%d\n", &reg);
+  sscanf(buf, "%u\n", &reg);
   if (dev_attr->check_func && !dev_attr->check_func(dev, dev_attr->idx, reg)) {
     dev_err(dev, "check failed for %s\n", attr->attr.name);
     return -EINVAL;
@@ -171,7 +171,7 @@ static ssize_t pspin_reg_show(struct device *dev, struct device_attribute *attr,
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
   struct pspin_device_attribute *dev_attr = to_pspin_dev_attr(attr);
   u32 off = dev_attr->offset + dev_attr->idx * 4;
-  return scnprintf(buf, PAGE_SIZE, "%d\n", ioread32(REG(app, off)));
+  return scnprintf(buf, PAGE_SIZE, "%u\n", ioread32(REG(app, off)));
 }
 
 static void remove_pspin_sysfs(void *data) {
