@@ -87,44 +87,43 @@ struct mqnic_app_pspin {
 #define PSPIN_MEM(app, off) ((app)->app_hw_addr + (off))
 
 // X(name, count, ro, offset, check_func)
-#define REG_DECLS(X) \
-  X(cl_ctrl,                  2,                              false, 0x0000, check_cl_ctrl) \
-  X(me_valid,                 1,                              false, 0x2000, NULL) \
-  X(me_mode,                  UMATCH_RULESETS,                false, 0x2100, NULL) \
-  X(me_idx,                   UMATCH_ENTRIES*UMATCH_RULESETS, false, 0x2200, NULL) \
-  X(me_mask,                  UMATCH_ENTRIES*UMATCH_RULESETS, false, 0x2300, NULL) \
-  X(me_start,                 UMATCH_ENTRIES*UMATCH_RULESETS, false, 0x2400, NULL) \
-  X(me_end,                   UMATCH_ENTRIES*UMATCH_RULESETS, false, 0x2500, NULL) \
-  X(her,                      1,                              false, 0x3000, NULL) \
-  X(her_ctx_enabled,          HER_NUM_HANDLER_CTX,            false, 0x3100, NULL) \
-  X(her_handler_mem_addr,     HER_NUM_HANDLER_CTX,            false, 0x3200, NULL) \
-  X(her_handler_mem_size,     HER_NUM_HANDLER_CTX,            false, 0x3300, NULL) \
-  X(her_host_mem_addr_lo,     HER_NUM_HANDLER_CTX,            false, 0x3400, NULL) \
-  X(her_host_mem_addr_hi,     HER_NUM_HANDLER_CTX,            false, 0x3500, NULL) \
-  X(her_host_mem_size,        HER_NUM_HANDLER_CTX,            false, 0x3600, NULL) \
-  X(her_hh_addr,              HER_NUM_HANDLER_CTX,            false, 0x3700, NULL) \
-  X(her_hh_size,              HER_NUM_HANDLER_CTX,            false, 0x3800, NULL) \
-  X(her_ph_addr,              HER_NUM_HANDLER_CTX,            false, 0x3900, NULL) \
-  X(her_ph_size,              HER_NUM_HANDLER_CTX,            false, 0x3a00, NULL) \
-  X(her_th_addr,              HER_NUM_HANDLER_CTX,            false, 0x3b00, NULL) \
-  X(her_th_size,              HER_NUM_HANDLER_CTX,            false, 0x3c00, NULL) \
-  X(her_scratchpad_0_addr,    HER_NUM_HANDLER_CTX,            false, 0x3d00, NULL) \
-  X(her_scratchpad_0_size,    HER_NUM_HANDLER_CTX,            false, 0x3e00, NULL) \
-  X(her_scratchpad_1_addr,    HER_NUM_HANDLER_CTX,            false, 0x3f00, NULL) \
-  X(her_scratchpad_1_size,    HER_NUM_HANDLER_CTX,            false, 0x4000, NULL) \
-  X(her_scratchpad_2_addr,    HER_NUM_HANDLER_CTX,            false, 0x4100, NULL) \
-  X(her_scratchpad_2_size,    HER_NUM_HANDLER_CTX,            false, 0x4200, NULL) \
-  X(her_scratchpad_3_addr,    HER_NUM_HANDLER_CTX,            false, 0x4300, NULL) \
-  X(her_scratchpad_3_size,    HER_NUM_HANDLER_CTX,            false, 0x4400, NULL) \
-  X(datapath_stats,           2,                              true,  0x2600, NULL) \
-  X(cl_stat,                  2,                              true,  0x0100, NULL) \
-  X(mpq,                      1,                              true,  0x0200, NULL) \
-  X(fifo,                     1,                              true,  0x1000, NULL)
+#define REG_DECLS(X)                                                           \
+  X(cl_ctrl, 2, false, 0x0000, check_cl_ctrl)                                  \
+  X(me_valid, 1, false, 0x2000, NULL)                                          \
+  X(me_mode, UMATCH_RULESETS, false, 0x2100, NULL)                             \
+  X(me_idx, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2200, NULL)              \
+  X(me_mask, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2300, NULL)             \
+  X(me_start, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2400, NULL)            \
+  X(me_end, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2500, NULL)              \
+  X(her, 1, false, 0x3000, NULL)                                               \
+  X(her_ctx_enabled, HER_NUM_HANDLER_CTX, false, 0x3100, NULL)                 \
+  X(her_handler_mem_addr, HER_NUM_HANDLER_CTX, false, 0x3200, NULL)            \
+  X(her_handler_mem_size, HER_NUM_HANDLER_CTX, false, 0x3300, NULL)            \
+  X(her_host_mem_addr_lo, HER_NUM_HANDLER_CTX, false, 0x3400, NULL)            \
+  X(her_host_mem_addr_hi, HER_NUM_HANDLER_CTX, false, 0x3500, NULL)            \
+  X(her_host_mem_size, HER_NUM_HANDLER_CTX, false, 0x3600, NULL)               \
+  X(her_hh_addr, HER_NUM_HANDLER_CTX, false, 0x3700, NULL)                     \
+  X(her_hh_size, HER_NUM_HANDLER_CTX, false, 0x3800, NULL)                     \
+  X(her_ph_addr, HER_NUM_HANDLER_CTX, false, 0x3900, NULL)                     \
+  X(her_ph_size, HER_NUM_HANDLER_CTX, false, 0x3a00, NULL)                     \
+  X(her_th_addr, HER_NUM_HANDLER_CTX, false, 0x3b00, NULL)                     \
+  X(her_th_size, HER_NUM_HANDLER_CTX, false, 0x3c00, NULL)                     \
+  X(her_scratchpad_0_addr, HER_NUM_HANDLER_CTX, false, 0x3d00, NULL)           \
+  X(her_scratchpad_0_size, HER_NUM_HANDLER_CTX, false, 0x3e00, NULL)           \
+  X(her_scratchpad_1_addr, HER_NUM_HANDLER_CTX, false, 0x3f00, NULL)           \
+  X(her_scratchpad_1_size, HER_NUM_HANDLER_CTX, false, 0x4000, NULL)           \
+  X(her_scratchpad_2_addr, HER_NUM_HANDLER_CTX, false, 0x4100, NULL)           \
+  X(her_scratchpad_2_size, HER_NUM_HANDLER_CTX, false, 0x4200, NULL)           \
+  X(her_scratchpad_3_addr, HER_NUM_HANDLER_CTX, false, 0x4300, NULL)           \
+  X(her_scratchpad_3_size, HER_NUM_HANDLER_CTX, false, 0x4400, NULL)           \
+  X(datapath_stats, 2, true, 0x2600, NULL)                                     \
+  X(cl_stat, 2, true, 0x0100, NULL)                                            \
+  X(mpq, 1, true, 0x0200, NULL)                                                \
+  X(fifo, 1, true, 0x1000, NULL)
 
 enum {
 #define IDX_REGS(name, count, ro, offset, check_func) IDX_##name,
-REG_DECLS(IDX_REGS)
-  IDX_guard
+  REG_DECLS(IDX_REGS) IDX_guard
 };
 static const struct attribute_group *attr_groups[IDX_guard + 1];
 
@@ -138,7 +137,8 @@ bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
     dev_err(dev, "reset only takes 0 or 1; got %u\n", reg);
     return false;
   } else if (clusters > PSPIN_NUM_CLUSTERS) {
-    dev_err(dev, "%d clusters exist, got %d to enable\n", PSPIN_NUM_CLUSTERS, clusters);
+    dev_err(dev, "%d clusters exist, got %d to enable\n", PSPIN_NUM_CLUSTERS,
+            clusters);
     return false;
   }
   return true;
@@ -146,14 +146,16 @@ bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
 
 struct pspin_device_attribute {
   struct device_attribute dev_attr;
-  u32 idx;      // index of register in block
-  u32 offset;   // offset of block
+  u32 idx;    // index of register in block
+  u32 offset; // offset of block
   bool (*check_func)(struct device *, u32, u32);
 };
-#define to_pspin_dev_attr(_dev_attr) \
+#define to_pspin_dev_attr(_dev_attr)                                           \
   container_of(_dev_attr, struct pspin_device_attribute, dev_attr)
 
-static ssize_t pspin_reg_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count) {
+static ssize_t pspin_reg_store(struct device *dev,
+                               struct device_attribute *attr, const char *buf,
+                               size_t count) {
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
   struct pspin_device_attribute *dev_attr = to_pspin_dev_attr(attr);
   u32 off = dev_attr->offset + dev_attr->idx * 4;
@@ -167,7 +169,8 @@ static ssize_t pspin_reg_store(struct device *dev, struct device_attribute *attr
   return count;
 }
 
-static ssize_t pspin_reg_show(struct device *dev, struct device_attribute *attr, char *buf) {
+static ssize_t pspin_reg_show(struct device *dev, struct device_attribute *attr,
+                              char *buf) {
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
   struct pspin_device_attribute *dev_attr = to_pspin_dev_attr(attr);
   u32 off = dev_attr->offset + dev_attr->idx * 4;
@@ -185,24 +188,27 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   int i, ret;
   struct pspin_device_attribute *dev_attr;
   struct attribute_group *group;
-#define DEFINE_ATTR(_name, _count, _ro, _offset, _check_func) \
-  group = (struct attribute_group *)devm_kzalloc(dev, sizeof(struct attribute_group), GFP_KERNEL); \
-  group->name = #_name; \
-  group->attrs = (struct attribute **)devm_kcalloc(dev, _count + 1, sizeof(void *), GFP_KERNEL); \
-  for (i = 0; i < _count; ++i) { \
-    char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL); \
-    scnprintf(name_buf, ATTR_NAME_LEN, "%d", i); \
-    dev_attr = (struct pspin_device_attribute *)devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL); \
-    dev_attr->dev_attr.attr.name = name_buf; \
-    dev_attr->dev_attr.attr.mode = _ro ? 0444 : 0644; \
-    dev_attr->dev_attr.show = pspin_reg_show; \
-    if (_ro) \
-      dev_attr->dev_attr.store = pspin_reg_store; \
-    dev_attr->idx = i; \
-    dev_attr->offset = _offset; \
-    dev_attr->check_func = _check_func; \
-    group->attrs[i] = (struct attribute *)dev_attr; \
-  } \
+#define DEFINE_ATTR(_name, _count, _ro, _offset, _check_func)                  \
+  group = (struct attribute_group *)devm_kzalloc(                              \
+      dev, sizeof(struct attribute_group), GFP_KERNEL);                        \
+  group->name = #_name;                                                        \
+  group->attrs = (struct attribute **)devm_kcalloc(                            \
+      dev, _count + 1, sizeof(void *), GFP_KERNEL);                            \
+  for (i = 0; i < _count; ++i) {                                               \
+    char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);     \
+    scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);                               \
+    dev_attr = (struct pspin_device_attribute *)devm_kzalloc(                  \
+        dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);               \
+    dev_attr->dev_attr.attr.name = name_buf;                                   \
+    dev_attr->dev_attr.attr.mode = _ro ? 0444 : 0644;                          \
+    dev_attr->dev_attr.show = pspin_reg_show;                                  \
+    if (_ro)                                                                   \
+      dev_attr->dev_attr.store = pspin_reg_store;                              \
+    dev_attr->idx = i;                                                         \
+    dev_attr->offset = _offset;                                                \
+    dev_attr->check_func = _check_func;                                        \
+    group->attrs[i] = (struct attribute *)dev_attr;                            \
+  }                                                                            \
   attr_groups[IDX_##_name] = group;
 
   REG_DECLS(DEFINE_ATTR)
@@ -321,8 +327,8 @@ ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
     u32 reg;
     uintptr_t off = 0;
 
-    // TODO: demultiplex stdout stream in kernel (and use dedicated pspin_stdout device)
-    // with deferred work
+    // TODO: demultiplex stdout stream in kernel (and use dedicated pspin_stdout
+    // device) with deferred work
 
     // read at least one first so we don't trigger EOF
     do {
@@ -335,7 +341,8 @@ ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
     *((u32 *)&dev->block_buffer[off]) = reg;
     off += 4;
 
-    while ((reg = ioread32(REG_ADDR(app, fifo, 0))) != ~0 && off < pspin_block_size) {
+    while ((reg = ioread32(REG_ADDR(app, fifo, 0))) != ~0 &&
+           off < pspin_block_size) {
       *((u32 *)&dev->block_buffer[off]) = reg;
       off += 4;
     }
@@ -431,8 +438,9 @@ loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
     return -EINVAL;
   }
   if (newpos < 0 || newpos > pspin_mem_size) {
-    dev_warn(dev->dev, "seek outside bounds: newpos=%#llx pspin_mem_size=%#lx\n",
-             newpos, pspin_mem_size);
+    dev_warn(dev->dev,
+             "seek outside bounds: newpos=%#llx pspin_mem_size=%#lx\n", newpos,
+             pspin_mem_size);
     return -EINVAL;
   }
   filp->f_pos = newpos;
