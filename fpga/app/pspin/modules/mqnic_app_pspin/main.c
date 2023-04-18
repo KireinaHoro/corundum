@@ -174,10 +174,15 @@ static ssize_t pspin_reg_show(struct device *dev, struct device_attribute *attr,
   return scnprintf(buf, PAGE_SIZE, "%d\n", ioread32(REG(app, off)));
 }
 
+static void remove_pspin_sysfs(void *data) {
+  struct mqnic_app_pspin *app = data;
+  device_remove_groups(app->dev, app->groups);
+}
+
 #define ATTR_NAME_LEN 32
 static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   struct device *dev = app->dev;
-  int i;
+  int i, ret;
   struct pspin_device_attribute *dev_attr;
   struct attribute_group *group;
 #define DEFINE_ATTR(_name, _count, _ro, _offset, _check_func) \
@@ -204,11 +209,19 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
 
   app->groups = attr_groups;
 
-  return device_add_groups(dev, attr_groups);
-}
+  ret = device_add_groups(dev, attr_groups);
+  if (ret) {
+    dev_err(dev, "failed to create ctrl regs sysfs nodes\n");
+    return ret;
+  }
 
-static void remove_pspin_sysfs(struct mqnic_app_pspin *app) {
-  device_remove_groups(app->dev, app->groups);
+  ret = devm_add_action_or_reset(dev, remove_pspin_sysfs, app);
+  if (ret) {
+    dev_err(dev, "failed to add cleanup action for sysfs nodes\n");
+    return ret;
+  }
+
+  return ret;
 }
 
 struct pspin_cdev {
@@ -573,8 +586,6 @@ static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
   return 0;
 
 fail:
-  remove_pspin_sysfs(app);
-
   pspin_cleanup_chrdev(devices_to_destroy);
   return err;
 }
@@ -584,8 +595,6 @@ static void mqnic_app_pspin_remove(struct auxiliary_device *adev) {
   struct device *dev = app->dev;
 
   dev_info(dev, "%s() called", __func__);
-
-  remove_pspin_sysfs(app);
 
   pspin_cleanup_chrdev(pspin_ndevices);
 }
