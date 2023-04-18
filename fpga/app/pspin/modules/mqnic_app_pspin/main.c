@@ -581,6 +581,7 @@ static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
   devices_to_destroy = pspin_ndevices;
 
   err = init_pspin_sysfs(app);
+  if (err)
     goto fail;
 
   return 0;
