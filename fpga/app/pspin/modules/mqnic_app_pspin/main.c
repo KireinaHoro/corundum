@@ -134,22 +134,28 @@ static const struct attribute_group *attr_groups[IDX_guard + 1];
                attr_to_pspin_dev_attr(attr_groups[IDX_##name]->attrs[_idx])))
 
 bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
-  u32 clusters = 32 - __builtin_clz(reg);
+  u32 clusters = reg ? 32 - __builtin_clz(reg) : 0;
+  struct mqnic_app_pspin *app = (struct mqnic_app_pspin *)dev->driver_data;
   if (idx != 0 && reg > 1) {
     dev_err(dev, "reset only takes 0 or 1; got %u\n", reg);
     return false;
   } else if (clusters > PSPIN_NUM_CLUSTERS) {
-    dev_err(dev, "%d clusters exist, got %d to enable\n", PSPIN_NUM_CLUSTERS,
-            clusters);
+    dev_err(dev, "%d clusters exist, got %d to enable (reg = %#x)\n",
+            PSPIN_NUM_CLUSTERS, clusters, reg);
     return false;
+  }
+  // FIXME: ideally after setting the register
+  if (idx != 0) {
+    app->in_reset = !!reg;
   }
   return true;
 }
 
 struct pspin_device_attribute {
   struct device_attribute dev_attr;
-  u32 idx;    // index of register in block
-  u32 offset; // offset of block
+  u32 idx;                // index of register in block
+  u32 offset;             // offset of block
+  const char *group_name; // name of the group
   bool (*check_func)(struct device *, u32, u32);
 };
 #define to_pspin_dev_attr(_dev_attr)                                           \
@@ -166,7 +172,8 @@ static ssize_t pspin_reg_store(struct device *dev,
   u32 reg = 0;
   sscanf(buf, "%u\n", &reg);
   if (dev_attr->check_func && !dev_attr->check_func(dev, dev_attr->idx, reg)) {
-    dev_err(dev, "check failed for %s\n", attr->attr.name);
+    dev_err(dev, "check failed for %s%s\n", dev_attr->group_name,
+            attr->attr.name);
     return -EINVAL;
   }
   iowrite32(reg, REG(app, off));
@@ -206,10 +213,11 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
     dev_attr->dev_attr.attr.name = name_buf;                                   \
     dev_attr->dev_attr.attr.mode = _ro ? 0444 : 0644;                          \
     dev_attr->dev_attr.show = pspin_reg_show;                                  \
-    if (_ro)                                                                   \
+    if (!_ro)                                                                  \
       dev_attr->dev_attr.store = pspin_reg_store;                              \
     dev_attr->idx = i;                                                         \
     dev_attr->offset = _offset;                                                \
+    dev_attr->group_name = group->name;                                        \
     dev_attr->check_func = _check_func;                                        \
     group->attrs[i] = (struct attribute *)dev_attr;                            \
   }                                                                            \
@@ -545,6 +553,7 @@ static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
     return -ENOMEM;
 
   app->dev = dev;
+  dev->driver_data = app;
   app->mdev = mdev;
   dev_set_drvdata(&adev->dev, app);
 
