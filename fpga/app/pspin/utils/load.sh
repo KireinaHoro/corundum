@@ -18,8 +18,8 @@ PROG_BASE=$(hex_to_dec 1d000000)
 DEV="/dev/pspin0"
 # DEV="./test-mem"
 REGS="/sys/devices/pci0000:00/0000:00:03.1/0000:1d:00.0/mqnic.app_12340100.0"
-RESET="$REGS/cl_rst"
-FETCH="$REGS/cl_fetch_en"
+RESET="$REGS/cl_ctrl/1"
+FETCH="$REGS/cl_ctrl/0"
 
 # $1: addr
 addr_to_seek() {
