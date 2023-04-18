@@ -127,11 +127,11 @@ enum {
 };
 static const struct attribute_group *attr_groups[IDX_guard + 1];
 
+#define ATTR_REG_ADDR(_pspin_dev_attr)                                         \
+  (_pspin_dev_attr)->offset + (_pspin_dev_attr)->idx * 4
 #define REG_ADDR(app, name, _idx)                                              \
-  REG(app,                                                                     \
-      attr_to_pspin_dev_attr(attr_groups[IDX_##name]->attrs[_idx])->offset +   \
-          4 * attr_to_pspin_dev_attr(attr_groups[IDX_##name]->attrs[_idx])     \
-                  ->idx)
+  REG(app, ATTR_REG_ADDR(                                                      \
+               attr_to_pspin_dev_attr(attr_groups[IDX_##name]->attrs[_idx])))
 
 bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
   u32 clusters = 32 - __builtin_clz(reg);
@@ -162,7 +162,7 @@ static ssize_t pspin_reg_store(struct device *dev,
                                size_t count) {
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
   struct pspin_device_attribute *dev_attr = to_pspin_dev_attr(attr);
-  u32 off = dev_attr->offset + dev_attr->idx * 4;
+  u32 off = ATTR_REG_ADDR(dev_attr);
   u32 reg = 0;
   sscanf(buf, "%u\n", &reg);
   if (dev_attr->check_func && !dev_attr->check_func(dev, dev_attr->idx, reg)) {
@@ -177,7 +177,7 @@ static ssize_t pspin_reg_show(struct device *dev, struct device_attribute *attr,
                               char *buf) {
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
   struct pspin_device_attribute *dev_attr = to_pspin_dev_attr(attr);
-  u32 off = dev_attr->offset + dev_attr->idx * 4;
+  u32 off = ATTR_REG_ADDR(dev_attr);
   return scnprintf(buf, PAGE_SIZE, "%u\n", ioread32(REG(app, off)));
 }
 
