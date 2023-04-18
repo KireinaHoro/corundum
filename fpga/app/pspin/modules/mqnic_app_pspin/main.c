@@ -127,9 +127,11 @@ enum {
 };
 static const struct attribute_group *attr_groups[IDX_guard + 1];
 
-#define REG_ADDR(app, name, _idx) REG(app, \
-  to_pspin_dev_attr((struct device_attribute *)&attr_groups[IDX_##name]->attrs[_idx])->offset + \
-  4 * to_pspin_dev_attr((struct device_attribute *)&attr_groups[IDX_##name]->attrs[_idx])->idx)
+#define REG_ADDR(app, name, _idx)                                              \
+  REG(app,                                                                     \
+      attr_to_pspin_dev_attr(attr_groups[IDX_##name]->attrs[_idx])->offset +   \
+          4 * attr_to_pspin_dev_attr(attr_groups[IDX_##name]->attrs[_idx])     \
+                  ->idx)
 
 bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
   u32 clusters = 32 - __builtin_clz(reg);
@@ -152,6 +154,8 @@ struct pspin_device_attribute {
 };
 #define to_pspin_dev_attr(_dev_attr)                                           \
   container_of(_dev_attr, struct pspin_device_attribute, dev_attr)
+#define attr_to_pspin_dev_attr(_attr)                                          \
+  to_pspin_dev_attr(container_of(_attr, struct device_attribute, attr))
 
 static ssize_t pspin_reg_store(struct device *dev,
                                struct device_attribute *attr, const char *buf,
