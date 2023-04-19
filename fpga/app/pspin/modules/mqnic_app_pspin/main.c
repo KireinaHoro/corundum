@@ -95,7 +95,7 @@ struct mqnic_app_pspin {
   X(me_mask, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2300, NULL)             \
   X(me_start, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2400, NULL)            \
   X(me_end, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2500, NULL)              \
-  X(her, 1, false, 0x3000, NULL)                                               \
+  X(her_valid, 1, false, 0x3000, NULL)                                         \
   X(her_ctx_enabled, HER_NUM_HANDLER_CTX, false, 0x3100, NULL)                 \
   X(her_handler_mem_addr, HER_NUM_HANDLER_CTX, false, 0x3200, NULL)            \
   X(her_handler_mem_size, HER_NUM_HANDLER_CTX, false, 0x3300, NULL)            \

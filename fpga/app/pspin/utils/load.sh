@@ -7,12 +7,14 @@ TRIPLE="riscv32-unknown-elf"
 OBJDUMP="$RISCV/bin/$TRIPLE-objdump"
 OBJCOPY="$RISCV/bin/$TRIPLE-objcopy"
 READELF="$RISCV/bin/$TRIPLE-readelf"
+NM="$RISCV/bin/$TRIPLE-nm"
 
 hex_to_dec() {
     echo "obase=10; ibase=16; ${1^^}" | bc
 }
 
 L2_BASE=$(hex_to_dec 1c000000)
+L2_END=$(hex_to_dec 1c100000)
 PROG_BASE=$(hex_to_dec 1d000000)
 
 DEV="/dev/pspin0"
@@ -49,6 +51,18 @@ write_section() {
     rm "$tmpfile"
 }
 
+get_handler() {
+    addr_str=$($NM $1 | grep _$2 | cut -f 1 -d ' ')
+    if [[ -z "$addr_str" ]]; then
+        handler_addr=0
+        handler_size=0
+    else
+        handler_addr=$(hex_to_dec $addr_str)
+        # FIXME: this is arbitrary and will not work once we have PMP for handlers
+        handler_size=4096
+    fi
+}
+
 if [[ $# != 1 ]]; then
     echo "usage: $0 <elf>"
     exit 1
@@ -71,5 +85,54 @@ write_section $1 .text              1d000100
 echo Enabling fetch...
 # enable fetching - 2 clusters
 echo -n 3 > $FETCH
+
+echo Setting bypass ME rule in ruleset 0...
+echo -n 0 > "$REGS/me_valid/0"
+
+echo -n 0 > "$REGS/me_mode/0"
+for idx in {0..3}; do
+    echo -n 0 > "$REGS/me_idx/$idx"
+    echo -n 0 > "$REGS/me_mask/$idx"
+    echo -n 1 > "$REGS/me_start/$idx"
+    echo -n 0 > "$REGS/me_end/$idx"
+done
+echo -n 1 > "$REGS/me_valid/0"
+# TODO: set all match rule
+
+echo Setting HER generator...
+echo -n 0 > "$REGS/her_valid/0"
+
+get_handler $1 hh
+printf "HH @ %#x\t(size %d)\n" $handler_addr $handler_size
+echo -n $handler_addr > "$REGS/her_hh_addr/0"
+echo -n $handler_size > "$REGS/her_hh_size/0"
+get_handler $1 ph
+printf "PH @ %#x\t(size %d)\n" $handler_addr $handler_size
+echo -n $handler_addr > "$REGS/her_ph_addr/0"
+echo -n $handler_size > "$REGS/her_ph_size/0"
+get_handler $1 th
+printf "TH @ %#x\t(size %d)\n" $handler_addr $handler_size
+echo -n $handler_addr > "$REGS/her_th_addr/0"
+echo -n $handler_size > "$REGS/her_th_size/0"
+
+echo -n 1 > "$REGS/her_ctx_enabled/0"
+
+# end of l2_handler_data is her_handler_mem_addr
+l2_hnd_data_section=$($READELF -S $1 | grep l2_handler_data | tr -s ' ')
+l2_hnd_data_addr=$(hex_to_dec $(cut -d ' ' -f 5 <<< "$l2_hnd_data_section"))
+l2_hnd_data_size=$(hex_to_dec $(cut -d ' ' -f 7 <<< "$l2_hnd_data_section"))
+
+her_handler_mem_addr=$(($l2_hnd_data_addr + $l2_hnd_data_size))
+her_handler_mem_size=$(($L2_END - $her_handler_mem_addr))
+
+printf "HER handler mem addr: %#x\n" $her_handler_mem_addr
+printf "HER handler mem size: %#x\n" $her_handler_mem_size
+
+echo -n $her_handler_mem_addr > "$REGS/her_handler_mem_addr/0"
+echo -n $her_handler_mem_size > "$REGS/her_handler_mem_size/0"
+
+# TODO: host_mem, scratchpad
+
+echo -n 1 > "$REGS/her_valid/0"
 
 echo All done!
