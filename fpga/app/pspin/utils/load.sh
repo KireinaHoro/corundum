@@ -63,6 +63,30 @@ get_handler() {
     fi
 }
 
+bypass_ruleset() {
+    echo Setting all bypass ME rule in ruleset $1...
+    base=$(($1 * 4))
+    for ((idx = $base; idx < $(($base+4)); idx++)); do
+        echo -n 0 > "$REGS/me_idx/$idx"
+        echo -n 0 > "$REGS/me_mask/$idx"
+        echo -n 1 > "$REGS/me_start/$idx"
+        echo -n 0 > "$REGS/me_end/$idx"
+    done
+    echo -n 0 > "$REGS/me_mode/$1" # MODE_AND
+}
+
+match_ruleset() {
+    echo Setting all match ME rule in ruleset $1...
+    base=$(($1 * 4))
+    for ((idx = $base; idx < $(($base+4)); idx++)); do
+        echo -n 0 > "$REGS/me_idx/$idx"
+        echo -n 0 > "$REGS/me_mask/$idx"
+        echo -n 0 > "$REGS/me_start/$idx"
+        echo -n 0 > "$REGS/me_end/$idx"
+    done
+    echo -n 0 > "$REGS/me_mode/$1" # MODE_AND
+}
+
 if [[ $# != 1 ]]; then
     echo "usage: $0 <elf>"
     exit 1
@@ -86,16 +110,11 @@ echo Enabling fetch...
 # enable fetching - 2 clusters
 echo -n 3 > $FETCH
 
-echo Setting bypass ME rule in ruleset 0...
 echo -n 0 > "$REGS/me_valid/0"
-
-echo -n 0 > "$REGS/me_mode/0"
-for idx in {0..3}; do
-    echo -n 0 > "$REGS/me_idx/$idx"
-    echo -n 0 > "$REGS/me_mask/$idx"
-    echo -n 1 > "$REGS/me_start/$idx"
-    echo -n 0 > "$REGS/me_end/$idx"
-done
+match_ruleset 0
+bypass_ruleset 1
+bypass_ruleset 2
+bypass_ruleset 3
 echo -n 1 > "$REGS/me_valid/0"
 # TODO: set all match rule
 

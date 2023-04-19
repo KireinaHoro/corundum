@@ -29,6 +29,9 @@ on() {
     echo "Route to bypass from $PSPIN_NS:"
     ip -n $PSPIN_NS route get 10.0.0.2
 
+    echo "Pinging pspin from $BYPASS_NS:"
+    ip netns exec $BYPASS_NS ping -c 4 10.0.0.1
+
     echo "Pinging bypass from $PSPIN_NS:"
     ip netns exec $PSPIN_NS ping -c 4 10.0.0.2
 
@@ -37,7 +40,7 @@ on() {
 
 off() {
     echo "Destroying netns $PSPIN_NS and $BYPASS_NS..."
-    
+
     ip netns delete $PSPIN_NS
     ip netns delete $BYPASS_NS
 
