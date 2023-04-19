@@ -447,23 +447,23 @@ module mqnic_app_block #
     /*
      * Ethernet (internal at interface module)
      */
-    input  wire [IF_COUNT*AXIS_IF_DATA_WIDTH-1:0]         s_axis_if_tx_tdata,
-    input  wire [IF_COUNT*AXIS_IF_KEEP_WIDTH-1:0]         s_axis_if_tx_tkeep,
-    input  wire [IF_COUNT-1:0]                            s_axis_if_tx_tvalid,
-    output wire [IF_COUNT-1:0]                            s_axis_if_tx_tready,
-    input  wire [IF_COUNT-1:0]                            s_axis_if_tx_tlast,
-    input  wire [IF_COUNT*AXIS_IF_TX_ID_WIDTH-1:0]        s_axis_if_tx_tid,
-    input  wire [IF_COUNT*AXIS_IF_TX_DEST_WIDTH-1:0]      s_axis_if_tx_tdest,
-    input  wire [IF_COUNT*AXIS_IF_TX_USER_WIDTH-1:0]      s_axis_if_tx_tuser,
+    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_DATA_WIDTH-1:0]         s_axis_if_tx_tdata,
+    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_KEEP_WIDTH-1:0]         s_axis_if_tx_tkeep,
+    (* mark_debug = "true" *) input  wire [IF_COUNT-1:0]                            s_axis_if_tx_tvalid,
+    (* mark_debug = "true" *) output wire [IF_COUNT-1:0]                            s_axis_if_tx_tready,
+    (* mark_debug = "true" *) input  wire [IF_COUNT-1:0]                            s_axis_if_tx_tlast,
+    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_TX_ID_WIDTH-1:0]        s_axis_if_tx_tid,
+    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_TX_DEST_WIDTH-1:0]      s_axis_if_tx_tdest,
+    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_TX_USER_WIDTH-1:0]      s_axis_if_tx_tuser,
 
-    output wire [IF_COUNT*AXIS_IF_DATA_WIDTH-1:0]         m_axis_if_tx_tdata,
-    output wire [IF_COUNT*AXIS_IF_KEEP_WIDTH-1:0]         m_axis_if_tx_tkeep,
-    output wire [IF_COUNT-1:0]                            m_axis_if_tx_tvalid,
-    input  wire [IF_COUNT-1:0]                            m_axis_if_tx_tready,
-    output wire [IF_COUNT-1:0]                            m_axis_if_tx_tlast,
-    output wire [IF_COUNT*AXIS_IF_TX_ID_WIDTH-1:0]        m_axis_if_tx_tid,
-    output wire [IF_COUNT*AXIS_IF_TX_DEST_WIDTH-1:0]      m_axis_if_tx_tdest,
-    output wire [IF_COUNT*AXIS_IF_TX_USER_WIDTH-1:0]      m_axis_if_tx_tuser,
+    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_DATA_WIDTH-1:0]         m_axis_if_tx_tdata,
+    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_KEEP_WIDTH-1:0]         m_axis_if_tx_tkeep,
+    (* mark_debug = "true" *) output wire [IF_COUNT-1:0]                            m_axis_if_tx_tvalid,
+    (* mark_debug = "true" *) input  wire [IF_COUNT-1:0]                            m_axis_if_tx_tready,
+    (* mark_debug = "true" *) output wire [IF_COUNT-1:0]                            m_axis_if_tx_tlast,
+    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_TX_ID_WIDTH-1:0]        m_axis_if_tx_tid,
+    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_TX_DEST_WIDTH-1:0]      m_axis_if_tx_tdest,
+    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_TX_USER_WIDTH-1:0]      m_axis_if_tx_tuser,
 
     input  wire [IF_COUNT*PTP_TS_WIDTH-1:0]               s_axis_if_tx_cpl_ts,
     input  wire [IF_COUNT*TX_TAG_WIDTH-1:0]               s_axis_if_tx_cpl_tag,
@@ -887,14 +887,14 @@ wire [AXIS_IF_RX_ID_WIDTH-1:0]                  m_axis_nic_rx_tid;
 wire [AXIS_IF_RX_DEST_WIDTH-1:0]                m_axis_nic_rx_tdest;
 wire [AXIS_IF_RX_USER_WIDTH-1:0]                m_axis_nic_rx_tuser;
 
-wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_nic_tx_tdata;
-wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_nic_tx_tkeep;
-wire                                            m_axis_nic_tx_tvalid;
-wire                                            m_axis_nic_tx_tready;
-wire                                            m_axis_nic_tx_tlast;
-wire [AXIS_IF_TX_ID_WIDTH-1:0]                  m_axis_nic_tx_tid;
-wire [AXIS_IF_TX_DEST_WIDTH-1:0]                m_axis_nic_tx_tdest;
-wire [AXIS_IF_TX_USER_WIDTH-1:0]                m_axis_nic_tx_tuser;
+(* mark_debug = "true" *) wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_nic_tx_tdata;
+(* mark_debug = "true" *) wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_nic_tx_tkeep;
+(* mark_debug = "true" *) wire                                            m_axis_nic_tx_tvalid;
+(* mark_debug = "true" *) wire                                            m_axis_nic_tx_tready;
+(* mark_debug = "true" *) wire                                            m_axis_nic_tx_tlast;
+(* mark_debug = "true" *) wire [AXIS_IF_TX_ID_WIDTH-1:0]                  m_axis_nic_tx_tid;
+(* mark_debug = "true" *) wire [AXIS_IF_TX_DEST_WIDTH-1:0]                m_axis_nic_tx_tdest;
+(* mark_debug = "true" *) wire [AXIS_IF_TX_USER_WIDTH-1:0]                m_axis_nic_tx_tuser;
 
 wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_nic_fast_tx_tdata;
 wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_nic_fast_tx_tkeep;
