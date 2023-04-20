@@ -447,23 +447,23 @@ module mqnic_app_block #
     /*
      * Ethernet (internal at interface module)
      */
-    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_DATA_WIDTH-1:0]         s_axis_if_tx_tdata,
-    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_KEEP_WIDTH-1:0]         s_axis_if_tx_tkeep,
-    (* mark_debug = "true" *) input  wire [IF_COUNT-1:0]                            s_axis_if_tx_tvalid,
-    (* mark_debug = "true" *) output wire [IF_COUNT-1:0]                            s_axis_if_tx_tready,
-    (* mark_debug = "true" *) input  wire [IF_COUNT-1:0]                            s_axis_if_tx_tlast,
-    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_TX_ID_WIDTH-1:0]        s_axis_if_tx_tid,
-    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_TX_DEST_WIDTH-1:0]      s_axis_if_tx_tdest,
-    (* mark_debug = "true" *) input  wire [IF_COUNT*AXIS_IF_TX_USER_WIDTH-1:0]      s_axis_if_tx_tuser,
+    input  wire [IF_COUNT*AXIS_IF_DATA_WIDTH-1:0]         s_axis_if_tx_tdata,
+    input  wire [IF_COUNT*AXIS_IF_KEEP_WIDTH-1:0]         s_axis_if_tx_tkeep,
+    input  wire [IF_COUNT-1:0]                            s_axis_if_tx_tvalid,
+    output wire [IF_COUNT-1:0]                            s_axis_if_tx_tready,
+    input  wire [IF_COUNT-1:0]                            s_axis_if_tx_tlast,
+    input  wire [IF_COUNT*AXIS_IF_TX_ID_WIDTH-1:0]        s_axis_if_tx_tid,
+    input  wire [IF_COUNT*AXIS_IF_TX_DEST_WIDTH-1:0]      s_axis_if_tx_tdest,
+    input  wire [IF_COUNT*AXIS_IF_TX_USER_WIDTH-1:0]      s_axis_if_tx_tuser,
 
-    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_DATA_WIDTH-1:0]         m_axis_if_tx_tdata,
-    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_KEEP_WIDTH-1:0]         m_axis_if_tx_tkeep,
-    (* mark_debug = "true" *) output wire [IF_COUNT-1:0]                            m_axis_if_tx_tvalid,
-    (* mark_debug = "true" *) input  wire [IF_COUNT-1:0]                            m_axis_if_tx_tready,
-    (* mark_debug = "true" *) output wire [IF_COUNT-1:0]                            m_axis_if_tx_tlast,
-    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_TX_ID_WIDTH-1:0]        m_axis_if_tx_tid,
-    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_TX_DEST_WIDTH-1:0]      m_axis_if_tx_tdest,
-    (* mark_debug = "true" *) output wire [IF_COUNT*AXIS_IF_TX_USER_WIDTH-1:0]      m_axis_if_tx_tuser,
+    output wire [IF_COUNT*AXIS_IF_DATA_WIDTH-1:0]         m_axis_if_tx_tdata,
+    output wire [IF_COUNT*AXIS_IF_KEEP_WIDTH-1:0]         m_axis_if_tx_tkeep,
+    output wire [IF_COUNT-1:0]                            m_axis_if_tx_tvalid,
+    input  wire [IF_COUNT-1:0]                            m_axis_if_tx_tready,
+    output wire [IF_COUNT-1:0]                            m_axis_if_tx_tlast,
+    output wire [IF_COUNT*AXIS_IF_TX_ID_WIDTH-1:0]        m_axis_if_tx_tid,
+    output wire [IF_COUNT*AXIS_IF_TX_DEST_WIDTH-1:0]      m_axis_if_tx_tdest,
+    output wire [IF_COUNT*AXIS_IF_TX_USER_WIDTH-1:0]      m_axis_if_tx_tuser,
 
     input  wire [IF_COUNT*PTP_TS_WIDTH-1:0]               s_axis_if_tx_cpl_ts,
     input  wire [IF_COUNT*TX_TAG_WIDTH-1:0]               s_axis_if_tx_cpl_tag,
@@ -712,25 +712,25 @@ function [31:0] l2_addr_gen;
 endfunction
 
 // 50MHz from host before demux
-(* mark_debug = "true" *) wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    s_slow_axil_awaddr;
-(* mark_debug = "true" *) wire [2:0]                             s_slow_axil_awprot;
-(* mark_debug = "true" *) wire                                   s_slow_axil_awvalid;
-(* mark_debug = "true" *) wire                                   s_slow_axil_awready;
-(* mark_debug = "true" *) wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    s_slow_axil_wdata;
-(* mark_debug = "true" *) wire [AXIL_APP_CTRL_STRB_WIDTH-1:0]    s_slow_axil_wstrb;
-(* mark_debug = "true" *) wire                                   s_slow_axil_wvalid;
-(* mark_debug = "true" *) wire                                   s_slow_axil_wready;
-(* mark_debug = "true" *) wire [1:0]                             s_slow_axil_bresp;
-(* mark_debug = "true" *) wire                                   s_slow_axil_bvalid;
-(* mark_debug = "true" *) wire                                   s_slow_axil_bready;
-(* mark_debug = "true" *) wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    s_slow_axil_araddr;
-(* mark_debug = "true" *) wire [2:0]                             s_slow_axil_arprot;
-(* mark_debug = "true" *) wire                                   s_slow_axil_arvalid;
-(* mark_debug = "true" *) wire                                   s_slow_axil_arready;
-(* mark_debug = "true" *) wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    s_slow_axil_rdata;
-(* mark_debug = "true" *) wire [1:0]                             s_slow_axil_rresp;
-(* mark_debug = "true" *) wire                                   s_slow_axil_rvalid;
-(* mark_debug = "true" *) wire                                   s_slow_axil_rready;
+wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    s_slow_axil_awaddr;
+wire [2:0]                             s_slow_axil_awprot;
+wire                                   s_slow_axil_awvalid;
+wire                                   s_slow_axil_awready;
+wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    s_slow_axil_wdata;
+wire [AXIL_APP_CTRL_STRB_WIDTH-1:0]    s_slow_axil_wstrb;
+wire                                   s_slow_axil_wvalid;
+wire                                   s_slow_axil_wready;
+wire [1:0]                             s_slow_axil_bresp;
+wire                                   s_slow_axil_bvalid;
+wire                                   s_slow_axil_bready;
+wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    s_slow_axil_araddr;
+wire [2:0]                             s_slow_axil_arprot;
+wire                                   s_slow_axil_arvalid;
+wire                                   s_slow_axil_arready;
+wire [AXIL_APP_CTRL_DATA_WIDTH-1:0]    s_slow_axil_rdata;
+wire [1:0]                             s_slow_axil_rresp;
+wire                                   s_slow_axil_rvalid;
+wire                                   s_slow_axil_rready;
 
 wire [AXIL_APP_CTRL_ADDR_WIDTH-1:0]    pspin_axil_awaddr;
 wire [2:0]                             pspin_axil_awprot;
@@ -1403,6 +1403,42 @@ axis_async_fifo #(
     .m_status_good_frame()
 );
 
+(* mark_debug = "true" *) wire [AXIS_IF_DATA_WIDTH-1:0]                   s_axis_if_0_tx_tdata;
+(* mark_debug = "true" *) wire [AXIS_IF_KEEP_WIDTH-1:0]                   s_axis_if_0_tx_tkeep;
+(* mark_debug = "true" *) wire                                            s_axis_if_0_tx_tvalid;
+(* mark_debug = "true" *) wire                                            s_axis_if_0_tx_tready;
+(* mark_debug = "true" *) wire                                            s_axis_if_0_tx_tlast;
+(* mark_debug = "true" *) wire [AXIS_IF_TX_ID_WIDTH-1:0]                  s_axis_if_0_tx_tid;
+(* mark_debug = "true" *) wire [AXIS_IF_TX_DEST_WIDTH-1:0]                s_axis_if_0_tx_tdest;
+(* mark_debug = "true" *) wire [AXIS_IF_TX_USER_WIDTH-1:0]                s_axis_if_0_tx_tuser;
+
+(* mark_debug = "true" *) wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_if_0_tx_tdata;
+(* mark_debug = "true" *) wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_if_0_tx_tkeep;
+(* mark_debug = "true" *) wire                                            m_axis_if_0_tx_tvalid;
+(* mark_debug = "true" *) wire                                            m_axis_if_0_tx_tready;
+(* mark_debug = "true" *) wire                                            m_axis_if_0_tx_tlast;
+(* mark_debug = "true" *) wire [AXIS_IF_TX_ID_WIDTH-1:0]                  m_axis_if_0_tx_tid;
+(* mark_debug = "true" *) wire [AXIS_IF_TX_DEST_WIDTH-1:0]                m_axis_if_0_tx_tdest;
+(* mark_debug = "true" *) wire [AXIS_IF_TX_USER_WIDTH-1:0]                m_axis_if_0_tx_tuser;
+
+assign s_axis_if_0_tx_tdata = `SLICE(s_axis_if_tx_tdata, 0, AXIS_IF_DATA_WIDTH);
+assign s_axis_if_0_tx_tkeep = `SLICE(s_axis_if_tx_tkeep, 0, AXIS_IF_KEEP_WIDTH);
+assign s_axis_if_0_tx_tvalid = `SLICE(s_axis_if_tx_tvalid, 0, 1);
+assign `SLICE(s_axis_if_tx_tready, 0, 1) = s_axis_if_0_tx_tready;
+assign s_axis_if_0_tx_tlast = `SLICE(s_axis_if_tx_tlast, 0, 1);
+assign s_axis_if_0_tx_tid = `SLICE(s_axis_if_tx_tid, 0, AXIS_IF_TX_ID_WIDTH);
+assign s_axis_if_0_tx_tdest = `SLICE(s_axis_if_tx_tdest, 0, AXIS_IF_TX_DEST_WIDTH);
+assign s_axis_if_0_tx_tuser = `SLICE(s_axis_if_tx_tuser, 0, AXIS_IF_TX_USER_WIDTH);
+
+assign `SLICE(m_axis_if_tx_tdata, 0, AXIS_IF_DATA_WIDTH) = m_axis_if_0_tx_tdata;
+assign `SLICE(m_axis_if_tx_tkeep, 0, AXIS_IF_KEEP_WIDTH) = m_axis_if_0_tx_tkeep;
+assign `SLICE(m_axis_if_tx_tvalid, 0, 1) = m_axis_if_0_tx_tvalid;
+assign m_axis_if_0_tx_tready = `SLICE(m_axis_if_tx_tready, 0, 1);
+assign `SLICE(m_axis_if_tx_tlast, 0, 1) = m_axis_if_0_tx_tlast;
+assign `SLICE(m_axis_if_tx_tid, 0, AXIS_IF_TX_ID_WIDTH) = m_axis_if_0_tx_tid;
+assign `SLICE(m_axis_if_tx_tdest, 0, AXIS_IF_TX_DEST_WIDTH) = m_axis_if_0_tx_tdest;
+assign `SLICE(m_axis_if_tx_tuser, 0, AXIS_IF_TX_USER_WIDTH) = m_axis_if_0_tx_tuser;
+
 axis_arb_mux #(
     .S_COUNT(2),
     .DATA_WIDTH(AXIS_IF_DATA_WIDTH),
@@ -1418,23 +1454,23 @@ axis_arb_mux #(
     .rst(rst),
 
     // PsPIN tx has priority
-    .s_axis_tdata({`SLICE(s_axis_if_tx_tdata, 0, AXIS_IF_DATA_WIDTH), m_axis_nic_fast_tx_tdata}),
-    .s_axis_tkeep({`SLICE(s_axis_if_tx_tkeep, 0, AXIS_IF_KEEP_WIDTH), m_axis_nic_fast_tx_tkeep}),
-    .s_axis_tvalid({`SLICE(s_axis_if_tx_tvalid, 0, 1), m_axis_nic_fast_tx_tvalid}),
-    .s_axis_tready({`SLICE(s_axis_if_tx_tready, 0, 1), m_axis_nic_fast_tx_tready}),
-    .s_axis_tlast({`SLICE(s_axis_if_tx_tlast, 0, 1), m_axis_nic_fast_tx_tlast}),
-    .s_axis_tid({`SLICE(s_axis_if_tx_tid, 0, AXIS_IF_TX_ID_WIDTH), m_axis_nic_fast_tx_tid}),
-    .s_axis_tdest({`SLICE(s_axis_if_tx_tdest, 0, AXIS_IF_TX_DEST_WIDTH), m_axis_nic_fast_tx_tdest}),
-    .s_axis_tuser({`SLICE(s_axis_if_tx_tuser, 0, AXIS_IF_TX_USER_WIDTH), m_axis_nic_fast_tx_tuser}),
+    .s_axis_tdata({s_axis_if_0_tx_tdata, m_axis_nic_fast_tx_tdata}),
+    .s_axis_tkeep({s_axis_if_0_tx_tkeep, m_axis_nic_fast_tx_tkeep}),
+    .s_axis_tvalid({s_axis_if_0_tx_tvalid, m_axis_nic_fast_tx_tvalid}),
+    .s_axis_tready({s_axis_if_0_tx_tready, m_axis_nic_fast_tx_tready}),
+    .s_axis_tlast({s_axis_if_0_tx_tlast, m_axis_nic_fast_tx_tlast}),
+    .s_axis_tid({s_axis_if_0_tx_tid, m_axis_nic_fast_tx_tid}),
+    .s_axis_tdest({s_axis_if_0_tx_tdest, m_axis_nic_fast_tx_tdest}),
+    .s_axis_tuser({s_axis_if_0_tx_tuser, m_axis_nic_fast_tx_tuser}),
 
-    .m_axis_tdata(`SLICE(m_axis_if_tx_tdata, 0, AXIS_IF_DATA_WIDTH)),
-    .m_axis_tkeep(`SLICE(m_axis_if_tx_tkeep, 0, AXIS_IF_KEEP_WIDTH)),
-    .m_axis_tvalid(`SLICE(m_axis_if_tx_tvalid, 0, 1)),
-    .m_axis_tready(`SLICE(m_axis_if_tx_tready, 0, 1)),
-    .m_axis_tlast(`SLICE(m_axis_if_tx_tlast, 0, 1)),
-    .m_axis_tid(`SLICE(m_axis_if_tx_tid, 0, AXIS_IF_TX_ID_WIDTH)),
-    .m_axis_tdest(`SLICE(m_axis_if_tx_tdest, 0, AXIS_IF_TX_DEST_WIDTH)),
-    .m_axis_tuser(`SLICE(m_axis_if_tx_tuser, 0, AXIS_IF_TX_USER_WIDTH))
+    .m_axis_tdata(m_axis_if_0_tx_tdata),
+    .m_axis_tkeep(m_axis_if_0_tx_tkeep),
+    .m_axis_tvalid(m_axis_if_0_tx_tvalid),
+    .m_axis_tready(m_axis_if_0_tx_tready),
+    .m_axis_tlast(m_axis_if_0_tx_tlast),
+    .m_axis_tid(m_axis_if_0_tx_tid),
+    .m_axis_tdest(m_axis_if_0_tx_tdest),
+    .m_axis_tuser(m_axis_if_0_tx_tuser)
 );
 
 axi_dwidth_converter_0 i_pspin_upsize (
