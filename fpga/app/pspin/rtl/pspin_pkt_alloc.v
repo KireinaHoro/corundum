@@ -184,6 +184,8 @@ always @* begin
 
     slot0_free_enq_valid = 1'b0;
     slot1_free_enq_valid = 1'b0;
+    slot0_free_enq_data  = {ADDR_WIDTH{1'b0}};
+    slot1_free_enq_data  = {ADDR_WIDTH{1'b0}};
 
     slot0_deq_ready = 1'b0;
     slot1_deq_ready = 1'b0;
