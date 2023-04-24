@@ -105,9 +105,9 @@ class TB:
     def tcp_dportnum(self, idx, dport):
         assert self.match_width == 32, 'only support 32-bit match atm'
         self.rulesets[idx] = [
+            MatchRule(3, 0xffff0000, 0x0800 << 16, 0x0800 << 16), # IPv4
             MatchRule(5, 0xff, 0x06, 0x06), # proto == TCP
             MatchRule(9, 0xffff0000, dport << 16, dport << 16), # dport
-            MatchRule.empty(),
             MatchRule(11, 0x10, 0x10, 0x10) # TCP.ACK set
         ], MODE_AND
     def tcp_or_udp(self, idx):

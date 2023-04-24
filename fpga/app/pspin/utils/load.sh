@@ -2,6 +2,11 @@
 
 set -eu
 
+die() {
+    echo "$@" >&2
+    exit 1
+}
+
 RISCV="/opt/riscv"
 TRIPLE="riscv32-unknown-elf"
 OBJDUMP="$RISCV/bin/$TRIPLE-objdump"
@@ -11,6 +16,12 @@ NM="$RISCV/bin/$TRIPLE-nm"
 
 hex_to_dec() {
     echo "obase=10; ibase=16; ${1^^}" | bc
+}
+
+hex_to_dec_be() {
+    padded=$(printf "%08x" 0x$1)
+    # https://stackoverflow.com/a/39564881/5520728
+    hex_to_dec $(echo $padded | tac -rs ..)
 }
 
 L2_BASE=$(hex_to_dec 1c000000)
@@ -63,14 +74,27 @@ get_handler() {
     fi
 }
 
+do_rule() {
+    echo -n $2 > "$REGS/me_idx/$1"
+    # match registers are BE
+    echo -n $(hex_to_dec_be $3) > "$REGS/me_mask/$1"
+    echo -n $(hex_to_dec_be $4) > "$REGS/me_start/$1"
+    echo -n $(hex_to_dec_be $5) > "$REGS/me_end/$1"
+}
+
+rule_false() {
+    do_rule $1 0 0 1 0
+}
+
+rule_empty() {
+    do_rule $1 0 0 0 0
+}
+
 bypass_ruleset() {
     echo Setting all bypass ME rule in ruleset $1...
     base=$(($1 * 4))
     for ((idx = $base; idx < $(($base+4)); idx++)); do
-        echo -n 0 > "$REGS/me_idx/$idx"
-        echo -n 0 > "$REGS/me_mask/$idx"
-        echo -n 1 > "$REGS/me_start/$idx"
-        echo -n 0 > "$REGS/me_end/$idx"
+        rule_false $idx
     done
     echo -n 0 > "$REGS/me_mode/$1" # MODE_AND
 }
@@ -79,18 +103,22 @@ match_ruleset() {
     echo Setting all match ME rule in ruleset $1...
     base=$(($1 * 4))
     for ((idx = $base; idx < $(($base+4)); idx++)); do
-        echo -n 0 > "$REGS/me_idx/$idx"
-        echo -n 0 > "$REGS/me_mask/$idx"
-        echo -n 0 > "$REGS/me_start/$idx"
-        echo -n 0 > "$REGS/me_end/$idx"
+        rule_empty $idx
     done
     echo -n 0 > "$REGS/me_mode/$1" # MODE_AND
 }
 
-if [[ $# != 1 ]]; then
-    echo "usage: $0 <elf>"
-    exit 1
-fi
+udp_ruleset() {
+    echo Setting match UDP rule in ruleset $1...
+    base=$(($1 * 4))
+    do_rule $base 3 ffff0000 08000000 08000000 # IPv4
+    do_rule $(($base+1)) 5 ff 11 11 # UDP
+    rule_empty $(($base+2))
+    rule_false $(($base+3)) # never EOM
+    echo -n 0 > "$REGS/me_mode/$1" # MODE_AND
+}
+
+[[ $# == 1 ]] || die "usage: $0 <elf>"
 
 # cycle reset (mandated by kernel module)
 echo Disabling fetch...
@@ -111,7 +139,9 @@ echo Enabling fetch...
 echo -n 3 > $FETCH
 
 echo -n 0 > "$REGS/me_valid/0"
-match_ruleset 0
+udp_ruleset 0
+# match_ruleset 0
+# bypass_ruleset 0
 bypass_ruleset 1
 bypass_ruleset 2
 bypass_ruleset 3
