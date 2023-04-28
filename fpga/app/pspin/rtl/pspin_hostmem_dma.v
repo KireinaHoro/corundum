@@ -7,13 +7,12 @@
  */
 
 module pspin_hostmem_dma #(
-    parameter DMA_ADDR_WIDTH = 64,
     parameter DMA_IMM_ENABLE = 0,
     parameter DMA_IMM_WIDTH = 32,
     parameter DMA_LEN_WIDTH = 16,
     parameter DMA_TAG_WIDTH = 16,
     parameter RAM_SEL_WIDTH = 4,
-    parameter RAM_ADDR_WIDTH = 16,
+    parameter RAM_ADDR_WIDTH = 20,
     parameter RAM_SEG_COUNT = 2,
     parameter RAM_SEG_DATA_WIDTH = 256*2/RAM_SEG_COUNT,
     parameter RAM_SEG_BE_WIDTH = RAM_SEG_DATA_WIDTH/8,
@@ -35,7 +34,7 @@ module pspin_hostmem_dma #(
     /*
      * DMA read descriptor output (data)
      */
-    output wire [DMA_ADDR_WIDTH-1:0]                      m_axis_read_desc_dma_addr,
+    output wire [ADDR_WIDTH-1:0]                          m_axis_read_desc_dma_addr,
     output wire [RAM_SEL_WIDTH-1:0]                       m_axis_read_desc_ram_sel,
     output wire [RAM_ADDR_WIDTH-1:0]                      m_axis_read_desc_ram_addr,
     output wire [DMA_LEN_WIDTH-1:0]                       m_axis_read_desc_len,
@@ -53,7 +52,7 @@ module pspin_hostmem_dma #(
     /*
      * DMA write descriptor output (data)
      */
-    output wire [DMA_ADDR_WIDTH-1:0]                      m_axis_write_desc_dma_addr,
+    output wire [ADDR_WIDTH-1:0]                          m_axis_write_desc_dma_addr,
     output wire [RAM_SEL_WIDTH-1:0]                       m_axis_write_desc_ram_sel,
     output wire [RAM_ADDR_WIDTH-1:0]                      m_axis_write_desc_ram_addr,
     output wire [DMA_IMM_WIDTH-1:0]                       m_axis_write_desc_imm,
@@ -138,7 +137,6 @@ module pspin_hostmem_dma #(
 );
 
 pspin_hostmem_dma_rd #(
-    .DMA_ADDR_WIDTH(DMA_ADDR_WIDTH),
     .DMA_IMM_ENABLE(DMA_IMM_ENABLE),
     .DMA_IMM_WIDTH(DMA_IMM_WIDTH),
     .DMA_LEN_WIDTH(DMA_LEN_WIDTH),

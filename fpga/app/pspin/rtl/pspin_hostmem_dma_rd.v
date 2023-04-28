@@ -14,7 +14,7 @@ module pspin_hostmem_dma_rd #(
     parameter DMA_LEN_WIDTH = 16,
     parameter DMA_TAG_WIDTH = 16,
     parameter RAM_SEL_WIDTH = 4,
-    parameter RAM_ADDR_WIDTH = 16,
+    parameter RAM_ADDR_WIDTH = 20,
     parameter RAM_SEG_COUNT = 2,
     parameter RAM_SEG_DATA_WIDTH = 256*2/RAM_SEG_COUNT,
     parameter RAM_SEG_BE_WIDTH = RAM_SEG_DATA_WIDTH/8,
@@ -55,12 +55,12 @@ module pspin_hostmem_dma_rd #(
     /*
      * RAM interface
      */
-    output wire [RAM_SEG_COUNT*RAM_SEG_BE_WIDTH-1:0]    ram_wr_cmd_be,
-    output wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]  ram_wr_cmd_addr,
-    output wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]  ram_wr_cmd_data,
-    output wire [RAM_SEG_COUNT-1:0]                     ram_wr_cmd_valid,
-    input  wire [RAM_SEG_COUNT-1:0]                     ram_wr_cmd_ready,
-    input  wire [RAM_SEG_COUNT-1:0]                     ram_wr_done,
+    input  wire [RAM_SEG_COUNT*RAM_SEG_BE_WIDTH-1:0]    ram_wr_cmd_be,
+    input  wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]  ram_wr_cmd_addr,
+    input  wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]  ram_wr_cmd_data,
+    input  wire [RAM_SEG_COUNT-1:0]                     ram_wr_cmd_valid,
+    output wire [RAM_SEG_COUNT-1:0]                     ram_wr_cmd_ready,
+    output wire [RAM_SEG_COUNT-1:0]                     ram_wr_done,
 
     /* AXI AR & R channels */
     input  wire [ID_WIDTH-1:0]                          s_axi_arid,
@@ -75,13 +75,13 @@ module pspin_hostmem_dma_rd #(
     input  wire [3:0]                                   s_axi_arregion,
     input  wire [ARUSER_WIDTH-1:0]                      s_axi_aruser,
     input  wire                                         s_axi_arvalid,
-    output wire                                         s_axi_arready,
-    output wire [ID_WIDTH-1:0]                          s_axi_rid,
-    output wire [DATA_WIDTH-1:0]                        s_axi_rdata,
-    output wire [1:0]                                   s_axi_rresp,
-    output wire                                         s_axi_rlast,
-    output wire [RUSER_WIDTH-1:0]                       s_axi_ruser,
-    output wire                                         s_axi_rvalid,
+    output reg                                          s_axi_arready,
+    output reg  [ID_WIDTH-1:0]                          s_axi_rid,
+    output reg  [DATA_WIDTH-1:0]                        s_axi_rdata,
+    output reg  [1:0]                                   s_axi_rresp,
+    output reg                                          s_axi_rlast,
+    output reg  [RUSER_WIDTH-1:0]                       s_axi_ruser,
+    output reg                                          s_axi_rvalid,
     input  wire                                         s_axi_rready
 );
 
@@ -206,10 +206,7 @@ always @* begin
         end
         CLEAR_CLIENT: if (dma_read_desc_status_valid)
             state_d = IDLE;
-        default: begin
-            $error("Unknown/unhandled state %#x\n", state_q);
-            $finish;
-        end
+        default: begin /* nothing */ end
     endcase
 end
 
@@ -359,12 +356,14 @@ dma_client_axis_source #(
     .SEG_BE_WIDTH(RAM_SEG_BE_WIDTH),
     .RAM_ADDR_WIDTH(RAM_ADDR_WIDTH),
     .AXIS_DATA_WIDTH(DATA_WIDTH),
-    .AXIS_KEEP_ENABLE(0),
+    .AXIS_KEEP_ENABLE(1),
     .AXIS_LAST_ENABLE(1),
     .AXIS_ID_ENABLE(1),
     .AXIS_ID_WIDTH(ID_WIDTH),
     .AXIS_DEST_ENABLE(0),
+    .AXIS_DEST_WIDTH(1),
     .AXIS_USER_ENABLE(0),
+    .AXIS_USER_WIDTH(1),
     .LEN_WIDTH(8),
     .TAG_WIDTH(1)
 ) i_dma_client_axis (
@@ -378,8 +377,8 @@ dma_client_axis_source #(
     .s_axis_read_desc_len(dma_read_desc_len),
     .s_axis_read_desc_tag(1'b0),
     .s_axis_read_desc_id(dma_read_desc_id),
-    .s_axis_read_desc_dest(0),
-    .s_axis_read_desc_user('h0),
+    .s_axis_read_desc_dest(1'b0),
+    .s_axis_read_desc_user(1'b0),
     .s_axis_read_desc_valid(dma_read_desc_valid),
     .s_axis_read_desc_ready(dma_read_desc_ready),
 
