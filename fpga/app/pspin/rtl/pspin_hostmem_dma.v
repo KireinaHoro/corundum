@@ -205,4 +205,72 @@ pspin_hostmem_dma_rd #(
     .s_axi_rready
 );
 
+pspin_hostmem_dma_wr #(
+    .DMA_IMM_ENABLE(DMA_IMM_ENABLE),
+    .DMA_IMM_WIDTH(DMA_IMM_WIDTH),
+    .DMA_LEN_WIDTH(DMA_LEN_WIDTH),
+    .DMA_TAG_WIDTH(DMA_TAG_WIDTH),
+    .RAM_SEL_WIDTH(RAM_SEL_WIDTH),
+    .RAM_ADDR_WIDTH(RAM_ADDR_WIDTH),
+    .RAM_SEG_COUNT(RAM_SEG_COUNT),
+    .RAM_SEG_DATA_WIDTH(RAM_SEG_DATA_WIDTH),
+    .RAM_SEG_BE_WIDTH(RAM_SEG_BE_WIDTH),
+    .RAM_SEG_ADDR_WIDTH(RAM_SEG_ADDR_WIDTH),
+    .ADDR_WIDTH(ADDR_WIDTH),
+    .DATA_WIDTH(DATA_WIDTH),
+    .STRB_WIDTH(STRB_WIDTH),
+    .ID_WIDTH(ID_WIDTH),
+    .AWUSER_WIDTH(AWUSER_WIDTH),
+    .WUSER_WIDTH(WUSER_WIDTH),
+    .BUSER_WIDTH(BUSER_WIDTH),
+    .ARUSER_WIDTH(ARUSER_WIDTH),
+    .RUSER_WIDTH(RUSER_WIDTH)
+) i_wr (
+    .m_axis_write_desc_dma_addr,
+    .m_axis_write_desc_ram_sel,
+    .m_axis_write_desc_ram_addr,
+    .m_axis_write_desc_imm,
+    .m_axis_write_desc_imm_en,
+    .m_axis_write_desc_len,
+    .m_axis_write_desc_tag,
+    .m_axis_write_desc_valid,
+    .m_axis_write_desc_ready,
+
+    .s_axis_write_desc_status_tag,
+    .s_axis_write_desc_status_error,
+    .s_axis_write_desc_status_valid,
+
+    .ram_wr_cmd_be,
+    .ram_wr_cmd_addr,
+    .ram_wr_cmd_data,
+    .ram_wr_cmd_valid,
+    .ram_wr_cmd_ready,
+    .ram_wr_done,
+
+    .s_axi_awid,
+    .s_axi_awaddr,
+    .s_axi_awlen,
+    .s_axi_awsize,
+    .s_axi_awburst,
+    .s_axi_awlock,
+    .s_axi_awcache,
+    .s_axi_awprot,
+    .s_axi_awqos,
+    .s_axi_awregion,
+    .s_axi_awuser,
+    .s_axi_awvalid,
+    .s_axi_awready,
+    .s_axi_wdata,
+    .s_axi_wstrb,
+    .s_axi_wlast,
+    .s_axi_wuser,
+    .s_axi_wvalid,
+    .s_axi_wready,
+    .s_axi_bid,
+    .s_axi_bresp,
+    .s_axi_buser,
+    .s_axi_bvalid,
+    .s_axi_bready
+);
+
 endmodule
