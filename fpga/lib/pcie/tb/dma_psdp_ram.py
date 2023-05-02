@@ -29,6 +29,7 @@ from cocotb.triggers import RisingEdge
 from cocotb_bus.bus import Bus
 
 from cocotbext.axi.memory import Memory
+from cocotbext.axi.reset import Reset
 
 
 class BaseBus(Bus):
@@ -80,12 +81,11 @@ class PsdpRamBus:
         return cls(write, read)
 
 
-class PsdpRamWrite(Memory):
+class PsdpRamWrite(Memory, Reset):
 
-    def __init__(self, bus, clock, reset=None, size=1024, mem=None, *args, **kwargs):
+    def __init__(self, bus, clock, reset=None, reset_active_level=True, size=1024, mem=None, *args, **kwargs):
         self.bus = bus
         self.clock = clock
-        self.reset = reset
         self.log = logging.getLogger(f"cocotb.{bus._entity._name}.{bus._name}")
 
         self.log.info("Parallel Simple Dual Port RAM model (write)")
@@ -123,7 +123,13 @@ class PsdpRamWrite(Memory):
         self.bus.wr_cmd_ready.setimmediatevalue(0)
         self.bus.wr_done.setimmediatevalue(0)
 
+        self.in_reset = False
+        self._init_reset(reset, reset_active_level)
+
         cocotb.start_soon(self._run())
+
+    def _handle_reset(self, state):
+        self.in_reset = state
 
     def set_pause_generator(self, generator=None):
         if self._pause_cr is not None:
@@ -153,7 +159,7 @@ class PsdpRamWrite(Memory):
                 cmd_addr_sample = self.bus.wr_cmd_addr.value
                 cmd_data_sample = self.bus.wr_cmd_data.value
 
-            if self.reset is not None and self.reset.value:
+            if self.in_reset:
                 self.bus.wr_cmd_ready.setimmediatevalue(0)
                 self.bus.wr_done.setimmediatevalue(0)
                 continue
@@ -196,12 +202,11 @@ class PsdpRamWrite(Memory):
             await RisingEdge(self.clock)
 
 
-class PsdpRamRead(Memory):
+class PsdpRamRead(Memory, Reset):
 
-    def __init__(self, bus, clock, reset=None, size=1024, mem=None, *args, **kwargs):
+    def __init__(self, bus, clock, reset=None, reset_active_level=True, size=1024, mem=None, *args, **kwargs):
         self.bus = bus
         self.clock = clock
-        self.reset = reset
         self.log = logging.getLogger(f"cocotb.{bus._entity._name}.{bus._name}")
 
         self.log.info("Parallel Simple Dual Port RAM model (read)")
@@ -235,7 +240,13 @@ class PsdpRamRead(Memory):
         self.bus.rd_cmd_ready.setimmediatevalue(0)
         self.bus.rd_resp_valid.setimmediatevalue(0)
 
+        self.in_reset = False
+        self._init_reset(reset, reset_active_level)
+
         cocotb.start_soon(self._run())
+
+    def _handle_reset(self, state):
+        self.in_reset = state
 
     def set_pause_generator(self, generator=None):
         if self._pause_cr is not None:
@@ -267,7 +278,7 @@ class PsdpRamRead(Memory):
 
             resp_ready_sample = self.bus.rd_resp_ready.value
 
-            if self.reset is not None and self.reset.value:
+            if self.in_reset:
                 self.bus.rd_cmd_ready.setimmediatevalue(0)
                 self.bus.rd_resp_valid.setimmediatevalue(0)
                 cmd_ready = 0
