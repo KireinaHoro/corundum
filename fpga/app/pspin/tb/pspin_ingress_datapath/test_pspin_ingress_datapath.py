@@ -15,6 +15,7 @@ from cocotb_test.simulator import run
 from cocotb.clock import Clock, Timer
 from cocotb.triggers import RisingEdge, Edge, First
 from cocotb.regression import TestFactory
+from cocotb.utils import get_sim_time
 from cocotbext.axi import AxiStreamSource, AxiStreamSink, AxiStreamBus, AxiStreamFrame
 from cocotbext.axi import AxiBus, AxiRam
 
@@ -70,8 +71,7 @@ class ExecutionContext:
     @classmethod
     async def from_dut(cls, dut):
         fields = inspect.getfullargspec(cls.__init__)[0][1:]
-        await WithTimeout(Active(dut, dut.her_valid))
-        await WithTimeout(Active(dut, dut.her_ready))
+        await WithTimeout(Active(dut, dut.her_valid, dut.her_ready, to_rising=False))
         ret = cls(**{k: getattr(dut, f'her_meta_{k}').value for k in fields})
         await RisingEdge(dut.clk)
         return ret
@@ -99,7 +99,7 @@ class TB:
         self.unmatched_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, 'm_axis_nic_rx'),
                                             dut.clk, dut.rstn, reset_active_level=False)
         # self.unmatched_sink.log.setLevel(logging.WARNING)
-        self.axi_ram = AxiRam(AxiBus.from_prefix(dut, 'm_axi_pspin'),
+        self.axi_ram = AxiRam(AxiBus.from_prefix(dut, 'm_axi_pspin_ni'),
                               dut.clk, dut.rstn, reset_active_level=False, size=2**20)
 
         self.rulesets = [([], MODE_OR) for _ in range(4)]
@@ -258,8 +258,8 @@ class TB:
         self.dut.her_gen_valid.value = 1
 
     async def pop_her(self, pkt, idx, ctx, eom):
+        self.log.debug('Popping HER')
         her_ctx = await ExecutionContext.from_dut(self.dut)
-        # assert self.dut.her_msgid.value == self.unpack_tag(tag)[0]
         assert self.dut.her_is_eom.value == eom
         assert her_ctx == ctx
 
@@ -269,6 +269,7 @@ class TB:
             self.dut.her_xfer_size.value, \
             self.dut.her_msgid.value
 
+        self.log.debug(f'Popped HER with msgid {self.dut.her_msgid.value}')
         self.log.info(f'Addr = {int(addr):#x}, size = {int(size)}, xfer_size = {int(xfer_size)}, msgid = {int(msgid)}')
         assert idx == msgid, f'packet #{idx} missing'
 

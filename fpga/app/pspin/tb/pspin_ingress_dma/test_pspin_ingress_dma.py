@@ -90,8 +90,7 @@ class TB:
             await after.join()
             await RisingEdge(self.dut.clk)
 
-        await WithTimeout(Active(self.dut, self.dut.her_gen_valid))
-        await WithTimeout(Active(self.dut, self.dut.her_gen_ready))
+        await WithTimeout(Active(self.dut, self.dut.her_gen_valid, self.dut.her_gen_ready, to_rising=False))
         self.log.debug('check_result handshake ok')
         self.log.debug(f'Pending tags before check_result: {self.pending.keys()}')
         tag = int(self.dut.her_gen_tag.value)
@@ -106,6 +105,7 @@ class TB:
         assert self.axi_ram.read(addr, len(pkt)) == pkt
 
         self.log.debug('check_result finished')
+        await RisingEdge(self.dut.clk)
 
     async def push_frame(self, pkt, addr, idx):
         await self.push_frame_nocheck(pkt, addr, idx)

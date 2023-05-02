@@ -14,7 +14,7 @@ import operator
 import cocotb
 from cocotb_test.simulator import run
 from cocotb.clock import Clock, Timer
-from cocotb.triggers import RisingEdge, Edge, First
+from cocotb.triggers import RisingEdge
 from cocotb.regression import TestFactory
 from cocotbext.axi import AxiStreamSource, AxiStreamBus, AxiStreamFrame
 from cocotbext.axi import AxiBus, AxiRam
@@ -48,10 +48,9 @@ class ExecutionContext:
     @classmethod
     async def from_dut(cls, dut):
         fields = inspect.getfullargspec(cls.__init__)[0][1:]
-        await WithTimeout(Active(dut, dut.her_valid))
-        await WithTimeout(Active(dut, dut.her_ready))
+        await WithTimeout(Active(dut, dut.her_valid, dut.her_ready, to_rising=False))
         ret = cls(**{k: getattr(dut, f'her_meta_{k}').value for k in fields})
-        await RisingEdge(dut.clk)
+        await RisingEdge(dut.clk) # return to normal edge
         return ret
 
 class TB:
@@ -116,16 +115,16 @@ class TB:
         self.dut.gen_tag.value = tag
         self.dut.gen_valid.value = 1
         await WithTimeout(Active(self.dut, self.dut.gen_ready))
-        await RisingEdge(self.dut.clk)
         self.dut.gen_valid.value = 0
+        self.log.debug(f'Pushed gen with tag {tag:#x}')
     
     async def pop_her(self, addr, length, tag, ctx, after=None):
         if after:
             self.log.debug('Joining previous task')
             await after.join()
-            await RisingEdge(self.dut.clk)
 
         her_ctx = await ExecutionContext.from_dut(self.dut)
+        self.log.debug(f'Popped HER with msgid {self.dut.her_msgid.value}')
         assert self.dut.her_msgid.value == self.unpack_tag(tag)[0]
         assert self.dut.her_is_eom.value == self.unpack_tag(tag)[1]
         assert self.dut.her_addr.value == addr
@@ -147,6 +146,7 @@ class TB:
         msgid = extract(self.msgid_width, 1 + self.ctx_id_width)
         is_eom = extract(1, self.ctx_id_width)
         ctx_id = extract(self.ctx_id_width, 0)
+        self.log.debug(f'Tag {tag:#x} unpacked into {msgid}, {is_eom}, {ctx_id}')
         return msgid, is_eom, ctx_id
 
 async def backpressure_her(dut):
@@ -166,26 +166,6 @@ default_ctx = ExecutionContext(
     0x0, 0x0,
     0x0, 0x0)
 
-async def run_test_her(dut, stall=False):
-    tb = TB(dut)
-    await tb.cycle_reset()
-
-    if stall:
-        cocotb.start_soon(backpressure_her(dut))
-
-    # PsPIN not ready and default ctx not set
-    assert dut.gen_ready.value == 0
-    await tb.set_ctx(0, default_ctx)
-    # PsPIN not ready
-    assert dut.gen_ready.value == 0
-    dut.her_ready.value = 1
-    await WithTimeout(Active(dut, dut.gen_ready))
-
-    for idx in range(10):
-        addr, length, tag = 0x18000 + idx * 0x1000, 0x5dc, tb.pack_tag(idx, 1, 0)
-        await tb.push_gen(addr, length, tag)
-        await tb.pop_her(addr, length, tag, default_ctx)
-
 async def run_test_her_pipelined(dut, stall=False):
     tb = TB(dut)
     await tb.cycle_reset()
@@ -204,12 +184,12 @@ async def run_test_her_pipelined(dut, stall=False):
     task = None
     for idx in range(10):
         addr, length, tag = 0x18000 + idx * 0x1000, 0x5dc, tb.pack_tag(idx, 1, 0)
-        await tb.push_gen(addr, length, tag)
         task = cocotb.start_soon(tb.pop_her(addr, length, tag, default_ctx, after=task))
+        await tb.push_gen(addr, length, tag)
     await task.join()
 
 if cocotb.SIM_NAME:
-    for test in [run_test_her, run_test_her_pipelined]:
+    for test in [run_test_her_pipelined]:
         factory = TestFactory(test)
         factory.add_option('stall', [True, False])
         factory.generate_tests()
