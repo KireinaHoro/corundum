@@ -122,7 +122,7 @@ wire [BYTELANE_IDX_WIDTH-1:0] curr_bl_idx = (init_bl_idx + beat_idx_q) % (end_bl
 
 // DMA client AXIS
 reg [RAM_ADDR_WIDTH-1:0] dma_read_desc_ram_addr;
-reg [7:0] dma_read_desc_len;
+reg [DMA_LEN_WIDTH-1:0] dma_read_desc_len;
 // FIXME: when we support multiple inflight txns:
 // - tag should be internal idx into txn table
 // - id should be (saved) ARID/RID
@@ -170,15 +170,15 @@ always @* begin
             dma_error_d = 1'b0;
             beat_idx_d = 8'b0;
         end
-        ISSUE_TO_DMA, WAIT_DMA:
-        if (m_axis_read_desc_valid && m_axis_read_desc_ready && s_axis_read_desc_status_valid) begin
+        ISSUE_TO_DMA: if (m_axis_read_desc_valid && m_axis_read_desc_ready)
+            state_d = WAIT_DMA;
+        WAIT_DMA: if (s_axis_read_desc_status_valid) begin
             if (s_axis_read_desc_status_error != DMA_ERROR_NONE) begin
                 state_d = SEND_AXI_BEAT; // in case of slave error we still need the required number of beats
                 dma_error_d = 1'b1;
             end else
                 state_d = ISSUE_TO_CLIENT;
-        end else
-            state_d = WAIT_DMA;
+        end
         ISSUE_TO_CLIENT, WAIT_CLIENT: if (dma_read_desc_valid && dma_read_desc_ready)
             state_d = CAPTURE_AXIS_DATA;
         else
@@ -186,7 +186,7 @@ always @* begin
         CAPTURE_AXIS_DATA: if (axis_tvalid && axis_tready) begin
             state_d = SEND_AXI_BEAT;
             // optimisation: send the first axi beat already
-            if (s_axi_rvalid && s_axi_rready) begin
+            if (s_axi_rready) begin
                 if (curr_bl_idx == end_bl_idx)
                     state_d = CAPTURE_AXIS_DATA;
                 if (beat_idx_q == num_beats && axis_tlast)
@@ -277,19 +277,21 @@ always @(posedge clk) begin
             dma_read_desc_valid <= 1'b1;
         end
         // WAIT_CLIENT: nothing
-        CAPTURE_AXIS_DATA: if (axis_tvalid && axis_tready) begin
-            dma_read_desc_valid <= 1'b0;
-
-            axis_tdata_q <= axis_tdata;
-            axis_tid_q <= axis_tid;
-            axis_tlast_q <= axis_tlast;
+        CAPTURE_AXIS_DATA: begin
             axis_tready <= 1'b1;
+            dma_read_desc_valid <= 1'b0;
+            s_axi_rvalid <= axis_tvalid;
 
-            s_axi_rdata <= axis_tdata;
-            s_axi_rid <= axis_tid;
-            s_axi_rresp <= AXI_OKAY;
-            s_axi_rlast <= beat_idx_d == num_beats && axis_tlast;
-            s_axi_rvalid <= 1'b1;
+            if (axis_tvalid) begin
+                axis_tdata_q <= axis_tdata;
+                axis_tid_q <= axis_tid;
+                axis_tlast_q <= axis_tlast;
+
+                s_axi_rdata <= axis_tdata;
+                s_axi_rid <= axis_tid;
+                s_axi_rresp <= AXI_OKAY;
+                s_axi_rlast <= beat_idx_d == num_beats && axis_tlast;
+            end
         end
         SEND_AXI_BEAT: begin
             axis_tready <= 1'b0;
@@ -334,7 +336,7 @@ dma_client_axis_source #(
     .AXIS_DEST_WIDTH(1),
     .AXIS_USER_ENABLE(0),
     .AXIS_USER_WIDTH(1),
-    .LEN_WIDTH(8),
+    .LEN_WIDTH(DMA_LEN_WIDTH),
     .TAG_WIDTH(1)
 ) i_dma_client_axis (
     .clk(clk),

@@ -111,10 +111,10 @@ async def run_test_dma_read(dut, idle_inserter=None, backpressure_inserter=None)
     tb.log.info(f'Received DMA descriptor {desc}')
 
     ram_base_addr = 0
-    data = b'Hello, world!'
+    data = randbytes(length)
     tb.ram_rd.write(ram_base_addr, data)
     tb.log.info('Dumping DMA read RAM:')
-    tb.ram_rd.hexdump(0, 64, '')
+    tb.ram_rd.hexdump(0, length, '')
 
     await clk_edge
     await clk_edge
@@ -124,8 +124,8 @@ async def run_test_dma_read(dut, idle_inserter=None, backpressure_inserter=None)
     tb.log.info(f'Sending DMA completion {resp}')
     await tb.rd_desc_status_source.send(resp)
 
-    await with_timeout(read_op.wait(), 100, 'ns')
-    assert read_op.data == data
+    await with_timeout(read_op.wait(), 1000, 'ns')
+    assert read_op.data.data == data
     
 # TODO: test narrow burst
 # TODO: test unaligned
