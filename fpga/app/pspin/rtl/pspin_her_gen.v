@@ -12,6 +12,7 @@
  * should always be set up before enabling the matching engine.
  */
 
+`timescale 1ns / 1ps
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
 
 `define HER_META(X) \
@@ -61,7 +62,7 @@ module pspin_her_gen #(
     input  wire [LEN_WIDTH-1:0]             gen_len,
     input  wire [TAG_WIDTH-1:0]             gen_tag,
     input  wire                             gen_valid,
-    output wire                             gen_ready,
+    output reg                              gen_ready,
 
     // execution context from ctrl regs
 `define INPUT_CFG(name, width) input wire [NUM_HANDLER_CTX*(width)-1:0] conf_``name,
@@ -117,34 +118,25 @@ end
 // decode tag => msgid, is_eom, ctx_id
 assign {decode_msgid, decode_is_eom, decode_ctx_id} = gen_tag;
 
-// default context set & PsPIN ready
-assign gen_ready = conf_ctx_enabled_q[`DEFAULT_CTX_ID] && her_ready;
-
-// generate HER on completion - 1 cycle latency
-always @(posedge clk) begin
-    if (gen_valid) begin
-        her_msgid <= decode_msgid;
-        her_is_eom <= decode_is_eom;
-        her_addr <= gen_addr;
-        her_size <= gen_len;
-        // TODO: determine ratio of DMA to L1
-        her_xfer_size <= gen_len;
+// generate HER on completion - combinatorial
+// FIXME: use a skid buffer if timing becomes an issue
+always @* begin
+    her_msgid = decode_msgid;
+    her_is_eom = decode_is_eom;
+    her_addr = gen_addr;
+    her_size = gen_len;
+    // TODO: determine ratio of DMA to L1
+    her_xfer_size = gen_len;
 `define ASSIGN_HER_META(name, width) \
-    her_meta_``name <= name``_q[ \
+    her_meta_``name = name``_q[ \
         conf_ctx_enabled_q[decode_ctx_id] ? \
             decode_ctx_id : `DEFAULT_CTX_ID \
         ];
 `HER_META(ASSIGN_HER_META)
-        her_valid <= 1'b1;
-    end
+    her_valid = gen_valid;
 
-    if (her_valid && her_ready) begin
-        her_valid <= 1'b0;
-    end
-
-    if (!rstn) begin
-        her_valid <= 1'b0;
-    end
+    // default context set & PsPIN ready
+    gen_ready = conf_ctx_enabled_q[`DEFAULT_CTX_ID] && her_ready;
 end
 
 endmodule
