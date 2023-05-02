@@ -11,6 +11,7 @@
  * in the parent module.
  */
 
+`timescale 1ns / 1ps
 module pspin_hostmem_dma #(
     parameter DMA_IMM_ENABLE = 0,
     parameter DMA_IMM_WIDTH = 32,

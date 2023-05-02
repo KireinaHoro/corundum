@@ -6,6 +6,8 @@
  * is configurable.
  */
 
+`timescale 1ns / 1ps
+
 module pspin_pkt_alloc #
 (
     parameter LEN_WIDTH = 20,

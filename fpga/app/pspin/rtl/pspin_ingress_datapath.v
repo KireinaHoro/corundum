@@ -6,6 +6,7 @@
  * towards PsPIN.
  */
 
+`timescale 1ns / 1ps
 `define HER_META(X) \
     `X(handler_mem_addr, AXI_ADDR_WIDTH) \
     `X(handler_mem_size, AXI_ADDR_WIDTH) \

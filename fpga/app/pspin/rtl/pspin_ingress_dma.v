@@ -6,7 +6,7 @@
  * then pushes frame to AXI Stream to AXI engine.
  */
 
-`timescale 1ns / 1ns
+`timescale 1ns / 1ps
 
 module pspin_ingress_dma #(
     parameter AXIS_IF_DATA_WIDTH = 512,

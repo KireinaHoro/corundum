@@ -51,6 +51,7 @@
 //   scratchpad_3_addr    (RW) 0x4300 -
 //   scratchpad_3_size    (RW) 0x4400 -
 
+`timescale 1ns / 1ps
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
 
 // XXX: We are latching most of the configuration again at the consumer side.

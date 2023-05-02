@@ -28,8 +28,7 @@
  * The end-of-message bit is generated from the last rule in the ruleset.
  */
 
-`timescale 1ns / 1ns
-
+`timescale 1ns / 1ps
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
 
 module pspin_pkt_match #(

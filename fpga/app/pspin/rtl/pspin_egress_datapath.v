@@ -9,6 +9,7 @@
  * A better model for connection handover is needed.
  */
 
+`timescale 1ns / 1ps
 module pspin_egress_datapath #(
     parameter AXI_HOST_ADDR_WIDTH = 64, // pspin_cfg_pkg::HOST_AXI_AW
     parameter AXI_DATA_WIDTH = 512, // pspin_cfg_pkg::data_t
