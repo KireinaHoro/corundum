@@ -211,18 +211,20 @@ end
 
 // calculate initial address
 reg [31:0] num_bytes_arsize, num_beats_in_axis_beat;
+reg [8:0] num_beats_d; // one more bit due to possibility of overflowing
 localparam NUM_BYTES_BUS = BYTELANE_IDX_WIDTH;
 reg [ADDR_WIDTH-1:0] addr_align_arsize, addr_align_bus;
 reg [BYTELANE_IDX_WIDTH-1:0] init_bl_idx_d, end_bl_idx_d;
 reg [DMA_LEN_WIDTH-1:0] dma_len_d; // in bytes
 always @* begin
     num_bytes_arsize = 1 << s_axi_arsize;
+    num_beats_d = s_axi_arlen + 1;
     num_beats_in_axis_beat = NUM_BYTES_BUS / num_bytes_arsize;
     addr_align_arsize = s_axi_araddr / num_bytes_arsize * num_bytes_arsize;
     addr_align_bus = s_axi_araddr / NUM_BYTES_BUS * NUM_BYTES_BUS;
     init_bl_idx_d = (addr_align_arsize - addr_align_bus) / num_bytes_arsize;
     end_bl_idx_d = num_beats_in_axis_beat - 1;
-    dma_len_d = NUM_BYTES_BUS * ((s_axi_arlen + num_beats_in_axis_beat - 1) / num_beats_in_axis_beat);
+    dma_len_d = NUM_BYTES_BUS * ((num_beats_d + num_beats_in_axis_beat - 1) / num_beats_in_axis_beat);
 end
 
 // state-machine output
@@ -251,7 +253,7 @@ always @(posedge clk) begin
             // save dma len
             saved_dma_len <= dma_len_d;
             // save number of beats in total for error handling
-            num_beats <= s_axi_arlen + 8'h1;
+            num_beats <= num_beats_d;
             // issue to DMA intf
             m_axis_read_desc_dma_addr <= addr_align_bus;
             m_axis_read_desc_ram_sel <= {RAM_SEL_WIDTH{1'b0}};
