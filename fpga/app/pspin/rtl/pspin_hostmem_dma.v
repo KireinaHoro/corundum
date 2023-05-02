@@ -4,6 +4,11 @@
  * The host memory DMA adapter is a AXI4 slave that issues Corundum DMA
  * requests.  This is a simple one-to-one mapping implementation and we do
  * not perform requests combining.
+ *
+ * This module does not contain the DMA memory between the client and
+ * interface, for the sake of ease of testing (verilog-pcie only provides
+ * a model for the RAM and not a RAM master).  The RAM should be instantiated
+ * in the parent module.
  */
 
 module pspin_hostmem_dma #(
@@ -72,20 +77,19 @@ module pspin_hostmem_dma #(
     /*
      * DMA RAM interface (data)
      */
-    input  wire [RAM_SEG_COUNT*RAM_SEL_WIDTH-1:0]         ram_wr_cmd_sel,
-    input  wire [RAM_SEG_COUNT*RAM_SEG_BE_WIDTH-1:0]      ram_wr_cmd_be,
-    input  wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]    ram_wr_cmd_addr,
-    input  wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]    ram_wr_cmd_data,
-    input  wire [RAM_SEG_COUNT-1:0]                       ram_wr_cmd_valid,
-    output wire [RAM_SEG_COUNT-1:0]                       ram_wr_cmd_ready,
-    output wire [RAM_SEG_COUNT-1:0]                       ram_wr_done,
-    input  wire [RAM_SEG_COUNT*RAM_SEL_WIDTH-1:0]         ram_rd_cmd_sel,
-    input  wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]    ram_rd_cmd_addr,
-    input  wire [RAM_SEG_COUNT-1:0]                       ram_rd_cmd_valid,
-    output wire [RAM_SEG_COUNT-1:0]                       ram_rd_cmd_ready,
-    output wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]    ram_rd_resp_data,
-    output wire [RAM_SEG_COUNT-1:0]                       ram_rd_resp_valid,
-    input  wire [RAM_SEG_COUNT-1:0]                       ram_rd_resp_ready,
+    output wire [RAM_SEG_COUNT*RAM_SEG_BE_WIDTH-1:0]      ram_wr_cmd_be,
+    output wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]    ram_wr_cmd_addr,
+    output wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]    ram_wr_cmd_data,
+    output wire [RAM_SEG_COUNT-1:0]                       ram_wr_cmd_valid,
+    input  wire [RAM_SEG_COUNT-1:0]                       ram_wr_cmd_ready,
+    input  wire [RAM_SEG_COUNT-1:0]                       ram_wr_done,
+
+    output wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]    ram_rd_cmd_addr,
+    output wire [RAM_SEG_COUNT-1:0]                       ram_rd_cmd_valid,
+    input  wire [RAM_SEG_COUNT-1:0]                       ram_rd_cmd_ready,
+    input  wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]    ram_rd_resp_data,
+    input  wire [RAM_SEG_COUNT-1:0]                       ram_rd_resp_valid,
+    output wire [RAM_SEG_COUNT-1:0]                       ram_rd_resp_ready,
 
     /*
      * AXI slave interface
@@ -172,12 +176,12 @@ pspin_hostmem_dma_rd #(
     .s_axis_read_desc_status_error,
     .s_axis_read_desc_status_valid,
 
-    .ram_wr_cmd_be,
-    .ram_wr_cmd_addr,
-    .ram_wr_cmd_data,
-    .ram_wr_cmd_valid,
-    .ram_wr_cmd_ready,
-    .ram_wr_done,
+    .ram_rd_cmd_addr,
+    .ram_rd_cmd_valid,
+    .ram_rd_cmd_ready,
+    .ram_rd_resp_data,
+    .ram_rd_resp_valid,
+    .ram_rd_resp_ready,
 
     .s_axi_arid,
     .s_axi_araddr,

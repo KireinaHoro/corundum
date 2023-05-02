@@ -6,6 +6,11 @@
  *
  * We make a lot of assumptions against tricky corner cases; see the
  * respective assertions in the code for details.
+ *
+ * This module does not contain the DMA memory between the client and
+ * interface, for the sake of ease of testing (verilog-pcie only provides
+ * a model for the RAM and not a RAM master).  The RAM should be instantiated
+ * in the parent module.
  */
 
 module pspin_hostmem_dma_rd #(
@@ -55,12 +60,12 @@ module pspin_hostmem_dma_rd #(
     /*
      * RAM interface
      */
-    input  wire [RAM_SEG_COUNT*RAM_SEG_BE_WIDTH-1:0]    ram_wr_cmd_be,
-    input  wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]  ram_wr_cmd_addr,
-    input  wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]  ram_wr_cmd_data,
-    input  wire [RAM_SEG_COUNT-1:0]                     ram_wr_cmd_valid,
-    output wire [RAM_SEG_COUNT-1:0]                     ram_wr_cmd_ready,
-    output wire [RAM_SEG_COUNT-1:0]                     ram_wr_done,
+    output wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]  ram_rd_cmd_addr,
+    output wire [RAM_SEG_COUNT-1:0]                     ram_rd_cmd_valid,
+    input  wire [RAM_SEG_COUNT-1:0]                     ram_rd_cmd_ready,
+    input  wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]  ram_rd_resp_data,
+    input  wire [RAM_SEG_COUNT-1:0]                     ram_rd_resp_valid,
+    output wire [RAM_SEG_COUNT-1:0]                     ram_rd_resp_ready,
 
     /* AXI AR & R channels */
     input  wire [ID_WIDTH-1:0]                          s_axi_arid,
@@ -124,13 +129,6 @@ reg [ID_WIDTH-1:0] dma_read_desc_id;
 reg dma_read_desc_valid;
 wire dma_read_desc_ready;
 wire dma_read_desc_status_valid;
-
-wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]  dma_ram_rd_cmd_addr_int;
-wire [RAM_SEG_COUNT-1:0]                     dma_ram_rd_cmd_valid_int;
-wire [RAM_SEG_COUNT-1:0]                     dma_ram_rd_cmd_ready_int;
-wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]  dma_ram_rd_resp_data_int;
-wire [RAM_SEG_COUNT-1:0]                     dma_ram_rd_resp_valid_int;
-wire [RAM_SEG_COUNT-1:0]                     dma_ram_rd_resp_ready_int;
 
 wire [DATA_WIDTH-1:0] axis_tdata;
 reg [DATA_WIDTH-1:0] axis_tdata_q;
@@ -317,37 +315,6 @@ always @(posedge clk) begin
     endcase
 end
 
-dma_psdpram #(
-    .SIZE(RAM_SIZE),
-    .SEG_COUNT(RAM_SEG_COUNT),
-    .SEG_DATA_WIDTH(RAM_SEG_DATA_WIDTH),
-    .SEG_ADDR_WIDTH(RAM_SEG_ADDR_WIDTH),
-    .SEG_BE_WIDTH(RAM_SEG_BE_WIDTH),
-    .PIPELINE(RAM_PIPELINE)
-) i_dma_ram (
-    .clk(clk),
-    .rst(!rstn),
-
-    /*
-     * Write port
-     */
-    .wr_cmd_be(ram_wr_cmd_be),
-    .wr_cmd_addr(ram_wr_cmd_addr),
-    .wr_cmd_data(ram_wr_cmd_data),
-    .wr_cmd_valid(ram_wr_cmd_valid),
-    .wr_cmd_ready(ram_wr_cmd_ready),
-    .wr_done(ram_wr_done),
-
-    /*
-     * Read port
-     */
-    .rd_cmd_addr(dma_ram_rd_cmd_addr_int),
-    .rd_cmd_valid(dma_ram_rd_cmd_valid_int),
-    .rd_cmd_ready(dma_ram_rd_cmd_ready_int),
-    .rd_resp_data(dma_ram_rd_resp_data_int),
-    .rd_resp_valid(dma_ram_rd_resp_valid_int),
-    .rd_resp_ready(dma_ram_rd_resp_ready_int)
-);
 
 dma_client_axis_source #(
     .SEG_COUNT(RAM_SEG_COUNT),
@@ -404,12 +371,12 @@ dma_client_axis_source #(
     /*
      * RAM interface
      */
-    .ram_rd_cmd_addr(dma_ram_rd_cmd_addr_int),
-    .ram_rd_cmd_valid(dma_ram_rd_cmd_valid_int),
-    .ram_rd_cmd_ready(dma_ram_rd_cmd_ready_int),
-    .ram_rd_resp_data(dma_ram_rd_resp_data_int),
-    .ram_rd_resp_valid(dma_ram_rd_resp_valid_int),
-    .ram_rd_resp_ready(dma_ram_rd_resp_ready_int),
+    .ram_rd_cmd_addr,
+    .ram_rd_cmd_valid,
+    .ram_rd_cmd_ready,
+    .ram_rd_resp_data,
+    .ram_rd_resp_valid,
+    .ram_rd_resp_ready,
 
     /*
      * Configuration
