@@ -17,6 +17,7 @@ from cocotb.regression import TestFactory
 from cocotbext.axi import AxiStreamSource, AxiStreamBus, AxiStreamFrame
 from cocotbext.axi import AxiBus, AxiMaster
 from cocotbext.axi.stream import define_stream
+from cocotbext.axi.constants import AxiResp
 
 from dma_psdp_ram import PsdpRamRead, PsdpRamWrite, PsdpRamReadBus, PsdpRamWriteBus
 
@@ -126,10 +127,40 @@ async def run_test_dma_read(dut, idle_inserter=None, backpressure_inserter=None)
         await tb.rd_desc_status_source.send(resp)
 
         await with_timeout(read_op.wait(), 1000, 'ns')
+        assert read_op.data.resp == AxiResp.OKAY
         assert read_op.data.data == data
 
 # TODO: test narrow burst
 # TODO: test unaligned
+
+async def run_test_dma_read_error(dut, idle_inserter=None, backpressure_inserter=None):
+    tb = TB(dut)
+    await tb.cycle_reset()
+
+    clk_edge = RisingEdge(tb.dut.clk)
+    await clk_edge
+    await clk_edge
+
+    tb.set_idle_generator(idle_inserter)
+    tb.set_backpressure_generator(backpressure_inserter)
+
+    for i in range(5):
+        addr = 0xdeadbeef00
+        length = 256
+
+        read_op = tb.axi_master.init_read(addr, length)
+        desc = await tb.rd_desc_sink.recv()
+        assert int(desc.dma_addr) == addr
+        assert int(desc.len) >= length # should always read same or more than AXI request
+        tb.log.info(f'Received DMA descriptor {desc}')
+
+        # send error finish
+        resp = DescStatusTransaction(tag=desc.tag, error=1)
+        tb.log.info(f'Sending error DMA completion {resp}')
+        await tb.rd_desc_status_source.send(resp)
+
+        await with_timeout(read_op.wait(), 1000, 'ns')
+        assert read_op.data.resp == AxiResp.SLVERR
 
 def cycle_pause():
     # 1 cycle ready in 4 cycles
@@ -137,7 +168,7 @@ def cycle_pause():
 
 
 if cocotb.SIM_NAME:
-    for test in [run_test_dma_read]:
+    for test in [run_test_dma_read, run_test_dma_read_error]:
         factory = TestFactory(test)
         factory.add_option('idle_inserter', [None, cycle_pause])
         factory.add_option('backpressure_inserter', [None, cycle_pause])

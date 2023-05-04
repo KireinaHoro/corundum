@@ -173,6 +173,8 @@ always @* begin
             if (s_axis_read_desc_status_error != DMA_ERROR_NONE) begin
                 state_d = SEND_AXI_REST_BEAT; // in case of slave error we still need the required number of beats
                 dma_error_d = 1'b1;
+                // the first beat would already be sent
+                beat_idx_d = 8'h1;
             end else
                 state_d = ISSUE_TO_CLIENT;
         end
@@ -197,7 +199,7 @@ always @* begin
         SEND_AXI_REST_BEAT: if (s_axi_rvalid && s_axi_rready) begin
             if (!dma_error_q && curr_bl_idx == end_bl_idx)
                 state_d = axis_tlast_q ? SEND_AXI_REST_BEAT : CAPTURE_AXIS_DATA;
-            if (curr_bl_idx > {BYTELANE_IDX_WIDTH{1'b0}})
+            if (dma_error_q || curr_bl_idx > {BYTELANE_IDX_WIDTH{1'b0}})
                 beat_idx_d = beat_idx_q + 8'h1;
             if (beat_idx_q == num_beats)
                 state_d = IDLE;
@@ -309,11 +311,12 @@ always @(posedge clk) begin
 
             axis_tready <= 1'b0;
 
-            s_axi_rlast <= beat_idx_d == num_beats;
             if (dma_error_d) begin
                 // handle error
                 s_axi_rid <= saved_id;
                 s_axi_rresp <= AXI_SLVERR;
+                s_axi_rvalid <= 1'b1;
+                s_axi_rlast <= beat_idx_d == num_beats;
             end
         end
         default: begin /* nothing */ end
