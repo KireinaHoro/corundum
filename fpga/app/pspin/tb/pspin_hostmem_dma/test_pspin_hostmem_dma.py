@@ -101,35 +101,35 @@ async def run_test_dma_read(dut, idle_inserter=None, backpressure_inserter=None)
     tb.set_backpressure_generator(backpressure_inserter)
 
     # test dummy addr and long-enough length
-    addr = 0xdeadbeef00
-    length = 256
+    for i in range(5):
+        addr = 0xdeadbeef00
+        length = 256
 
-    read_op = tb.axi_master.init_read(addr, length)
-    desc = await tb.rd_desc_sink.recv()
-    assert int(desc.dma_addr) == addr
-    assert int(desc.len) >= length # should always read same or more than AXI request
-    tb.log.info(f'Received DMA descriptor {desc}')
+        read_op = tb.axi_master.init_read(addr, length)
+        desc = await tb.rd_desc_sink.recv()
+        assert int(desc.dma_addr) == addr
+        assert int(desc.len) >= length # should always read same or more than AXI request
+        tb.log.info(f'Received DMA descriptor {desc}')
 
-    ram_base_addr = 0
-    data = randbytes(length)
-    tb.ram_rd.write(ram_base_addr, data)
-    tb.log.info('Dumping DMA read RAM:')
-    tb.ram_rd.hexdump(0, length, '')
+        ram_base_addr = 0
+        data = randbytes(length)
+        tb.ram_rd.write(ram_base_addr, data)
+        tb.log.info('Dumping DMA read RAM:')
+        tb.ram_rd.hexdump(0, length, '')
 
-    await clk_edge
-    await clk_edge
+        await clk_edge
+        await clk_edge
 
-    # send finish
-    resp = DescStatusTransaction(tag=desc.tag, error=0)
-    tb.log.info(f'Sending DMA completion {resp}')
-    await tb.rd_desc_status_source.send(resp)
+        # send finish
+        resp = DescStatusTransaction(tag=desc.tag, error=0)
+        tb.log.info(f'Sending DMA completion {resp}')
+        await tb.rd_desc_status_source.send(resp)
 
-    await with_timeout(read_op.wait(), 1000, 'ns')
-    assert read_op.data.data == data
-    
+        await with_timeout(read_op.wait(), 1000, 'ns')
+        assert read_op.data.data == data
+
 # TODO: test narrow burst
 # TODO: test unaligned
-# TODO: test error handling
 
 def cycle_pause():
     # 1 cycle ready in 4 cycles

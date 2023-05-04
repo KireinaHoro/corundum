@@ -180,16 +180,19 @@ always @* begin
             state_d = CAPTURE_AXIS_DATA;
         else
             state_d = WAIT_CLIENT;
-        CAPTURE_AXIS_DATA: if (axis_tvalid && axis_tready) begin
-            state_d = SEND_AXI_REST_BEAT;
-            beat_idx_d = beat_idx_q + 8'h1;
-            if (s_axi_rready) begin
-                // if we use the full bus - implies curr_bl_idx == end_bl_idx
-                // if not last beat of AXI Stream: capture again
-                if (end_bl_idx == {BYTELANE_IDX_WIDTH{1'b0}})
-                    state_d = CAPTURE_AXIS_DATA;
-                // if we just captured a new beat, we can't be at the last beat of AXI
+        CAPTURE_AXIS_DATA: begin
+            if (axis_tvalid && axis_tready) begin
+                state_d = SEND_AXI_REST_BEAT;
+                beat_idx_d = beat_idx_q + 8'h1;
+                if (s_axi_rready) begin
+                    // if we use the full bus - implies curr_bl_idx == end_bl_idx
+                    // if not last beat of AXI Stream: capture again
+                    if (end_bl_idx == {BYTELANE_IDX_WIDTH{1'b0}})
+                        state_d = CAPTURE_AXIS_DATA;
+                end
             end
+            if (beat_idx_q == num_beats && s_axi_rready)
+                state_d = IDLE;
         end
         SEND_AXI_REST_BEAT: if (s_axi_rvalid && s_axi_rready) begin
             if (!dma_error_q && curr_bl_idx == end_bl_idx)
