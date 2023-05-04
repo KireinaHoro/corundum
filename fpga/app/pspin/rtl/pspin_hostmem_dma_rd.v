@@ -98,9 +98,8 @@ localparam
     WAIT_DMA = 'h2, // wait for req FINISHED
     ISSUE_TO_CLIENT = 'h3,
     WAIT_CLIENT = 'h4, // wait for req ACCEPTED - status will only come after AXIS transfer
-    CAPTURE_AXIS_DATA = 'h5,
-    SEND_AXI_BEAT = 'h6,
-    CLEAR_CLIENT = 'h7; // receive desc from client, unblock AR
+    CAPTURE_AXIS_DATA = 'h5, // capture data from AXI Stream and send first beat downstream
+    SEND_AXI_REST_BEAT = 'h6; // stall AXI Stream, send remaining beats
 localparam RAM_SIZE = DATA_WIDTH * 256; // AXI4 INCR has maximal 256-beat bursts
 localparam BYTELANE_IDX_WIDTH = DATA_WIDTH / 8; // max single-byte beats
 
@@ -132,9 +131,7 @@ wire dma_read_desc_ready;
 wire dma_read_desc_status_valid;
 
 wire [DATA_WIDTH-1:0] axis_tdata;
-reg [DATA_WIDTH-1:0] axis_tdata_q;
 wire [ID_WIDTH-1:0] axis_tid;
-reg [ID_WIDTH-1:0] axis_tid_q;
 wire axis_tlast;
 reg axis_tlast_q;
 wire axis_tvalid;
@@ -174,7 +171,7 @@ always @* begin
             state_d = WAIT_DMA;
         WAIT_DMA: if (s_axis_read_desc_status_valid) begin
             if (s_axis_read_desc_status_error != DMA_ERROR_NONE) begin
-                state_d = SEND_AXI_BEAT; // in case of slave error we still need the required number of beats
+                state_d = SEND_AXI_REST_BEAT; // in case of slave error we still need the required number of beats
                 dma_error_d = 1'b1;
             end else
                 state_d = ISSUE_TO_CLIENT;
@@ -184,27 +181,24 @@ always @* begin
         else
             state_d = WAIT_CLIENT;
         CAPTURE_AXIS_DATA: if (axis_tvalid && axis_tready) begin
-            state_d = SEND_AXI_BEAT;
-            // optimisation: send the first axi beat already
+            state_d = SEND_AXI_REST_BEAT;
+            beat_idx_d = beat_idx_q + 8'h1;
             if (s_axi_rready) begin
-                if (curr_bl_idx == end_bl_idx)
+                // if we use the full bus - implies curr_bl_idx == end_bl_idx
+                // if not last beat of AXI Stream: capture again
+                if (end_bl_idx == {BYTELANE_IDX_WIDTH{1'b0}})
                     state_d = CAPTURE_AXIS_DATA;
-                if (beat_idx_q == num_beats && axis_tlast)
-                    state_d = CLEAR_CLIENT;
-                else
-                    beat_idx_d = beat_idx_q + 8'h1;
+                // if we just captured a new beat, we can't be at the last beat of AXI
             end
         end
-        SEND_AXI_BEAT: if (s_axi_rvalid && s_axi_rready) begin
+        SEND_AXI_REST_BEAT: if (s_axi_rvalid && s_axi_rready) begin
             if (!dma_error_q && curr_bl_idx == end_bl_idx)
-                state_d = CAPTURE_AXIS_DATA;
-            if (beat_idx_q == num_beats && axis_tlast_q)
-                state_d = dma_error_q ? IDLE : CLEAR_CLIENT;
-            else
+                state_d = axis_tlast_q ? SEND_AXI_REST_BEAT : CAPTURE_AXIS_DATA;
+            if (curr_bl_idx > {BYTELANE_IDX_WIDTH{1'b0}})
                 beat_idx_d = beat_idx_q + 8'h1;
+            if (beat_idx_q == num_beats)
+                state_d = IDLE;
         end
-        CLEAR_CLIENT: if (dma_read_desc_status_valid)
-            state_d = IDLE;
         default: begin /* nothing */ end
     endcase
 end
@@ -241,8 +235,6 @@ always @(posedge clk) begin
             s_axi_ruser <= {RUSER_WIDTH{1'b0}};
             s_axi_rvalid <= 1'b0;
             axis_tready <= 1'b0;
-            axis_tdata_q <= {DATA_WIDTH{1'b0}};
-            axis_tid_q <= {ID_WIDTH{1'b0}};
             init_bl_idx <= {BYTELANE_IDX_WIDTH{1'b0}};
             end_bl_idx <= {BYTELANE_IDX_WIDTH{1'b0}};
         end
@@ -280,41 +272,46 @@ always @(posedge clk) begin
         CAPTURE_AXIS_DATA: begin
             axis_tready <= 1'b1;
             dma_read_desc_valid <= 1'b0;
-            s_axi_rvalid <= axis_tvalid;
 
-            if (axis_tvalid) begin
-                axis_tdata_q <= axis_tdata;
-                axis_tid_q <= axis_tid;
+            // latch AXI Stream data
+            if (axis_tvalid && axis_tready) begin
+                // latch last for state transfer
                 axis_tlast_q <= axis_tlast;
 
+                // send first beat
+                s_axi_rvalid <= 1'b1;
                 s_axi_rdata <= axis_tdata;
                 s_axi_rid <= axis_tid;
                 s_axi_rresp <= AXI_OKAY;
-                s_axi_rlast <= beat_idx_d == num_beats && axis_tlast;
+                s_axi_rlast <= beat_idx_d == num_beats;
+            end else begin
+                // valid=0 if acknowledged
+                if (s_axi_rready)
+                    s_axi_rvalid <= 1'b0;
             end
         end
-        SEND_AXI_BEAT: begin
+        SEND_AXI_REST_BEAT: begin
+            // latch AXI Stream data
+            if (axis_tvalid && axis_tready) begin
+                // latch last for state transfer
+                axis_tlast_q <= axis_tlast;
+
+                // send next beat
+                s_axi_rvalid <= 1'b1;
+                s_axi_rdata <= axis_tdata;
+                s_axi_rid <= axis_tid;
+                s_axi_rresp <= AXI_OKAY;
+                s_axi_rlast <= beat_idx_d == num_beats;
+            end
+
             axis_tready <= 1'b0;
 
-            s_axi_rdata <= axis_tdata_q;
-            s_axi_rid <= axis_tid;
-            s_axi_rvalid <= 1'b1;
+            s_axi_rlast <= beat_idx_d == num_beats;
             if (dma_error_d) begin
                 // handle error
                 s_axi_rid <= saved_id;
                 s_axi_rresp <= AXI_SLVERR;
-                s_axi_rlast <= beat_idx_d == num_beats;
-            end else begin
-                // regular operation
-                s_axi_rid <= axis_tid_q;
-                s_axi_rdata <= axis_tdata_q;
-                s_axi_rresp <= AXI_OKAY;
-                s_axi_rlast <= beat_idx_d == num_beats && axis_tlast_q;
             end
-        end
-        CLEAR_CLIENT: begin
-            axis_tready <= 1'b0;
-            s_axi_rvalid <= 1'b0;
         end
         default: begin /* nothing */ end
     endcase
