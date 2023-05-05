@@ -4,8 +4,8 @@
  * Read datapath of the host memory DMA adapter.  Utilises the verilog-pcie
  * DMA client to AXIS, driving the R channel of full AXI.
  *
- * We make a lot of assumptions against tricky corner cases; see the
- * respective assertions in the code for details.
+ * This module does not handle possible AXI interleaving of the R channel.
+ * Unaligned transfers are coded in but not verified.
  *
  * This module does not contain the DMA memory between the client and
  * interface, for the sake of ease of testing (verilog-pcie only provides
@@ -101,7 +101,7 @@ localparam
     CAPTURE_AXIS_DATA = 'h5, // capture data from AXI Stream and send first beat downstream
     SEND_AXI_REST_BEAT = 'h6; // stall AXI Stream, send remaining beats
 localparam RAM_SIZE = DATA_WIDTH * 256; // AXI4 INCR has maximal 256-beat bursts
-localparam BYTELANE_IDX_WIDTH = DATA_WIDTH / 8; // max single-byte beats
+localparam BYTELANE_IDX_WIDTH = $clog2(DATA_WIDTH / 8); // max single-byte beats
 
 localparam DMA_ERROR_NONE = 4'b0;
 localparam AXI_OKAY = 2'b00;
@@ -117,6 +117,7 @@ reg [ID_WIDTH-1:0] saved_id;
 
 // bytelane info after AR
 reg [BYTELANE_IDX_WIDTH-1:0] init_bl_idx, end_bl_idx;
+wire is_full_burst = end_bl_idx == {BYTELANE_IDX_WIDTH{1'b0}};
 wire [BYTELANE_IDX_WIDTH-1:0] curr_bl_idx = (init_bl_idx + beat_idx_q) % (end_bl_idx + 1);
 
 // DMA client AXIS
@@ -131,7 +132,11 @@ wire dma_read_desc_ready;
 wire dma_read_desc_status_valid;
 
 wire [DATA_WIDTH-1:0] axis_tdata;
+reg [DATA_WIDTH-1:0] axis_tdata_q;
 wire [ID_WIDTH-1:0] axis_tid;
+reg [ID_WIDTH-1:0] axis_tid_q;
+reg use_skid_buffer;
+
 wire axis_tlast;
 reg axis_tlast_q;
 wire axis_tvalid;
@@ -185,11 +190,12 @@ always @* begin
         CAPTURE_AXIS_DATA: begin
             if (axis_tvalid && axis_tready) begin
                 state_d = SEND_AXI_REST_BEAT;
-                beat_idx_d = beat_idx_q + 8'h1;
+                if (is_full_burst || beat_idx_q == 8'h0 || s_axi_rready)
+                    beat_idx_d = beat_idx_q + 8'h1;
                 if (s_axi_rready) begin
                     // if we use the full bus - implies curr_bl_idx == end_bl_idx
                     // if not last beat of AXI Stream: capture again
-                    if (end_bl_idx == {BYTELANE_IDX_WIDTH{1'b0}})
+                    if (is_full_burst)
                         state_d = CAPTURE_AXIS_DATA;
                 end
             end
@@ -199,7 +205,7 @@ always @* begin
         SEND_AXI_REST_BEAT: if (s_axi_rvalid && s_axi_rready) begin
             if (!dma_error_q && curr_bl_idx == end_bl_idx)
                 state_d = axis_tlast_q ? SEND_AXI_REST_BEAT : CAPTURE_AXIS_DATA;
-            if (dma_error_q || curr_bl_idx > {BYTELANE_IDX_WIDTH{1'b0}})
+            if (dma_error_q || !is_full_burst)
                 beat_idx_d = beat_idx_q + 8'h1;
             if (beat_idx_q == num_beats)
                 state_d = IDLE;
@@ -211,7 +217,7 @@ end
 // calculate initial address
 reg [31:0] num_bytes_arsize, num_beats_in_axis_beat;
 reg [8:0] num_beats_d; // one more bit due to possibility of overflowing
-localparam NUM_BYTES_BUS = BYTELANE_IDX_WIDTH;
+localparam NUM_BYTES_BUS = 1 << BYTELANE_IDX_WIDTH;
 reg [ADDR_WIDTH-1:0] addr_align_arsize, addr_align_bus;
 reg [BYTELANE_IDX_WIDTH-1:0] init_bl_idx_d, end_bl_idx_d;
 reg [DMA_LEN_WIDTH-1:0] dma_len_d; // in bytes
@@ -240,6 +246,10 @@ always @(posedge clk) begin
             s_axi_ruser <= {RUSER_WIDTH{1'b0}};
             s_axi_rvalid <= 1'b0;
             axis_tready <= 1'b0;
+            axis_tlast_q <= 1'b0;
+            axis_tdata_q <= {DATA_WIDTH{1'b0}};
+            axis_tid_q <= {ID_WIDTH{1'b0}};
+            use_skid_buffer <= 1'b0;
             init_bl_idx <= {BYTELANE_IDX_WIDTH{1'b0}};
             end_bl_idx <= {BYTELANE_IDX_WIDTH{1'b0}};
         end
@@ -279,19 +289,27 @@ always @(posedge clk) begin
             dma_read_desc_valid <= 1'b0;
 
             // latch AXI Stream data
+            // only directly into the AXI bus if the last beat has finished tx
             if (axis_tvalid && axis_tready) begin
-                // latch last for state transfer
+                axis_tdata_q <= axis_tdata;
+                axis_tid_q <= axis_tid;
                 axis_tlast_q <= axis_tlast;
 
-                // send first beat
-                s_axi_rvalid <= 1'b1;
-                s_axi_rdata <= axis_tdata;
-                s_axi_rid <= axis_tid;
-                s_axi_rresp <= AXI_OKAY;
-                s_axi_rlast <= beat_idx_d == num_beats;
+                if (s_axi_rready) begin
+                    // send first beat directly
+                    s_axi_rvalid <= 1'b1;
+                    s_axi_rdata <= axis_tdata;
+                    s_axi_rid <= axis_tid;
+                    s_axi_rresp <= AXI_OKAY;
+                    s_axi_rlast <= beat_idx_d == num_beats;
+                    use_skid_buffer <= 1'b0;
+                end else begin
+                    use_skid_buffer <= 1'b1;
+                end
             end else begin
+                // if full burst
                 // valid=0 if acknowledged
-                if (s_axi_rready)
+                if (is_full_burst && s_axi_rready)
                     s_axi_rvalid <= 1'b0;
             end
         end
@@ -300,15 +318,30 @@ always @(posedge clk) begin
             if (axis_tvalid && axis_tready) begin
                 // latch last for state transfer
                 axis_tlast_q <= axis_tlast;
+                axis_tdata_q <= axis_tdata;
+                axis_tid_q <= axis_tid;
 
-                // send next beat
-                s_axi_rvalid <= 1'b1;
-                s_axi_rdata <= axis_tdata;
-                s_axi_rid <= axis_tid;
-                s_axi_rresp <= AXI_OKAY;
-                s_axi_rlast <= beat_idx_d == num_beats;
+                if (!s_axi_rready)
+                    use_skid_buffer <= 1'b1;
+
+                if (beat_idx_q == 8'h0 || s_axi_rready) begin
+                    s_axi_rvalid <= 1'b1;
+                    s_axi_rdata <= axis_tdata;
+                    s_axi_rid <= axis_tid;
+                    s_axi_rresp <= AXI_OKAY;
+                end
             end
 
+            // if skid buffer is full
+            if (use_skid_buffer && s_axi_rready) begin
+                // send next beat
+                s_axi_rvalid <= 1'b1;
+                s_axi_rdata <= axis_tdata_q;
+                s_axi_rid <= axis_tid_q;
+                s_axi_rresp <= AXI_OKAY;
+            end
+
+            s_axi_rlast <= beat_idx_d == num_beats;
             axis_tready <= 1'b0;
 
             if (dma_error_d) begin
@@ -316,7 +349,6 @@ always @(posedge clk) begin
                 s_axi_rid <= saved_id;
                 s_axi_rresp <= AXI_SLVERR;
                 s_axi_rvalid <= 1'b1;
-                s_axi_rlast <= beat_idx_d == num_beats;
             end
         end
         default: begin /* nothing */ end

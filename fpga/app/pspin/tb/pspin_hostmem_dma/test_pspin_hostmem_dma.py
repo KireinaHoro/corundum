@@ -14,6 +14,7 @@ from cocotb_test.simulator import run
 from cocotb.clock import Clock, Timer
 from cocotb.triggers import RisingEdge, Edge, First, with_timeout
 from cocotb.regression import TestFactory
+from cocotb.utils import hexdiffs
 from cocotbext.axi import AxiStreamSource, AxiStreamBus, AxiStreamFrame
 from cocotbext.axi import AxiBus, AxiMaster
 from cocotbext.axi.stream import define_stream
@@ -89,8 +90,11 @@ class TB:
         await clk_edge
         await clk_edge
 
+addr = 0xdeadbeef00
+length = 256
+data = randbytes(length)
 
-async def run_test_dma_read(dut, idle_inserter=None, backpressure_inserter=None):
+async def run_test_dma_read(dut, is_narrow=False, idle_inserter=None, backpressure_inserter=None):
     tb = TB(dut)
     await tb.cycle_reset()
 
@@ -102,21 +106,22 @@ async def run_test_dma_read(dut, idle_inserter=None, backpressure_inserter=None)
     tb.set_backpressure_generator(backpressure_inserter)
 
     # test dummy addr and long-enough length
-    for i in range(5):
-        addr = 0xdeadbeef00
-        length = 256
 
-        read_op = tb.axi_master.init_read(addr, length)
+    ram_base_addr = 0
+    tb.ram_rd.write(ram_base_addr, data)
+    tb.log.info('Dumping DMA read RAM:')
+    tb.ram_rd.hexdump(0, length, '')
+
+    for i in range(5):
+        size = None
+        if is_narrow:
+            size = 0b010
+
+        read_op = tb.axi_master.init_read(addr, length, size=size)
         desc = await tb.rd_desc_sink.recv()
         assert int(desc.dma_addr) == addr
         assert int(desc.len) >= length # should always read same or more than AXI request
         tb.log.info(f'Received DMA descriptor {desc}')
-
-        ram_base_addr = 0
-        data = randbytes(length)
-        tb.ram_rd.write(ram_base_addr, data)
-        tb.log.info('Dumping DMA read RAM:')
-        tb.ram_rd.hexdump(0, length, '')
 
         await clk_edge
         await clk_edge
@@ -128,9 +133,11 @@ async def run_test_dma_read(dut, idle_inserter=None, backpressure_inserter=None)
 
         await with_timeout(read_op.wait(), 1000, 'ns')
         assert read_op.data.resp == AxiResp.OKAY
-        assert read_op.data.data == data
+        if read_op.data.data != data:
+            print('Data mismatch: read vs expected')
+            print(hexdiffs(read_op.data.data, data))
+            assert False
 
-# TODO: test narrow burst
 # TODO: test unaligned
 
 async def run_test_dma_read_error(dut, idle_inserter=None, backpressure_inserter=None):
@@ -168,11 +175,16 @@ def cycle_pause():
 
 
 if cocotb.SIM_NAME:
-    for test in [run_test_dma_read, run_test_dma_read_error]:
-        factory = TestFactory(test)
-        factory.add_option('idle_inserter', [None, cycle_pause])
-        factory.add_option('backpressure_inserter', [None, cycle_pause])
-        factory.generate_tests()
+    factory = TestFactory(run_test_dma_read)
+    factory.add_option('idle_inserter', [None, cycle_pause])
+    factory.add_option('backpressure_inserter', [None, cycle_pause])
+    factory.add_option('is_narrow', [False, True])
+    factory.generate_tests()
+
+    factory = TestFactory(run_test_dma_read_error)
+    factory.add_option('idle_inserter', [None, cycle_pause])
+    factory.add_option('backpressure_inserter', [None, cycle_pause])
+    factory.generate_tests()
 
 # cocotb-test
 '''
