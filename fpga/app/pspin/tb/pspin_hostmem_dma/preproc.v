@@ -15,11 +15,11 @@
  */
 
 `timescale 1ns / 1ps
-`define assert(cond, msg) \
-    if (!(cond)) begin \
-        $display({"ASSERTION FAILED in %m: cond: ", msg}); \
-        $finish; \
-    end
+
+
+
+
+
 
 module pspin_hostmem_dma_wr #(
     parameter DMA_IMM_ENABLE = 0,
@@ -134,7 +134,11 @@ reg [ADDR_WIDTH-1:0] saved_dma_addr;
 reg [DMA_LEN_WIDTH-1:0] saved_dma_len;
 
 initial begin
-    `assert(DMA_TAG_WIDTH >= ID_WIDTH, "DMA interface tag too narrow");
+    
+    if (!(DMA_TAG_WIDTH >= ID_WIDTH)) begin
+        $display({"ASSERTION FAILED in %m: DMA_TAG_WIDTH >= ID_WIDTH: ", "DMA interface tag too narrow"});
+        $finish;
+    end;
 end
 
 always @(posedge clk) begin
@@ -161,6 +165,7 @@ always @* begin
         IDLE: begin
             if (s_axi_awready && s_axi_awvalid)
                 state_d = ISSUE_TO_CLIENT;
+            dma_error_d = 1'b0;
         end
         ISSUE_TO_CLIENT, WAIT_CLIENT: if (dma_write_desc_valid && dma_write_desc_ready)
             state_d = WAIT_CLIENT_FIN;
@@ -172,7 +177,7 @@ always @* begin
             state_d = WAIT_DMA_FIN;
         else
             state_d = WAIT_DMA;
-        WAIT_DMA_FIN: if (s_axis_write_desc_status_valid)
+        WAIT_DMA_FIN: if (s_axis_read_desc_status_valid)
             state_d = FINISH_AXI;
         FINISH_AXI: if (s_axi_bready && s_axi_bvalid)
             state_d = IDLE;
@@ -210,25 +215,35 @@ always @(posedge clk) begin
             saved_dma_len <= dma_len_d;
 
             // checks for simulation
-            `assert('h1 << s_axi_awsize == NUM_BYTES_BUS, "narrow burst not supported");
-            `assert(s_axi_awburst == BURST_INCR, "burst other than INCR not supported");
-            `assert(s_axi_awaddr % NUM_BYTES_BUS == 'h0, "unaligned transfer not supported");
+            
+    if (!('h1 << s_axi_awsize == NUM_BYTES_BUS)) begin
+        $display({"ASSERTION FAILED in %m: 'h1 << s_axi_awsize == NUM_BYTES_BUS: ", "narrow burst not supported"});
+        $finish;
+    end;
+            
+    if (!(s_axi_awburst == BURST_INCR)) begin
+        $display({"ASSERTION FAILED in %m: s_axi_awburst == BURST_INCR: ", "burst other than INCR not supported"});
+        $finish;
+    end;
+            
+    if (!(s_axi_awaddr % NUM_BYTES_BUS == 'h0)) begin
+        $display({"ASSERTION FAILED in %m: s_axi_awaddr % NUM_BYTES_BUS == 'h0: ", "unaligned transfer not supported"});
+        $finish;
+    end;
         end
         WAIT_CLIENT: if (dma_write_desc_ready)
             dma_write_desc_valid <= 1'b0;
-        WAIT_CLIENT_FIN:
-            dma_write_desc_valid <= 1'b0;
+        // WAIT_CLIENT_FIN: nothing
         ISSUE_TO_DMA: begin
             m_axis_write_desc_dma_addr <= saved_dma_addr;
-            m_axis_write_desc_len <= saved_dma_len;
+            m_axis_write_desc_dma_len <= saved_dma_len;
             m_axis_write_desc_tag <= dma_write_desc_status_tag;
             // always zero RAM address
             m_axis_write_desc_valid <= 1'b1;
         end
         WAIT_DMA: if (m_axis_write_desc_ready)
             m_axis_write_desc_valid <= 1'b0;
-        WAIT_DMA_FIN:
-            m_axis_write_desc_valid <= 1'b0;
+        // WAIT_DMA_FIN: nothing
         FINISH_AXI: begin
             s_axi_bid <= s_axis_write_desc_status_tag;
             s_axi_bresp <= s_axis_write_desc_status_error == 4'b0 ? AXI_OKAY : AXI_SLVERR;
@@ -265,6 +280,9 @@ dma_client_axis_sink #(
     .s_axis_write_desc_ram_addr(dma_write_desc_ram_addr),
     .s_axis_write_desc_len(dma_write_desc_len),
     .s_axis_write_desc_tag(dma_write_desc_tag),
+    .s_axis_write_desc_id(1'b0),
+    .s_axis_write_desc_dest(1'b0),
+    .s_axis_write_desc_user(1'b0),
     .s_axis_write_desc_valid(dma_write_desc_valid),
     .s_axis_write_desc_ready(dma_write_desc_ready),
 

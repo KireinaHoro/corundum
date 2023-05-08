@@ -94,7 +94,7 @@ addr = 0xdeadbeef00
 length = 256
 data = randbytes(length)
 
-async def run_test_dma_read(dut, is_narrow=False, idle_inserter=None, backpressure_inserter=None):
+async def setup_tb(dut, idle_inserter, backpressure_inserter):
     tb = TB(dut)
     await tb.cycle_reset()
 
@@ -105,6 +105,11 @@ async def run_test_dma_read(dut, is_narrow=False, idle_inserter=None, backpressu
     tb.set_idle_generator(idle_inserter)
     tb.set_backpressure_generator(backpressure_inserter)
 
+    return tb
+
+async def run_test_dma_read(dut, is_narrow=False, idle_inserter=None, backpressure_inserter=None):
+    tb = await setup_tb(dut, idle_inserter, backpressure_inserter)
+    clk_edge = RisingEdge(tb.dut.clk)
     # test dummy addr and long-enough length
 
     ram_base_addr = 0
@@ -115,7 +120,7 @@ async def run_test_dma_read(dut, is_narrow=False, idle_inserter=None, backpressu
     for i in range(5):
         size = None
         if is_narrow:
-            size = 0b010
+            size = 0b010 # 4-byte bursts
 
         read_op = tb.axi_master.init_read(addr, length, size=size)
         desc = await tb.rd_desc_sink.recv()
@@ -141,20 +146,9 @@ async def run_test_dma_read(dut, is_narrow=False, idle_inserter=None, backpressu
 # TODO: test unaligned
 
 async def run_test_dma_read_error(dut, idle_inserter=None, backpressure_inserter=None):
-    tb = TB(dut)
-    await tb.cycle_reset()
-
-    clk_edge = RisingEdge(tb.dut.clk)
-    await clk_edge
-    await clk_edge
-
-    tb.set_idle_generator(idle_inserter)
-    tb.set_backpressure_generator(backpressure_inserter)
+    tb = await setup_tb(dut, idle_inserter, backpressure_inserter)
 
     for i in range(5):
-        addr = 0xdeadbeef00
-        length = 256
-
         read_op = tb.axi_master.init_read(addr, length)
         desc = await tb.rd_desc_sink.recv()
         assert int(desc.dma_addr) == addr
@@ -169,6 +163,59 @@ async def run_test_dma_read_error(dut, idle_inserter=None, backpressure_inserter
         await with_timeout(read_op.wait(), 1000, 'ns')
         assert read_op.data.resp == AxiResp.SLVERR
 
+async def run_test_dma_write(dut, idle_inserter=None, backpressure_inserter=None):
+    tb = await setup_tb(dut, idle_inserter, backpressure_inserter)
+    clk_edge = RisingEdge(tb.dut.clk)
+    
+    ram_base_addr = 0
+    
+    for i in range(5):
+        size = None
+
+        write_op = tb.axi_master.init_write(addr, data, size=size)
+        
+        # wait for write DMA req
+        desc = await WithTimeout(tb.wr_desc_sink.recv())
+        assert int(desc.dma_addr) == addr
+        assert int(desc.len) == length
+        tb.log.info(f'Received DMA descriptor {desc}')
+
+        ram_data = tb.ram_wr.read(ram_base_addr, length)
+        if ram_data != data:
+            print('Data mismatch: written vs expected')
+            print(hexdiffs(ram_data, data))
+            assert False
+
+        # send finish
+        resp = DescStatusTransaction(tag=desc.tag, error=0)
+        tb.log.info(f'Sending DMA completion {resp}')
+        await tb.wr_desc_status_source.send(resp)
+
+        # wait for AXI transaction to finish
+        await with_timeout(write_op.wait(), 1000, 'ns')
+        assert write_op.data.resp == AxiResp.OKAY
+
+async def run_test_dma_write_error(dut, idle_inserter=None, backpressure_inserter=None):
+    tb = await setup_tb(dut, idle_inserter, backpressure_inserter)
+
+    for i in range(5):
+        addr = 0xdeadbeef00
+        length = 256
+
+        write_op = tb.axi_master.init_write(addr, data)
+        desc = await WithTimeout(tb.wr_desc_sink.recv())
+        assert int(desc.dma_addr) == addr
+        assert int(desc.len) == length
+        tb.log.info(f'Received DMA descriptor {desc}')
+
+        # send error finish
+        resp = DescStatusTransaction(tag=desc.tag, error=1)
+        tb.log.info(f'Sending error DMA completion {resp}')
+        await tb.wr_desc_status_source.send(resp)
+
+        await with_timeout(write_op.wait(), 1000, 'ns')
+        assert write_op.data.resp == AxiResp.SLVERR
+
 def cycle_pause():
     # 1 cycle ready in 4 cycles
     return cycle([1, 1, 1, 0])
@@ -181,10 +228,11 @@ if cocotb.SIM_NAME:
     factory.add_option('is_narrow', [False, True])
     factory.generate_tests()
 
-    factory = TestFactory(run_test_dma_read_error)
-    factory.add_option('idle_inserter', [None, cycle_pause])
-    factory.add_option('backpressure_inserter', [None, cycle_pause])
-    factory.generate_tests()
+    for t in [run_test_dma_read_error, run_test_dma_write, run_test_dma_write_error]:
+        factory = TestFactory(t)
+        factory.add_option('idle_inserter', [None, cycle_pause])
+        factory.add_option('backpressure_inserter', [None, cycle_pause])
+        factory.generate_tests()
 
 # cocotb-test
 '''
