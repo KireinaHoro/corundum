@@ -227,6 +227,9 @@ pspin_hostmem_dma_wr #(
     .ARUSER_WIDTH(ARUSER_WIDTH),
     .RUSER_WIDTH(RUSER_WIDTH)
 ) i_wr (
+    .clk,
+    .rstn,
+
     .m_axis_write_desc_dma_addr,
     .m_axis_write_desc_ram_sel,
     .m_axis_write_desc_ram_addr,
