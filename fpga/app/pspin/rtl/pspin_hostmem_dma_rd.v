@@ -5,7 +5,8 @@
  * DMA client to AXIS, driving the R channel of full AXI.
  *
  * This module does not handle possible AXI interleaving of the R channel.
- * Unaligned transfers are coded in but not verified.
+ * Unaligned transfers are coded in but not verified.  Narrow bursts are
+ * (somewhat) verified by limited testcases.
  *
  * This module does not contain the DMA memory between the client and
  * interface, for the sake of ease of testing (verilog-pcie only provides
@@ -99,7 +100,7 @@ localparam
     ISSUE_TO_CLIENT = 'h3,
     WAIT_CLIENT = 'h4, // wait for req ACCEPTED - status will only come after AXIS transfer
     CAPTURE_AXIS_DATA = 'h5, // capture data from AXI Stream and send first beat downstream
-    SEND_AXI_REST_BEAT = 'h6; // stall AXI Stream, send remaining beats
+    SEND_AXI_TAIL_BEAT = 'h6; // stall AXI Stream, send remaining beats
 localparam RAM_SIZE = DATA_WIDTH * 256; // AXI4 INCR has maximal 256-beat bursts
 localparam BYTELANE_IDX_WIDTH = $clog2(DATA_WIDTH / 8); // max single-byte beats
 
@@ -176,7 +177,7 @@ always @* begin
             state_d = WAIT_DMA;
         WAIT_DMA: if (s_axis_read_desc_status_valid) begin
             if (s_axis_read_desc_status_error != DMA_ERROR_NONE) begin
-                state_d = SEND_AXI_REST_BEAT; // in case of slave error we still need the required number of beats
+                state_d = SEND_AXI_TAIL_BEAT; // in case of slave error we still need the required number of beats
                 dma_error_d = 1'b1;
                 // the first beat would already be sent
                 beat_idx_d = 8'h1;
@@ -189,7 +190,7 @@ always @* begin
             state_d = WAIT_CLIENT;
         CAPTURE_AXIS_DATA: begin
             if (axis_tvalid && axis_tready) begin
-                state_d = SEND_AXI_REST_BEAT;
+                state_d = SEND_AXI_TAIL_BEAT;
                 if (is_full_burst || beat_idx_q == 8'h0 || s_axi_rready)
                     beat_idx_d = beat_idx_q + 8'h1;
                 if (s_axi_rready) begin
@@ -202,9 +203,9 @@ always @* begin
             if (beat_idx_q == num_beats && s_axi_rready)
                 state_d = IDLE;
         end
-        SEND_AXI_REST_BEAT: if (s_axi_rvalid && s_axi_rready) begin
+        SEND_AXI_TAIL_BEAT: if (s_axi_rvalid && s_axi_rready) begin
             if (!dma_error_q && curr_bl_idx == end_bl_idx)
-                state_d = axis_tlast_q ? SEND_AXI_REST_BEAT : CAPTURE_AXIS_DATA;
+                state_d = axis_tlast_q ? SEND_AXI_TAIL_BEAT : CAPTURE_AXIS_DATA;
             if (dma_error_q || !is_full_burst)
                 beat_idx_d = beat_idx_q + 8'h1;
             if (beat_idx_q == num_beats)
@@ -278,16 +279,19 @@ always @(posedge clk) begin
         WAIT_DMA: if (m_axis_read_desc_ready)
             m_axis_read_desc_valid <= 1'b0;
         ISSUE_TO_CLIENT: begin
+            m_axis_read_desc_valid <= 1'b0;
+
             dma_read_desc_ram_addr <= {RAM_ADDR_WIDTH{1'b0}};
             dma_read_desc_len <= saved_dma_len;
             dma_read_desc_id <= s_axis_read_desc_status_tag;
             dma_read_desc_valid <= 1'b1;
         end
-        // WAIT_CLIENT: nothing
+        WAIT_CLIENT: if (dma_read_desc_ready)
+            dma_read_desc_valid <= 1'b0;
         CAPTURE_AXIS_DATA: begin
-            axis_tready <= 1'b1;
             dma_read_desc_valid <= 1'b0;
 
+            axis_tready <= 1'b1;
             // latch AXI Stream data
             // only directly into the AXI bus if the last beat has finished tx
             if (axis_tvalid && axis_tready) begin
@@ -313,7 +317,7 @@ always @(posedge clk) begin
                     s_axi_rvalid <= 1'b0;
             end
         end
-        SEND_AXI_REST_BEAT: begin
+        SEND_AXI_TAIL_BEAT: begin
             // latch AXI Stream data
             if (axis_tvalid && axis_tready) begin
                 // latch last for state transfer
