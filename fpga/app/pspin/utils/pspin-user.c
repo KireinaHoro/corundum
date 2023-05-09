@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
          msg.resp.dma_size);
 
   char cmd_buf[512];
-  snprintf(cmd_buf, sizeof(cmd_buf), LOADER " %s %s %d %d %d", argv[1], argv[2],
+  snprintf(cmd_buf, sizeof(cmd_buf), LOADER " %s %s %u %u %u", argv[1], argv[2],
            (unsigned int)(msg.resp.dma_handle >> 32),
            (unsigned int)msg.resp.dma_handle, (unsigned int)msg.resp.dma_size);
   ret = system(cmd_buf);

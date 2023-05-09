@@ -182,6 +182,10 @@ echo -n $her_handler_mem_size > "$REGS/her_handler_mem_size/$1"
 
 # TODO: scratchpad
 
+printf "HER host mem hi: %#x\n" $3
+printf "HER host mem lo: %#x\n" $4
+printf "HER host mem size: %#x\n" $5
+
 echo -n $3 > "$REGS/her_host_mem_addr_hi/$1"
 echo -n $4 > "$REGS/her_host_mem_addr_lo/$1"
 echo -n $5 > "$REGS/her_host_mem_size/$1"
