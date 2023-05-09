@@ -33,3 +33,5 @@ fpga/mqnic/**/defines.v
 !fpga/mqnic/**/config.tcl
 
 *.orig
+
+compile_commands.json
