@@ -34,6 +34,8 @@
  */
 
 #include "mqnic.h"
+#include "pspin_ioctl.h"
+
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
 #include <linux/init.h>
@@ -43,6 +45,7 @@
 
 #include <linux/cdev.h>
 #include <linux/device.h>
+#include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
@@ -67,6 +70,7 @@ MODULE_VERSION("0.1");
 #define HER_NUM_HANDLER_CTX 4
 #define PSPIN_DEVICE_NAME "pspin"
 #define PSPIN_NUM_CLUSTERS 2
+
 struct mqnic_app_pspin {
   struct device *dev;
   struct mqnic_dev *mdev;
@@ -83,6 +87,8 @@ struct mqnic_app_pspin {
   bool in_reset;
   bool in_her_conf;
   bool in_me_conf;
+
+  struct ctx_dma_area dma_areas[HER_NUM_HANDLER_CTX];
 };
 
 #define REG(app, offset) ((app)->app_hw_addr + 0x800000 + (offset))
@@ -183,12 +189,14 @@ static bool check_me_en(struct device *dev, u32 idx, u32 reg) {
 
   if (!reg) {
     app->in_me_conf = true;
-    return true;
   } else {
     // TODO: check ME configuration sanity
     app->in_me_conf = false;
-    return true;
   }
+
+  // barrier for enable toggle
+  wmb();
+  return true;
 }
 
 static bool check_her_en(struct device *dev, u32 idx, u32 reg) {
@@ -197,22 +205,33 @@ static bool check_her_en(struct device *dev, u32 idx, u32 reg) {
 
   if (!reg) {
     app->in_her_conf = true;
-    return true;
   } else {
     for (i = 0; i < HER_NUM_HANDLER_CTX; ++i) {
       u64 hostdma_addr, hostdma_size;
+      bool enabled = app->dma_areas[i].enabled;
+      dma_addr_t handle = app->dma_areas[i].dma_handle;
+      u64 size = app->dma_areas[i].dma_size;
 
       hostdma_addr = ioread32(REG_ADDR(app, her_host_mem_addr_lo, i));
       hostdma_addr += (u64)ioread32(REG_ADDR(app, her_host_mem_addr_hi, i))
                       << 32;
-
       hostdma_size = ioread32(REG_ADDR(app, her_host_mem_size, i));
 
       // DMA region must be registered & mapped over ioctl before HER enablement
+      if (!enabled || hostdma_addr != handle || hostdma_size != size) {
+        dev_err(dev,
+                "HER %d: trying to set hostdma incorrectly; configured: "
+                "addr=%#llx size=%lld enabled=%d\n",
+                i, handle, size, enabled);
+        return false;
+      }
     }
     app->in_her_conf = false;
-    return true;
   }
+
+  // barrier for enable toggle
+  wmb();
+  return true;
 }
 
 static bool check_me_in_conf(struct device *dev, u32 idx, u32 reg) {
@@ -337,7 +356,7 @@ static unsigned int pspin_major = 0;
 static struct pspin_cdev *pspin_cdevs = NULL;
 static struct class *pspin_class = NULL;
 
-int pspin_open(struct inode *inode, struct file *filp) {
+static int pspin_open(struct inode *inode, struct file *filp) {
   unsigned mj = imajor(inode);
   unsigned mn = iminor(inode);
 
@@ -375,11 +394,11 @@ int pspin_open(struct inode *inode, struct file *filp) {
   return 0;
 }
 
-int pspin_release(struct inode *inode, struct file *filp) { return 0; }
+static int pspin_release(struct inode *inode, struct file *filp) { return 0; }
 
 DECLARE_WAIT_QUEUE_HEAD(stdout_read_queue);
-ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
-                   loff_t *f_pos) {
+static ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
+                          loff_t *f_pos) {
   struct pspin_cdev *dev = (struct pspin_cdev *)filp->private_data;
   struct mqnic_app_pspin *app = dev->app;
   ssize_t retval = 0;
@@ -445,8 +464,8 @@ out:
   return retval;
 }
 
-ssize_t pspin_write(struct file *filp, const char __user *buf, size_t count,
-                    loff_t *f_pos) {
+static ssize_t pspin_write(struct file *filp, const char __user *buf,
+                           size_t count, loff_t *f_pos) {
   struct pspin_cdev *dev = (struct pspin_cdev *)filp->private_data;
   struct mqnic_app_pspin *app = dev->app;
   ssize_t retval = 0;
@@ -493,7 +512,7 @@ out:
   return retval;
 }
 
-loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
+static loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
   struct pspin_cdev *dev = (struct pspin_cdev *)filp->private_data;
   loff_t newpos = 0;
 
@@ -531,6 +550,45 @@ loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
   return newpos;
 }
 
+static long pspin_ioctl(struct file *filp, unsigned int cmd,
+                        unsigned long arg) {
+  struct pspin_cdev *cdev = (struct pspin_cdev *)filp->private_data;
+  struct device *dev = cdev->dev;
+  struct mqnic_app_pspin *app = cdev->app;
+  struct pspin_ioctl_msg *user_ptr = (struct pspin_ioctl_msg *)arg;
+
+  int ctx_id;
+
+  if (cdev->type == TY_FIFO) {
+    dev_warn(dev, "stdout FIFO does not support writing\n");
+    return -EINVAL;
+  }
+
+  switch (cmd) {
+  case PSPIN_HOSTDMA_QUERY:
+    if (copy_from_user(&ctx_id, &user_ptr->req.ctx_id, sizeof(int))) {
+      dev_err(dev, "read ctx_id error\n");
+      return -EFAULT;
+    }
+    if (ctx_id >= HER_NUM_HANDLER_CTX) {
+      dev_err(dev, "invalid ctx_id %d; max %d\n", ctx_id, HER_NUM_HANDLER_CTX);
+      return -EINVAL;
+    }
+    if (copy_to_user(&user_ptr->resp, &app->dma_areas[ctx_id],
+                     sizeof(struct ctx_dma_area))) {
+      dev_err(dev, "write dma area error\n");
+      return -EFAULT;
+    }
+    break;
+
+  default:
+    pr_info("unknwon ioctl %d\n", cmd);
+    return -EINVAL;
+  }
+
+  return 0;
+}
+
 struct file_operations pspin_fops = {
     .owner = THIS_MODULE,
     .read = pspin_read,
@@ -538,6 +596,7 @@ struct file_operations pspin_fops = {
     .open = pspin_open,
     .release = pspin_release,
     .llseek = pspin_llseek,
+    .unlocked_ioctl = pspin_ioctl,
 };
 
 static int pspin_construct_device(struct pspin_cdev *dev, int minor,
