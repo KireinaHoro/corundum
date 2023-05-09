@@ -12,7 +12,7 @@ LDLIBS += -lmqnic
 
 LIBMQNIC = lib/mqnic/libmqnic.a
 
-BIN = app-pspin pspin-user
+BIN = pspin-user
 
 GENDEPFLAGS = -MD -MP -MF .$(@F).d
 
@@ -27,9 +27,6 @@ $(LIBMQNIC): FORCE
 
 %.o: %.c
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
-
-app-pspin: app-pspin.o $(LIBMQNIC)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 pspin-user: pspin-user.o
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $^ -o $@

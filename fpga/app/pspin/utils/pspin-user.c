@@ -5,15 +5,23 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #define PSPIN_DEV "/dev/pspin0"
 #define PAGE_SIZE 4096
 #define HOSTDMA_PAGES_FILE                                                     \
   "/sys/module/mqnic_app_pspin/parameters/hostdma_num_pages"
+#define LOADER "./load.sh"
 
-int main() {
-  int fd = open(PSPIN_DEV, O_RDWR);
+int main(int argc, char *argv[]) {
+  if (argc != 3) {
+    fprintf(stderr, "usage: %s <ctx id> <img>\n", argv[0]);
+    exit(EXIT_FAILURE);
+  }
+
+  int fd = open(PSPIN_DEV, O_RDWR | O_CLOEXEC);
   int dest_ctx = 0;
   int ret = 0;
   if (fd < 0) {
@@ -60,6 +68,21 @@ int main() {
   assert(msg.resp.enabled);
   printf("Host DMA physical addr: %#lx, size: %ld\n", msg.resp.dma_handle,
          msg.resp.dma_size);
+
+  char cmd_buf[512];
+  snprintf(cmd_buf, sizeof(cmd_buf), LOADER " %s %s %d %d %d", argv[1], argv[2],
+           (unsigned int)(msg.resp.dma_handle >> 32),
+           (unsigned int)msg.resp.dma_handle, (unsigned int)msg.resp.dma_size);
+  ret = system(cmd_buf);
+  if (ret == -1) {
+    perror("call loader");
+    ret = EXIT_FAILURE;
+    goto unmap;
+  } else if (WIFEXITED(ret) && WEXITSTATUS(ret) != 0) {
+    fprintf(stderr, "loader returned %d\n", WEXITSTATUS(ret));
+    ret = EXIT_FAILURE;
+    goto unmap;
+  }
 
   ret = EXIT_SUCCESS;
 

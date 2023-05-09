@@ -95,6 +95,7 @@ struct mqnic_app_pspin {
   struct dma_area_int {
     void *cpu_addr;
     struct ctx_dma_area phys;
+    int ref_count;
   } dma_areas[HER_NUM_HANDLER_CTX];
 };
 
@@ -340,6 +341,7 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   return ret;
 }
 
+// one per char device (total 2)
 struct pspin_cdev {
   enum {
     TY_MEM,
@@ -347,12 +349,15 @@ struct pspin_cdev {
   } type;
   struct mqnic_app_pspin *app;
   unsigned char *block_buffer;
-  struct mutex pspin_mutex;
+  struct mutex pspin_mutex; // only locked during memory load (not mmap)
   struct cdev cdev;
   struct device *dev;
+};
 
+// one per open file - shared across fork
+struct pspin_map_data {
+  struct pspin_cdev *cdev;
   int ctx_id;
-  int ref_count; // ref_count in case of fork
 };
 
 static int pspin_ndevices = 2;
@@ -591,43 +596,48 @@ static long pspin_ioctl(struct file *filp, unsigned int cmd,
   return 0;
 }
 
-static void pspin_free_dma(struct pspin_cdev *cdev) {
-  struct dma_area_int *area = &cdev->app->dma_areas[cdev->ctx_id];
-
-  if (area->phys.enabled) {
-    dev_info(cdev->dev, "freeing hostdma area for ctx %d\n", cdev->ctx_id);
-    dma_free_coherent(cdev->app->nic_dev, area->phys.dma_size, area->cpu_addr,
-                      area->phys.dma_handle);
-    area->phys.enabled = false;
-  }
-}
-
 static void pspin_vma_open(struct vm_area_struct *vma) {
-  struct pspin_cdev *cdev = vma->vm_private_data;
-  struct dma_area_int *area = &cdev->app->dma_areas[cdev->ctx_id];
-  BUG_ON(!area->phys.enabled);
-  ++cdev->ref_count;
+  struct pspin_map_data *map_data = vma->vm_private_data;
+  struct pspin_cdev *cdev = map_data->cdev;
+  struct dma_area_int *area = &cdev->app->dma_areas[map_data->ctx_id];
+  // duplicated mapping should always be enabled
+
+  if (!area->phys.enabled) {
+    dev_warn(cdev->dev, "vma_open called on inactive area\n");
+  }
+  ++area->ref_count;
+
+  dev_info(cdev->dev, "%s(): ctx_id %d refcount %d\n", __func__,
+           map_data->ctx_id, area->ref_count);
 }
 
 static void pspin_vma_close(struct vm_area_struct *vma) {
-  struct pspin_cdev *cdev = vma->vm_private_data;
-  struct dma_area_int *area = &cdev->app->dma_areas[cdev->ctx_id];
-
-  unsigned long len = vma->vm_end - vma->vm_start;
-
-  BUG_ON(!area->phys.enabled);
-  BUG_ON(len != area->phys.dma_size);
-
-  if (!--cdev->ref_count) {
-    pspin_free_dma(cdev);
+  struct pspin_map_data *map_data = vma->vm_private_data;
+  struct pspin_cdev *cdev = map_data->cdev;
+  struct dma_area_int *area = &cdev->app->dma_areas[map_data->ctx_id];
+  if (!area->ref_count) {
+    dev_warn(cdev->dev, "trying to decrement ref_count below 0\n");
+    return;
   }
+  --area->ref_count;
+  if (!area->ref_count) {
+    if (area->phys.enabled) {
+      dev_info(cdev->dev, "freeing hostdma area for ctx %d\n",
+               map_data->ctx_id);
+      dma_free_coherent(cdev->app->nic_dev, area->phys.dma_size, area->cpu_addr,
+                        area->phys.dma_handle);
+      area->phys.enabled = false;
+    } else {
+      dev_warn(cdev->dev, "vma_close called on already inactive area\n");
+    }
+  }
+
+  dev_info(cdev->dev, "%s(): ctx_id %d refcount %d\n", __func__,
+           map_data->ctx_id, area->ref_count);
 }
 
-static int pspin_release(struct inode *inode, struct file *filp) {
-  struct pspin_cdev *cdev = filp->private_data;
-  pspin_free_dma(cdev);
-  return 0;
-}
+// we do not eagerly unmap - mmap should retain even when file is closed
+static int pspin_release(struct inode *inode, struct file *filp) { return 0; }
 
 static struct vm_operations_struct pspin_vm_ops = {
     .open = pspin_vma_open,
@@ -638,6 +648,7 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
   struct pspin_cdev *cdev = filp->private_data;
   struct device *dev = cdev->dev;
   struct mqnic_app_pspin *app = cdev->app;
+  struct pspin_map_data *map_data;
 
   int ctx_id = vma->vm_pgoff / hostdma_num_pages;
   struct dma_area_int *area;
@@ -657,11 +668,17 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
   }
   area = &app->dma_areas[ctx_id];
 
-  cdev->ctx_id = ctx_id;
+  map_data = devm_kzalloc(dev, sizeof(struct pspin_map_data), GFP_KERNEL);
+  if (!map_data) {
+    dev_err(dev, "failed to allocate mapping data\n");
+    return -ENOMEM;
+  }
+  map_data->ctx_id = ctx_id;
+  map_data->cdev = cdev;
 
   vma->vm_ops = &pspin_vm_ops;
   vma->vm_flags |= VM_IO;
-  vma->vm_private_data = cdev;
+  vma->vm_private_data = map_data;
 
   // allocate DMA buffer
   if (!area->phys.enabled) {
@@ -691,6 +708,9 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
     dev_err(dev, "failed to map dma region into user\n");
     return -EIO;
   }
+
+  // ref counting
+  pspin_vma_open(vma);
 
   return 0;
 }
