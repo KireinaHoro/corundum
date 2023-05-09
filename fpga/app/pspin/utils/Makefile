@@ -5,14 +5,14 @@ BINDIR = $(DESTDIR)$(PREFIX)/bin
 CC ?= gcc
 CFLAGS ?= -O3
 
-CFLAGS += -Wall
+CFLAGS += -Wall -D__PSPIN_USER__
 CPPFLAGS += -Ilib -Iinclude
 LDFLAGS += -Llib/mqnic
 LDLIBS += -lmqnic
 
 LIBMQNIC = lib/mqnic/libmqnic.a
 
-BIN = app-pspin
+BIN = app-pspin pspin-user
 
 GENDEPFLAGS = -MD -MP -MF .$(@F).d
 
@@ -30,6 +30,9 @@ $(LIBMQNIC): FORCE
 
 app-pspin: app-pspin.o $(LIBMQNIC)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $^ -o $@ $(LDLIBS)
+
+pspin-user: pspin-user.o
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $^ -o $@
 
 install:
 	install -d $(BINDIR)

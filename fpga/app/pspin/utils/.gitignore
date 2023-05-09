@@ -2,3 +2,4 @@ app-pspin
 test-mem
 *.log
 *.pcap
+pspin-user

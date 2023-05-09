@@ -4,6 +4,13 @@
 #include <linux/ioctl.h>
 #include <linux/types.h>
 
+#ifdef __PSPIN_USER__
+#include <stdbool.h>
+#include <stdint.h>
+#define u64 uint64_t
+#define dma_addr_t uint64_t
+#endif
+
 struct ctx_dma_area {
   dma_addr_t dma_handle;
   u64 dma_size;
