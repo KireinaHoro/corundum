@@ -692,10 +692,11 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
     }
     area->phys.enabled = true;
 
-    dev_info(
-        dev,
-        "allocated host dma region virt %p, phys %#llx, size %lld for ctx %d\n",
-        area->cpu_addr, area->phys.dma_handle, area->phys.dma_size, ctx_id);
+    dev_info(dev,
+             "allocated host dma region virt %#llx, dma %#llx, phys %#llx, "
+             "size %lld for ctx %d\n",
+             area->cpu_addr, area->phys.dma_handle,
+             virt_to_phys(area->cpu_addr), area->phys.dma_size, ctx_id);
   } else {
     // in use by another process
     dev_err(dev, "ctx %d hostdma already in use\n", ctx_id);
