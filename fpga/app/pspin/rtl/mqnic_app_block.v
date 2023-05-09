@@ -977,6 +977,88 @@ wire                                            m_axi_pspin_no_rlast;
 wire                                            m_axi_pspin_no_rvalid;
 wire                                            m_axi_pspin_no_rready;
 
+// in PsPIN clock domain
+wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_awid;
+wire [AXI_ADDR_WIDTH-1:0]                       s_axi_pspin_dma_awaddr;
+wire [7:0]                                      s_axi_pspin_dma_awlen;
+wire [2:0]                                      s_axi_pspin_dma_awsize;
+wire [1:0]                                      s_axi_pspin_dma_awburst;
+wire                                            s_axi_pspin_dma_awlock;
+wire [3:0]                                      s_axi_pspin_dma_awcache;
+wire [2:0]                                      s_axi_pspin_dma_awprot;
+wire [3:0]                                      s_axi_pspin_dma_awqos;
+wire [3:0]                                      s_axi_pspin_dma_awregion;
+wire                                            s_axi_pspin_dma_awvalid;
+wire                                            s_axi_pspin_dma_awready;
+wire [AXI_DATA_WIDTH-1:0]                       s_axi_pspin_dma_wdata;
+wire [AXI_STRB_WIDTH-1:0]                       s_axi_pspin_dma_wstrb;
+wire                                            s_axi_pspin_dma_wlast;
+wire                                            s_axi_pspin_dma_wvalid;
+wire                                            s_axi_pspin_dma_wready;
+wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_bid;
+wire [1:0]                                      s_axi_pspin_dma_bresp;
+wire                                            s_axi_pspin_dma_bvalid;
+wire                                            s_axi_pspin_dma_bready;
+wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_arid;
+wire [AXI_ADDR_WIDTH-1:0]                       s_axi_pspin_dma_araddr;
+wire [7:0]                                      s_axi_pspin_dma_arlen;
+wire [2:0]                                      s_axi_pspin_dma_arsize;
+wire [1:0]                                      s_axi_pspin_dma_arburst;
+wire                                            s_axi_pspin_dma_arlock;
+wire [3:0]                                      s_axi_pspin_dma_arcache;
+wire [2:0]                                      s_axi_pspin_dma_arprot;
+wire [3:0]                                      s_axi_pspin_dma_arqos;
+wire [3:0]                                      s_axi_pspin_dma_arregion;
+wire                                            s_axi_pspin_dma_arvalid;
+wire                                            s_axi_pspin_dma_arready;
+wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_rid;
+wire [AXI_DATA_WIDTH-1:0]                       s_axi_pspin_dma_rdata;
+wire [1:0]                                      s_axi_pspin_dma_rresp;
+wire                                            s_axi_pspin_dma_rlast;
+wire                                            s_axi_pspin_dma_rvalid;
+wire                                            s_axi_pspin_dma_rready;
+
+// in Corundum clock domain
+wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_fast_awid;
+wire [AXI_ADDR_WIDTH-1:0]                       s_axi_pspin_dma_fast_awaddr;
+wire [7:0]                                      s_axi_pspin_dma_fast_awlen;
+wire [2:0]                                      s_axi_pspin_dma_fast_awsize;
+wire [1:0]                                      s_axi_pspin_dma_fast_awburst;
+wire                                            s_axi_pspin_dma_fast_awlock;
+wire [3:0]                                      s_axi_pspin_dma_fast_awcache;
+wire [2:0]                                      s_axi_pspin_dma_fast_awprot;
+wire [3:0]                                      s_axi_pspin_dma_fast_awqos;
+wire [3:0]                                      s_axi_pspin_dma_fast_awregion;
+wire                                            s_axi_pspin_dma_fast_awvalid;
+wire                                            s_axi_pspin_dma_fast_awready;
+wire [AXI_DATA_WIDTH-1:0]                       s_axi_pspin_dma_fast_wdata;
+wire [AXI_STRB_WIDTH-1:0]                       s_axi_pspin_dma_fast_wstrb;
+wire                                            s_axi_pspin_dma_fast_wlast;
+wire                                            s_axi_pspin_dma_fast_wvalid;
+wire                                            s_axi_pspin_dma_fast_wready;
+wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_fast_bid;
+wire [1:0]                                      s_axi_pspin_dma_fast_bresp;
+wire                                            s_axi_pspin_dma_fast_bvalid;
+wire                                            s_axi_pspin_dma_fast_bready;
+wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_fast_arid;
+wire [AXI_ADDR_WIDTH-1:0]                       s_axi_pspin_dma_fast_araddr;
+wire [7:0]                                      s_axi_pspin_dma_fast_arlen;
+wire [2:0]                                      s_axi_pspin_dma_fast_arsize;
+wire [1:0]                                      s_axi_pspin_dma_fast_arburst;
+wire                                            s_axi_pspin_dma_fast_arlock;
+wire [3:0]                                      s_axi_pspin_dma_fast_arcache;
+wire [2:0]                                      s_axi_pspin_dma_fast_arprot;
+wire [3:0]                                      s_axi_pspin_dma_fast_arqos;
+wire [3:0]                                      s_axi_pspin_dma_fast_arregion;
+wire                                            s_axi_pspin_dma_fast_arvalid;
+wire                                            s_axi_pspin_dma_fast_arready;
+wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_fast_rid;
+wire [AXI_DATA_WIDTH-1:0]                       s_axi_pspin_dma_fast_rdata;
+wire [1:0]                                      s_axi_pspin_dma_fast_rresp;
+wire                                            s_axi_pspin_dma_fast_rlast;
+wire                                            s_axi_pspin_dma_fast_rvalid;
+wire                                            s_axi_pspin_dma_fast_rready;
+
 wire                                            her_ready;
 wire                                            her_valid;
 wire [MSG_ID_WIDTH-1:0]                         her_msgid;
@@ -1007,6 +1089,20 @@ wire [CMD_ID_WIDTH-1:0]                         nic_cmd_resp_id;
 
 wire [3:0]                                      egress_dma_last_error;
 
+wire [RAM_SEG_COUNT*RAM_SEG_BE_WIDTH-1:0]       hostdma_ram_wr_cmd_be;
+wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]     hostdma_ram_wr_cmd_addr;
+wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]     hostdma_ram_wr_cmd_data;
+wire [RAM_SEG_COUNT-1:0]                        hostdma_ram_wr_cmd_valid;
+wire [RAM_SEG_COUNT-1:0]                        hostdma_ram_wr_cmd_ready;
+wire [RAM_SEG_COUNT-1:0]                        hostdma_ram_wr_done;
+
+wire [RAM_SEG_COUNT*RAM_SEG_ADDR_WIDTH-1:0]     hostdma_ram_rd_cmd_addr;
+wire [RAM_SEG_COUNT-1:0]                        hostdma_ram_rd_cmd_valid;
+wire [RAM_SEG_COUNT-1:0]                        hostdma_ram_rd_cmd_ready;
+wire [RAM_SEG_COUNT*RAM_SEG_DATA_WIDTH-1:0]     hostdma_ram_rd_resp_data;
+wire [RAM_SEG_COUNT-1:0]                        hostdma_ram_rd_resp_valid;
+wire [RAM_SEG_COUNT-1:0]                        hostdma_ram_rd_resp_ready;
+
 pspin_clk_wiz i_pspin_clk_wiz (
     .clk_out1(pspin_clk),
     .reset(rst),
@@ -1027,7 +1123,92 @@ proc_sys_reset_0 i_pspin_rst (
   .peripheral_aresetn()                // output wire [0 : 0] peripheral_aresetn
 );
 
-pspin_host_clk_converter i_pspin_axi_conv (
+pspin_hostdma_clk_converter i_pspin_hostdma_conv (
+  .s_axi_aclk(pspin_clk),          // input wire s_axi_aclk
+  .s_axi_aresetn(!pspin_rst),    // input wire s_axi_aresetn
+  .s_axi_awid(s_axi_pspin_dma_awid),          // input wire [7 : 0] s_axi_awid
+  .s_axi_awaddr(s_axi_pspin_dma_awaddr),      // input wire [63 : 0] s_axi_awaddr
+  .s_axi_awlen(s_axi_pspin_dma_awlen),        // input wire [7 : 0] s_axi_awlen
+  .s_axi_awsize(s_axi_pspin_dma_awsize),      // input wire [2 : 0] s_axi_awsize
+  .s_axi_awburst(s_axi_pspin_dma_awburst),    // input wire [1 : 0] s_axi_awburst
+  .s_axi_awlock(s_axi_pspin_dma_awlock),      // input wire [0 : 0] s_axi_awlock
+  .s_axi_awcache(s_axi_pspin_dma_awcache),    // input wire [3 : 0] s_axi_awcache
+  .s_axi_awprot(s_axi_pspin_dma_awprot),      // input wire [2 : 0] s_axi_awprot
+  .s_axi_awregion(s_axi_pspin_dma_awregion),  // input wire [3 : 0] s_axi_awregion
+  .s_axi_awqos(s_axi_pspin_dma_awqos),        // input wire [3 : 0] s_axi_awqos
+  .s_axi_awvalid(s_axi_pspin_dma_awvalid),    // input wire s_axi_awvalid
+  .s_axi_awready(s_axi_pspin_dma_awready),    // output wire s_axi_awready
+  .s_axi_wdata(s_axi_pspin_dma_wdata),        // input wire [511 : 0] s_axi_wdata
+  .s_axi_wstrb(s_axi_pspin_dma_wstrb),        // input wire [63 : 0] s_axi_wstrb
+  .s_axi_wlast(s_axi_pspin_dma_wlast),        // input wire s_axi_wlast
+  .s_axi_wvalid(s_axi_pspin_dma_wvalid),      // input wire s_axi_wvalid
+  .s_axi_wready(s_axi_pspin_dma_wready),      // output wire s_axi_wready
+  .s_axi_bid(s_axi_pspin_dma_bid),            // output wire [7 : 0] s_axi_bid
+  .s_axi_bresp(s_axi_pspin_dma_bresp),        // output wire [1 : 0] s_axi_bresp
+  .s_axi_bvalid(s_axi_pspin_dma_bvalid),      // output wire s_axi_bvalid
+  .s_axi_bready(s_axi_pspin_dma_bready),      // input wire s_axi_bready
+  .s_axi_arid(s_axi_pspin_dma_arid),          // input wire [7 : 0] s_axi_arid
+  .s_axi_araddr(s_axi_pspin_dma_araddr),      // input wire [63 : 0] s_axi_araddr
+  .s_axi_arlen(s_axi_pspin_dma_arlen),        // input wire [7 : 0] s_axi_arlen
+  .s_axi_arsize(s_axi_pspin_dma_arsize),      // input wire [2 : 0] s_axi_arsize
+  .s_axi_arburst(s_axi_pspin_dma_arburst),    // input wire [1 : 0] s_axi_arburst
+  .s_axi_arlock(s_axi_pspin_dma_arlock),      // input wire [0 : 0] s_axi_arlock
+  .s_axi_arcache(s_axi_pspin_dma_arcache),    // input wire [3 : 0] s_axi_arcache
+  .s_axi_arprot(s_axi_pspin_dma_arprot),      // input wire [2 : 0] s_axi_arprot
+  .s_axi_arregion(s_axi_pspin_dma_arregion),  // input wire [3 : 0] s_axi_arregion
+  .s_axi_arqos(s_axi_pspin_dma_arqos),        // input wire [3 : 0] s_axi_arqos
+  .s_axi_arvalid(s_axi_pspin_dma_arvalid),    // input wire s_axi_arvalid
+  .s_axi_arready(s_axi_pspin_dma_arready),    // output wire s_axi_arready
+  .s_axi_rid(s_axi_pspin_dma_rid),            // output wire [7 : 0] s_axi_rid
+  .s_axi_rdata(s_axi_pspin_dma_rdata),        // output wire [511 : 0] s_axi_rdata
+  .s_axi_rresp(s_axi_pspin_dma_rresp),        // output wire [1 : 0] s_axi_rresp
+  .s_axi_rlast(s_axi_pspin_dma_rlast),        // output wire s_axi_rlast
+  .s_axi_rvalid(s_axi_pspin_dma_rvalid),      // output wire s_axi_rvalid
+  .s_axi_rready(s_axi_pspin_dma_rready),      // input wire s_axi_rready
+  .m_axi_aclk(clk),          // input wire m_axi_aclk
+  .m_axi_aresetn(!rst),    // input wire m_axi_aresetn
+  .m_axi_awid(s_axi_pspin_dma_fast_awid),          // output wire [7 : 0] m_axi_awid
+  .m_axi_awaddr(s_axi_pspin_dma_fast_awaddr),      // output wire [63 : 0] m_axi_awaddr
+  .m_axi_awlen(s_axi_pspin_dma_fast_awlen),        // output wire [7 : 0] m_axi_awlen
+  .m_axi_awsize(s_axi_pspin_dma_fast_awsize),      // output wire [2 : 0] m_axi_awsize
+  .m_axi_awburst(s_axi_pspin_dma_fast_awburst),    // output wire [1 : 0] m_axi_awburst
+  .m_axi_awlock(s_axi_pspin_dma_fast_awlock),      // output wire [0 : 0] m_axi_awlock
+  .m_axi_awcache(s_axi_pspin_dma_fast_awcache),    // output wire [3 : 0] m_axi_awcache
+  .m_axi_awprot(s_axi_pspin_dma_fast_awprot),      // output wire [2 : 0] m_axi_awprot
+  .m_axi_awregion(s_axi_pspin_dma_fast_awregion),  // output wire [3 : 0] m_axi_awregion
+  .m_axi_awqos(s_axi_pspin_dma_fast_awqos),        // output wire [3 : 0] m_axi_awqos
+  .m_axi_awvalid(s_axi_pspin_dma_fast_awvalid),    // output wire m_axi_awvalid
+  .m_axi_awready(s_axi_pspin_dma_fast_awready),    // input wire m_axi_awready
+  .m_axi_wdata(s_axi_pspin_dma_fast_wdata),        // output wire [511 : 0] m_axi_wdata
+  .m_axi_wstrb(s_axi_pspin_dma_fast_wstrb),        // output wire [63 : 0] m_axi_wstrb
+  .m_axi_wlast(s_axi_pspin_dma_fast_wlast),        // output wire m_axi_wlast
+  .m_axi_wvalid(s_axi_pspin_dma_fast_wvalid),      // output wire m_axi_wvalid
+  .m_axi_wready(s_axi_pspin_dma_fast_wready),      // input wire m_axi_wready
+  .m_axi_bid(s_axi_pspin_dma_fast_bid),            // input wire [7 : 0] m_axi_bid
+  .m_axi_bresp(s_axi_pspin_dma_fast_bresp),        // input wire [1 : 0] m_axi_bresp
+  .m_axi_bvalid(s_axi_pspin_dma_fast_bvalid),      // input wire m_axi_bvalid
+  .m_axi_bready(s_axi_pspin_dma_fast_bready),      // output wire m_axi_bready
+  .m_axi_arid(s_axi_pspin_dma_fast_arid),          // output wire [7 : 0] m_axi_arid
+  .m_axi_araddr(s_axi_pspin_dma_fast_araddr),      // output wire [63 : 0] m_axi_araddr
+  .m_axi_arlen(s_axi_pspin_dma_fast_arlen),        // output wire [7 : 0] m_axi_arlen
+  .m_axi_arsize(s_axi_pspin_dma_fast_arsize),      // output wire [2 : 0] m_axi_arsize
+  .m_axi_arburst(s_axi_pspin_dma_fast_arburst),    // output wire [1 : 0] m_axi_arburst
+  .m_axi_arlock(s_axi_pspin_dma_fast_arlock),      // output wire [0 : 0] m_axi_arlock
+  .m_axi_arcache(s_axi_pspin_dma_fast_arcache),    // output wire [3 : 0] m_axi_arcache
+  .m_axi_arprot(s_axi_pspin_dma_fast_arprot),      // output wire [2 : 0] m_axi_arprot
+  .m_axi_arregion(s_axi_pspin_dma_fast_arregion),  // output wire [3 : 0] m_axi_arregion
+  .m_axi_arqos(s_axi_pspin_dma_fast_arqos),        // output wire [3 : 0] m_axi_arqos
+  .m_axi_arvalid(s_axi_pspin_dma_fast_arvalid),    // output wire m_axi_arvalid
+  .m_axi_arready(s_axi_pspin_dma_fast_arready),    // input wire m_axi_arready
+  .m_axi_rid(s_axi_pspin_dma_fast_rid),            // input wire [7 : 0] m_axi_rid
+  .m_axi_rdata(s_axi_pspin_dma_fast_rdata),        // input wire [511 : 0] m_axi_rdata
+  .m_axi_rresp(s_axi_pspin_dma_fast_rresp),        // input wire [1 : 0] m_axi_rresp
+  .m_axi_rlast(s_axi_pspin_dma_fast_rlast),        // input wire m_axi_rlast
+  .m_axi_rvalid(s_axi_pspin_dma_fast_rvalid),      // input wire m_axi_rvalid
+  .m_axi_rready(s_axi_pspin_dma_fast_rready)      // output wire m_axi_rready
+);
+
+pspin_host_clk_converter i_pspin_axil_conv (
   .s_axi_aclk(clk),                         // input wire s_axi_aclk
   .s_axi_aresetn(!rst),                     // input wire s_axi_aresetn
   .s_axi_awaddr(s_axil_app_ctrl_awaddr),    // input wire [23 : 0] s_axi_awaddr
@@ -1748,6 +1929,164 @@ pspin_egress_datapath #(
     .egress_dma_last_error
 );
 
+dma_psdpram #(
+    .SIZE(4096),
+    .SEG_COUNT(RAM_SEG_COUNT),
+    .SEG_DATA_WIDTH(RAM_SEG_DATA_WIDTH),
+    .SEG_BE_WIDTH(RAM_SEG_BE_WIDTH),
+    .SEG_ADDR_WIDTH(RAM_SEG_ADDR_WIDTH),
+    .PIPELINE(RAM_PIPELINE)
+) i_dma_wr_ram (
+    .clk,
+    .rst,
+
+    .wr_cmd_be(hostdma_ram_wr_cmd_be),
+    .wr_cmd_addr(hostdma_ram_wr_cmd_addr),
+    .wr_cmd_data(hostdma_ram_wr_cmd_data),
+    .wr_cmd_valid(hostdma_ram_wr_cmd_valid),
+    .wr_cmd_ready(hostdma_ram_wr_cmd_ready),
+    .wr_done(hostdma_ram_wr_done),
+
+    .rd_cmd_addr(data_dma_ram_rd_cmd_addr),
+    .rd_cmd_valid(data_dma_ram_rd_cmd_valid),
+    .rd_cmd_ready(data_dma_ram_rd_cmd_ready),
+    .rd_resp_data(data_dma_ram_rd_resp_data),
+    .rd_resp_valid(data_dma_ram_rd_resp_valid),
+    .rd_resp_ready(data_dma_ram_rd_resp_ready)
+);
+
+dma_psdpram #(
+    .SIZE(4096),
+    .SEG_COUNT(RAM_SEG_COUNT),
+    .SEG_DATA_WIDTH(RAM_SEG_DATA_WIDTH),
+    .SEG_BE_WIDTH(RAM_SEG_BE_WIDTH),
+    .SEG_ADDR_WIDTH(RAM_SEG_ADDR_WIDTH),
+    .PIPELINE(RAM_PIPELINE)
+) i_dma_rd_ram (
+    .clk,
+    .rst,
+
+    .wr_cmd_be(data_dma_ram_wr_cmd_be),
+    .wr_cmd_addr(data_dma_ram_wr_cmd_addr),
+    .wr_cmd_data(data_dma_ram_wr_cmd_data),
+    .wr_cmd_valid(data_dma_ram_wr_cmd_valid),
+    .wr_cmd_ready(data_dma_ram_wr_cmd_ready),
+    .wr_done(data_dma_ram_wr_done),
+
+    .rd_cmd_addr(hostdma_ram_rd_cmd_addr),
+    .rd_cmd_valid(hostdma_ram_rd_cmd_valid),
+    .rd_cmd_ready(hostdma_ram_rd_cmd_ready),
+    .rd_resp_data(hostdma_ram_rd_resp_data),
+    .rd_resp_valid(hostdma_ram_rd_resp_valid),
+    .rd_resp_ready(hostdma_ram_rd_resp_ready)
+);
+
+pspin_hostmem_dma #(
+    .DMA_IMM_ENABLE(DMA_IMM_ENABLE),
+    .DMA_IMM_WIDTH(DMA_IMM_WIDTH),
+    .DMA_LEN_WIDTH(DMA_LEN_WIDTH),
+    .DMA_TAG_WIDTH(DMA_TAG_WIDTH),
+    .RAM_SEL_WIDTH(RAM_SEL_WIDTH),
+    .RAM_ADDR_WIDTH(RAM_ADDR_WIDTH),
+    .RAM_SEG_COUNT(RAM_SEG_COUNT),
+    .RAM_SEG_DATA_WIDTH(RAM_SEG_DATA_WIDTH),
+    .RAM_SEG_BE_WIDTH(RAM_SEG_BE_WIDTH),
+    .RAM_SEG_ADDR_WIDTH(RAM_SEG_ADDR_WIDTH),
+
+    .ADDR_WIDTH(AXI_HOST_ADDR_WIDTH),
+    .DATA_WIDTH(AXI_DATA_WIDTH),
+    .STRB_WIDTH(AXI_STRB_WIDTH),
+    .ID_WIDTH(AXI_ID_WIDTH)
+) i_hostmem_dma (
+    .clk,
+    .rstn(!rst),
+
+    .s_axi_awid            (s_axi_pspin_dma_fast_awid),
+    .s_axi_awaddr          (s_axi_pspin_dma_fast_awaddr),
+    .s_axi_awlen           (s_axi_pspin_dma_fast_awlen),
+    .s_axi_awsize          (s_axi_pspin_dma_fast_awsize),
+    .s_axi_awburst         (s_axi_pspin_dma_fast_awburst),
+    .s_axi_awlock          (s_axi_pspin_dma_fast_awlock),
+    .s_axi_awcache         (s_axi_pspin_dma_fast_awcache),
+    .s_axi_awprot          (s_axi_pspin_dma_fast_awprot),
+    .s_axi_awqos           (s_axi_pspin_dma_fast_awqos),
+    .s_axi_awregion        (s_axi_pspin_dma_fast_awregion),
+    .s_axi_awuser          (1'b0),
+    .s_axi_awvalid         (s_axi_pspin_dma_fast_awvalid),
+    .s_axi_awready         (s_axi_pspin_dma_fast_awready),
+    .s_axi_wdata           (s_axi_pspin_dma_fast_wdata),
+    .s_axi_wstrb           (s_axi_pspin_dma_fast_wstrb),
+    .s_axi_wlast           (s_axi_pspin_dma_fast_wlast),
+    .s_axi_wuser           (1'b0),
+    .s_axi_wvalid          (s_axi_pspin_dma_fast_wvalid),
+    .s_axi_wready          (s_axi_pspin_dma_fast_wready),
+    .s_axi_bid             (s_axi_pspin_dma_fast_bid),
+    .s_axi_bresp           (s_axi_pspin_dma_fast_bresp),
+    .s_axi_buser           (),
+    .s_axi_bvalid          (s_axi_pspin_dma_fast_bvalid),
+    .s_axi_bready          (s_axi_pspin_dma_fast_bready),
+    .s_axi_arid            (s_axi_pspin_dma_fast_arid),
+    .s_axi_araddr          (s_axi_pspin_dma_fast_araddr),
+    .s_axi_arlen           (s_axi_pspin_dma_fast_arlen),
+    .s_axi_arsize          (s_axi_pspin_dma_fast_arsize),
+    .s_axi_arburst         (s_axi_pspin_dma_fast_arburst),
+    .s_axi_arlock          (s_axi_pspin_dma_fast_arlock),
+    .s_axi_arcache         (s_axi_pspin_dma_fast_arcache),
+    .s_axi_arprot          (s_axi_pspin_dma_fast_arprot),
+    .s_axi_arqos           (s_axi_pspin_dma_fast_arqos),
+    .s_axi_arregion        (s_axi_pspin_dma_fast_arregion),
+    .s_axi_aruser          (1'b0),
+    .s_axi_arvalid         (s_axi_pspin_dma_fast_arvalid),
+    .s_axi_arready         (s_axi_pspin_dma_fast_arready),
+    .s_axi_rid             (s_axi_pspin_dma_fast_rid),
+    .s_axi_rdata           (s_axi_pspin_dma_fast_rdata),
+    .s_axi_rresp           (s_axi_pspin_dma_fast_rresp),
+    .s_axi_rlast           (s_axi_pspin_dma_fast_rlast),
+    .s_axi_ruser           (),
+    .s_axi_rvalid          (s_axi_pspin_dma_fast_rvalid),
+    .s_axi_rready          (s_axi_pspin_dma_fast_rready),
+
+    .m_axis_read_desc_dma_addr(m_axis_data_dma_read_desc_dma_addr),
+    .m_axis_read_desc_ram_sel(m_axis_data_dma_read_desc_ram_sel),
+    .m_axis_read_desc_ram_addr(m_axis_data_dma_read_desc_ram_addr),
+    .m_axis_read_desc_len(m_axis_data_dma_read_desc_len),
+    .m_axis_read_desc_tag(m_axis_data_dma_read_desc_tag),
+    .m_axis_read_desc_valid(m_axis_data_dma_read_desc_valid),
+    .m_axis_read_desc_ready(m_axis_data_dma_read_desc_ready),
+
+    .s_axis_read_desc_status_tag(s_axis_data_dma_read_desc_status_tag),
+    .s_axis_read_desc_status_error(s_axis_data_dma_read_desc_status_error),
+    .s_axis_read_desc_status_valid(s_axis_data_dma_read_desc_status_valid),
+
+    .m_axis_write_desc_dma_addr(m_axis_data_dma_write_desc_dma_addr),
+    .m_axis_write_desc_ram_sel(m_axis_data_dma_write_desc_ram_sel),
+    .m_axis_write_desc_ram_addr(m_axis_data_dma_write_desc_ram_addr),
+    .m_axis_write_desc_imm(m_axis_data_dma_write_desc_imm),
+    .m_axis_write_desc_imm_en(m_axis_data_dma_write_desc_imm_en),
+    .m_axis_write_desc_len(m_axis_data_dma_write_desc_len),
+    .m_axis_write_desc_tag(m_axis_data_dma_write_desc_tag),
+    .m_axis_write_desc_valid(m_axis_data_dma_write_desc_valid),
+    .m_axis_write_desc_ready(m_axis_data_dma_write_desc_ready),
+
+    .s_axis_write_desc_status_tag(s_axis_data_dma_write_desc_status_tag),
+    .s_axis_write_desc_status_error(s_axis_data_dma_write_desc_status_error),
+    .s_axis_write_desc_status_valid(s_axis_data_dma_write_desc_status_valid),
+
+    .ram_wr_cmd_be(hostdma_ram_wr_cmd_be),
+    .ram_wr_cmd_addr(hostdma_ram_wr_cmd_addr),
+    .ram_wr_cmd_data(hostdma_ram_wr_cmd_data),
+    .ram_wr_cmd_valid(hostdma_ram_wr_cmd_valid),
+    .ram_wr_cmd_ready(hostdma_ram_wr_cmd_ready),
+    .ram_wr_done(hostdma_ram_wr_done),
+
+    .ram_rd_cmd_addr(hostdma_ram_rd_cmd_addr),
+    .ram_rd_cmd_valid(hostdma_ram_rd_cmd_valid),
+    .ram_rd_cmd_ready(hostdma_ram_rd_cmd_ready),
+    .ram_rd_resp_data(hostdma_ram_rd_resp_data),
+    .ram_rd_resp_valid(hostdma_ram_rd_resp_valid),
+    .ram_rd_resp_ready(hostdma_ram_rd_resp_ready)
+);
+
 pspin_wrap #(
     .N_CLUSTERS(NUM_CLUSTERS), // pspin_cfg_pkg::NUM_CLUSTERS
     .N_MPQ(NUM_MPQ)     // pspin_cfg_pkg::NUM_MPQ
@@ -1761,6 +2100,56 @@ pspin_inst (
     .cl_busy_o(cl_busy),
 
     .mpq_full_o(mpq_full),
+
+    .host_master_aw_addr_o(s_axi_pspin_dma_awaddr),
+    .host_master_aw_prot_o(s_axi_pspin_dma_awprot),
+    .host_master_aw_region_o(s_axi_pspin_dma_awregion),
+    .host_master_aw_len_o(s_axi_pspin_dma_awlen),
+    .host_master_aw_size_o(s_axi_pspin_dma_awsize),
+    .host_master_aw_burst_o(s_axi_pspin_dma_awburst),
+    .host_master_aw_lock_o(s_axi_pspin_dma_awlock),
+    .host_master_aw_atop_o(),
+    .host_master_aw_cache_o(s_axi_pspin_dma_awcache),
+    .host_master_aw_qos_o(s_axi_pspin_dma_awqos),
+    .host_master_aw_id_o(s_axi_pspin_dma_awid),
+    .host_master_aw_user_o(),
+    .host_master_aw_valid_o(s_axi_pspin_dma_awvalid),
+    .host_master_aw_ready_i(s_axi_pspin_dma_awready),
+
+    .host_master_ar_addr_o(s_axi_pspin_dma_araddr),
+    .host_master_ar_prot_o(s_axi_pspin_dma_arprot),
+    .host_master_ar_region_o(s_axi_pspin_dma_arregion),
+    .host_master_ar_len_o(s_axi_pspin_dma_arlen),
+    .host_master_ar_size_o(s_axi_pspin_dma_arsize),
+    .host_master_ar_burst_o(s_axi_pspin_dma_arburst),
+    .host_master_ar_lock_o(s_axi_pspin_dma_arlock),
+    .host_master_ar_cache_o(s_axi_pspin_dma_arcache),
+    .host_master_ar_qos_o(s_axi_pspin_dma_arqos),
+    .host_master_ar_id_o(s_axi_pspin_dma_arid),
+    .host_master_ar_user_o(),
+    .host_master_ar_valid_o(s_axi_pspin_dma_arvalid),
+    .host_master_ar_ready_i(s_axi_pspin_dma_arready),
+
+    .host_master_w_data_o(s_axi_pspin_dma_wdata),
+    .host_master_w_strb_o(s_axi_pspin_dma_wstrb),
+    .host_master_w_user_o(),
+    .host_master_w_last_o(s_axi_pspin_dma_wlast),
+    .host_master_w_valid_o(s_axi_pspin_dma_wvalid),
+    .host_master_w_ready_i(s_axi_pspin_dma_wready),
+
+    .host_master_r_data_i(s_axi_pspin_dma_rdata),
+    .host_master_r_resp_i(s_axi_pspin_dma_rresp),
+    .host_master_r_last_i(s_axi_pspin_dma_rlast),
+    .host_master_r_id_i(s_axi_pspin_dma_rid),
+    .host_master_r_user_i(1'b0),
+    .host_master_r_valid_i(s_axi_pspin_dma_rvalid),
+    .host_master_r_ready_o(s_axi_pspin_dma_rready),
+
+    .host_master_b_resp_i(s_axi_pspin_dma_bresp),
+    .host_master_b_id_i(s_axi_pspin_dma_bid),
+    .host_master_b_user_i(1'b0),
+    .host_master_b_valid_i(s_axi_pspin_dma_bvalid),
+    .host_master_b_ready_o(s_axi_pspin_dma_bready),
 
     .host_slave_aw_addr_i   (pspin_axi_full_awaddr),
     .host_slave_aw_prot_i   (pspin_axi_full_awprot),
@@ -1983,30 +2372,6 @@ assign ctrl_dma_ram_wr_done = ctrl_dma_ram_wr_cmd_valid;
 assign ctrl_dma_ram_rd_cmd_ready = ctrl_dma_ram_rd_resp_ready;
 assign ctrl_dma_ram_rd_resp_data = 0;
 assign ctrl_dma_ram_rd_resp_valid = ctrl_dma_ram_rd_cmd_valid;
-
-/*
- * DMA interface (data)
- */
-assign m_axis_data_dma_read_desc_dma_addr = 0;
-assign m_axis_data_dma_read_desc_ram_sel = 0;
-assign m_axis_data_dma_read_desc_ram_addr = 0;
-assign m_axis_data_dma_read_desc_len = 0;
-assign m_axis_data_dma_read_desc_tag = 0;
-assign m_axis_data_dma_read_desc_valid = 1'b0;
-assign m_axis_data_dma_write_desc_dma_addr = 0;
-assign m_axis_data_dma_write_desc_ram_sel = 0;
-assign m_axis_data_dma_write_desc_ram_addr = 0;
-assign m_axis_data_dma_write_desc_imm = 0;
-assign m_axis_data_dma_write_desc_imm_en = 0;
-assign m_axis_data_dma_write_desc_len = 0;
-assign m_axis_data_dma_write_desc_tag = 0;
-assign m_axis_data_dma_write_desc_valid = 1'b0;
-
-assign data_dma_ram_wr_cmd_ready = 1'b1;
-assign data_dma_ram_wr_done = data_dma_ram_wr_cmd_valid;
-assign data_dma_ram_rd_cmd_ready = data_dma_ram_rd_resp_ready;
-assign data_dma_ram_rd_resp_data = 0;
-assign data_dma_ram_rd_resp_valid = data_dma_ram_rd_cmd_valid;
 
 /*
  * Ethernet (direct MAC interface - lowest latency raw traffic)

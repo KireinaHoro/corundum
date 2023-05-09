@@ -125,6 +125,9 @@ SYN_FILES += app/pspin/rtl/pspin_ingress_datapath.v
 SYN_FILES += app/pspin/rtl/pspin_ingress_dma.v
 SYN_FILES += app/pspin/rtl/pspin_pkt_alloc.v
 SYN_FILES += app/pspin/rtl/pspin_pkt_match.v
+SYN_FILES += app/pspin/rtl/pspin_hostmem_dma.v
+SYN_FILES += app/pspin/rtl/pspin_hostmem_dma_rd.v
+SYN_FILES += app/pspin/rtl/pspin_hostmem_dma_wr.v
 
 # PsPIN upstream
 SYN_FILES += app/pspin/deps/pspin/hw/deps/scm/fpga_scm/register_file_1r_1w.sv
@@ -395,6 +398,7 @@ IP_TCL_FILES += ip/pspin_clk_wiz.tcl
 IP_TCL_FILES += ip/pspin_host_clk_converter.tcl
 IP_TCL_FILES += ip/pspin_host_protocol_converter.tcl
 IP_TCL_FILES += ip/pspin_host_dwidth_converter.tcl
+IP_TCL_FILES += ip/pspin_hostdma_clk_converter.tcl
 IP_TCL_FILES += ip/proc_sys_reset_0.tcl
 
 # Configuration
