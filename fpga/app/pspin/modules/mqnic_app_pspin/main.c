@@ -81,6 +81,8 @@ struct mqnic_app_pspin {
   const struct attribute_group **groups;
 
   bool in_reset;
+  bool in_her_conf;
+  bool in_me_conf;
 };
 
 #define REG(app, offset) ((app)->app_hw_addr + 0x800000 + (offset))
@@ -90,32 +92,45 @@ struct mqnic_app_pspin {
 #define REG_DECLS(X)                                                           \
   X(cl_ctrl, 2, false, 0x0000, check_cl_ctrl)                                  \
   X(me_valid, 1, false, 0x2000, NULL)                                          \
-  X(me_mode, UMATCH_RULESETS, false, 0x2100, NULL)                             \
-  X(me_idx, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2200, NULL)              \
-  X(me_mask, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2300, NULL)             \
-  X(me_start, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2400, NULL)            \
-  X(me_end, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2500, NULL)              \
-  X(her_valid, 1, false, 0x3000, NULL)                                         \
-  X(her_ctx_enabled, HER_NUM_HANDLER_CTX, false, 0x3100, NULL)                 \
-  X(her_handler_mem_addr, HER_NUM_HANDLER_CTX, false, 0x3200, NULL)            \
-  X(her_handler_mem_size, HER_NUM_HANDLER_CTX, false, 0x3300, NULL)            \
-  X(her_host_mem_addr_lo, HER_NUM_HANDLER_CTX, false, 0x3400, NULL)            \
-  X(her_host_mem_addr_hi, HER_NUM_HANDLER_CTX, false, 0x3500, NULL)            \
-  X(her_host_mem_size, HER_NUM_HANDLER_CTX, false, 0x3600, NULL)               \
-  X(her_hh_addr, HER_NUM_HANDLER_CTX, false, 0x3700, NULL)                     \
-  X(her_hh_size, HER_NUM_HANDLER_CTX, false, 0x3800, NULL)                     \
-  X(her_ph_addr, HER_NUM_HANDLER_CTX, false, 0x3900, NULL)                     \
-  X(her_ph_size, HER_NUM_HANDLER_CTX, false, 0x3a00, NULL)                     \
-  X(her_th_addr, HER_NUM_HANDLER_CTX, false, 0x3b00, NULL)                     \
-  X(her_th_size, HER_NUM_HANDLER_CTX, false, 0x3c00, NULL)                     \
-  X(her_scratchpad_0_addr, HER_NUM_HANDLER_CTX, false, 0x3d00, NULL)           \
-  X(her_scratchpad_0_size, HER_NUM_HANDLER_CTX, false, 0x3e00, NULL)           \
-  X(her_scratchpad_1_addr, HER_NUM_HANDLER_CTX, false, 0x3f00, NULL)           \
-  X(her_scratchpad_1_size, HER_NUM_HANDLER_CTX, false, 0x4000, NULL)           \
-  X(her_scratchpad_2_addr, HER_NUM_HANDLER_CTX, false, 0x4100, NULL)           \
-  X(her_scratchpad_2_size, HER_NUM_HANDLER_CTX, false, 0x4200, NULL)           \
-  X(her_scratchpad_3_addr, HER_NUM_HANDLER_CTX, false, 0x4300, NULL)           \
-  X(her_scratchpad_3_size, HER_NUM_HANDLER_CTX, false, 0x4400, NULL)           \
+  X(me_mode, UMATCH_RULESETS, false, 0x2100, check_me_en)                      \
+  X(me_idx, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2200, check_me_in_conf)  \
+  X(me_mask, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2300, check_me_in_conf) \
+  X(me_start, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2400,                  \
+    check_me_in_conf)                                                          \
+  X(me_end, UMATCH_ENTRIES *UMATCH_RULESETS, false, 0x2500, check_me_in_conf)  \
+  X(her_valid, 1, false, 0x3000, check_her_en)                                 \
+  X(her_ctx_enabled, HER_NUM_HANDLER_CTX, false, 0x3100, check_her_in_conf)    \
+  X(her_handler_mem_addr, HER_NUM_HANDLER_CTX, false, 0x3200,                  \
+    check_her_in_conf)                                                         \
+  X(her_handler_mem_size, HER_NUM_HANDLER_CTX, false, 0x3300,                  \
+    check_her_in_conf)                                                         \
+  X(her_host_mem_addr_lo, HER_NUM_HANDLER_CTX, false, 0x3400,                  \
+    check_her_in_conf)                                                         \
+  X(her_host_mem_addr_hi, HER_NUM_HANDLER_CTX, false, 0x3500,                  \
+    check_her_in_conf)                                                         \
+  X(her_host_mem_size, HER_NUM_HANDLER_CTX, false, 0x3600, check_her_in_conf)  \
+  X(her_hh_addr, HER_NUM_HANDLER_CTX, false, 0x3700, check_her_in_conf)        \
+  X(her_hh_size, HER_NUM_HANDLER_CTX, false, 0x3800, check_her_in_conf)        \
+  X(her_ph_addr, HER_NUM_HANDLER_CTX, false, 0x3900, check_her_in_conf)        \
+  X(her_ph_size, HER_NUM_HANDLER_CTX, false, 0x3a00, check_her_in_conf)        \
+  X(her_th_addr, HER_NUM_HANDLER_CTX, false, 0x3b00, check_her_in_conf)        \
+  X(her_th_size, HER_NUM_HANDLER_CTX, false, 0x3c00, check_her_in_conf)        \
+  X(her_scratchpad_0_addr, HER_NUM_HANDLER_CTX, false, 0x3d00,                 \
+    check_her_in_conf)                                                         \
+  X(her_scratchpad_0_size, HER_NUM_HANDLER_CTX, false, 0x3e00,                 \
+    check_her_in_conf)                                                         \
+  X(her_scratchpad_1_addr, HER_NUM_HANDLER_CTX, false, 0x3f00,                 \
+    check_her_in_conf)                                                         \
+  X(her_scratchpad_1_size, HER_NUM_HANDLER_CTX, false, 0x4000,                 \
+    check_her_in_conf)                                                         \
+  X(her_scratchpad_2_addr, HER_NUM_HANDLER_CTX, false, 0x4100,                 \
+    check_her_in_conf)                                                         \
+  X(her_scratchpad_2_size, HER_NUM_HANDLER_CTX, false, 0x4200,                 \
+    check_her_in_conf)                                                         \
+  X(her_scratchpad_3_addr, HER_NUM_HANDLER_CTX, false, 0x4300,                 \
+    check_her_in_conf)                                                         \
+  X(her_scratchpad_3_size, HER_NUM_HANDLER_CTX, false, 0x4400,                 \
+    check_her_in_conf)                                                         \
   X(datapath_stats, 2, true, 0x2600, NULL)                                     \
   X(cl_stat, 2, true, 0x0100, NULL)                                            \
   X(mpq, 1, true, 0x0200, NULL)                                                \
@@ -133,7 +148,19 @@ static const struct attribute_group *attr_groups[IDX_guard + 1];
   REG(app, ATTR_REG_ADDR(                                                      \
                attr_to_pspin_dev_attr(attr_groups[IDX_##name]->attrs[_idx])))
 
-bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
+struct pspin_device_attribute {
+  struct device_attribute dev_attr;
+  u32 idx;                // index of register in block
+  u32 offset;             // offset of block
+  const char *group_name; // name of the group
+  bool (*check_func)(struct device *, u32, u32);
+};
+#define to_pspin_dev_attr(_dev_attr)                                           \
+  container_of(_dev_attr, struct pspin_device_attribute, dev_attr)
+#define attr_to_pspin_dev_attr(_attr)                                          \
+  to_pspin_dev_attr(container_of(_attr, struct device_attribute, attr))
+
+static bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
   u32 clusters = reg ? 32 - __builtin_clz(reg) : 0;
   struct mqnic_app_pspin *app = (struct mqnic_app_pspin *)dev->driver_data;
   if (idx != 0 && reg > 1) {
@@ -151,17 +178,62 @@ bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
   return true;
 }
 
-struct pspin_device_attribute {
-  struct device_attribute dev_attr;
-  u32 idx;                // index of register in block
-  u32 offset;             // offset of block
-  const char *group_name; // name of the group
-  bool (*check_func)(struct device *, u32, u32);
-};
-#define to_pspin_dev_attr(_dev_attr)                                           \
-  container_of(_dev_attr, struct pspin_device_attribute, dev_attr)
-#define attr_to_pspin_dev_attr(_attr)                                          \
-  to_pspin_dev_attr(container_of(_attr, struct device_attribute, attr))
+static bool check_me_en(struct device *dev, u32 idx, u32 reg) {
+  struct mqnic_app_pspin *app = (struct mqnic_app_pspin *)dev->driver_data;
+
+  if (!reg) {
+    app->in_me_conf = true;
+    return true;
+  } else {
+    // TODO: check ME configuration sanity
+    app->in_me_conf = false;
+    return true;
+  }
+}
+
+static bool check_her_en(struct device *dev, u32 idx, u32 reg) {
+  struct mqnic_app_pspin *app = (struct mqnic_app_pspin *)dev->driver_data;
+  int i;
+
+  if (!reg) {
+    app->in_her_conf = true;
+    return true;
+  } else {
+    for (i = 0; i < HER_NUM_HANDLER_CTX; ++i) {
+      u64 hostdma_addr, hostdma_size;
+
+      hostdma_addr = ioread32(REG_ADDR(app, her_host_mem_addr_lo, i));
+      hostdma_addr += (u64)ioread32(REG_ADDR(app, her_host_mem_addr_hi, i))
+                      << 32;
+
+      hostdma_size = ioread32(REG_ADDR(app, her_host_mem_size, i));
+
+      // DMA region must be registered & mapped over ioctl before HER enablement
+    }
+    app->in_her_conf = false;
+    return true;
+  }
+}
+
+static bool check_me_in_conf(struct device *dev, u32 idx, u32 reg) {
+  struct mqnic_app_pspin *app = (struct mqnic_app_pspin *)dev->driver_data;
+
+  if (!app->in_me_conf) {
+    dev_err(dev, "ME engine in configuration; disable first");
+    return false;
+  }
+  return true;
+}
+
+static bool check_her_in_conf(struct device *dev, u32 idx, u32 reg) {
+  struct mqnic_app_pspin *app = (struct mqnic_app_pspin *)dev->driver_data;
+
+  if (!app->in_her_conf) {
+    dev_err(dev, "HER engine in configuration; disable first");
+    return false;
+  }
+  return true;
+}
 
 static ssize_t pspin_reg_store(struct device *dev,
                                struct device_attribute *attr, const char *buf,
@@ -564,6 +636,10 @@ static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
 
   // device started up in reset
   app->in_reset = true;
+
+  // HER and ME not configured yet
+  app->in_her_conf = true;
+  app->in_me_conf = true;
 
   // setup character special devices
   if (pspin_ndevices <= 0) {
