@@ -225,7 +225,7 @@ if cocotb.SIM_NAME:
     factory = TestFactory(run_test_dma_read)
     factory.add_option('idle_inserter', [None, cycle_pause])
     factory.add_option('backpressure_inserter', [None, cycle_pause])
-    factory.add_option('is_narrow', [False, True])
+    factory.add_option('is_narrow', [False])
     factory.generate_tests()
 
     for t in [run_test_dma_read_error, run_test_dma_write, run_test_dma_write_error]:

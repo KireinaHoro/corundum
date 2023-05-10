@@ -5,8 +5,10 @@
  * DMA client to AXIS, driving the R channel of full AXI.
  *
  * This module does not handle possible AXI interleaving of the R channel.
- * Unaligned transfers are coded in but not verified.  Narrow bursts are
- * (somewhat) verified by limited testcases.
+ * This module does not support unaligned transfers or narrow bursts.  The beats
+ * will be correctly received (such that the state machine does not get stuck),
+ * but a SLVERR will be raised and the transaction will not take place.
+ *
  *
  * This module does not contain the DMA memory between the client and
  * interface, for the sake of ease of testing (verilog-pcie only provides
@@ -15,6 +17,12 @@
  */
 
 `timescale 1ns / 1ps
+`define assert(cond, msg) \
+    if (!(cond)) begin \
+        $display({"ASSERTION FAILED in %m: cond: ", msg}); \
+        $finish; \
+    end
+
 module pspin_hostmem_dma_rd #(
     parameter DMA_IMM_ENABLE = 0,
     parameter DMA_IMM_WIDTH = 32,
@@ -45,7 +53,7 @@ module pspin_hostmem_dma_rd #(
      * DMA read descriptor output (data)
      */
     output reg  [ADDR_WIDTH-1:0]                        m_axis_read_desc_dma_addr,
-    output reg  [RAM_SEL_WIDTH-1:0]                     m_axis_read_desc_ram_sel,
+    output wire [RAM_SEL_WIDTH-1:0]                     m_axis_read_desc_ram_sel,
     output reg  [RAM_ADDR_WIDTH-1:0]                    m_axis_read_desc_ram_addr,
     output reg  [DMA_LEN_WIDTH-1:0]                     m_axis_read_desc_len,
     output reg  [DMA_TAG_WIDTH-1:0]                     m_axis_read_desc_tag,
@@ -96,52 +104,51 @@ localparam STATE_WIDTH = 4;
 localparam
     IDLE = 'h0,
     ISSUE_TO_DMA = 'h1,
-    WAIT_DMA = 'h2, // wait for req FINISHED
-    ISSUE_TO_CLIENT = 'h3,
-    WAIT_CLIENT = 'h4, // wait for req ACCEPTED - status will only come after AXIS transfer
-    CAPTURE_AXIS_DATA = 'h5, // capture data from AXI Stream and send first beat downstream
-    SEND_AXI_TAIL_BEAT = 'h6; // stall AXI Stream, send remaining beats
-localparam RAM_SIZE = DATA_WIDTH * 256; // AXI4 INCR has maximal 256-beat bursts
-localparam BYTELANE_IDX_WIDTH = $clog2(DATA_WIDTH / 8); // max single-byte beats
-
+    WAIT_DMA = 'h2,
+    WAIT_DMA_FIN = 'h3,
+    ISSUE_TO_CLIENT = 'h4,
+    WAIT_CLIENT = 'h5,
+    WAIT_CLIENT_FIN = 'h6,
+    FINISH_AXI_ERROR = 'h7;
 localparam DMA_ERROR_NONE = 4'b0;
 localparam AXI_OKAY = 2'b00;
 localparam AXI_SLVERR = 2'b10;
+localparam BURST_INCR = 2'b01;
 
 reg [STATE_WIDTH-1:0] state_q, state_d;
-reg dma_error_q, dma_error_d;
-// only used on SLVERR
-reg [7:0] beat_idx_d, beat_idx_q, num_beats;
 
-reg [DMA_LEN_WIDTH-1:0] saved_dma_len;
-reg [ID_WIDTH-1:0] saved_id;
-
-// bytelane info after AR
-reg [BYTELANE_IDX_WIDTH-1:0] init_bl_idx, end_bl_idx;
-wire is_full_burst = end_bl_idx == {BYTELANE_IDX_WIDTH{1'b0}};
-wire [BYTELANE_IDX_WIDTH-1:0] curr_bl_idx = (init_bl_idx + beat_idx_q) % (end_bl_idx + 1);
-
-// DMA client AXIS
 reg [RAM_ADDR_WIDTH-1:0] dma_read_desc_ram_addr;
 reg [DMA_LEN_WIDTH-1:0] dma_read_desc_len;
-// FIXME: when we support multiple inflight txns:
-// - tag should be internal idx into txn table
-// - id should be (saved) ARID/RID
 reg [ID_WIDTH-1:0] dma_read_desc_id;
 reg dma_read_desc_valid;
 wire dma_read_desc_ready;
 wire dma_read_desc_status_valid;
 
-wire [DATA_WIDTH-1:0] axis_tdata;
-reg [DATA_WIDTH-1:0] axis_tdata_q;
-wire [ID_WIDTH-1:0] axis_tid;
-reg [ID_WIDTH-1:0] axis_tid_q;
-reg use_skid_buffer;
+reg [DMA_LEN_WIDTH-1:0] saved_dma_len;
 
-wire axis_tlast;
-reg axis_tlast_q;
-wire axis_tvalid;
-reg  axis_tready;
+wire [ID_WIDTH-1:0]                          s_axi_data_rid;
+wire [DATA_WIDTH-1:0]                        s_axi_data_rdata;
+wire [1:0]                                   s_axi_data_rresp;
+wire                                         s_axi_data_rlast;
+wire [RUSER_WIDTH-1:0]                       s_axi_data_ruser;
+wire                                         s_axi_data_rvalid;
+
+reg  [ID_WIDTH-1:0]                          s_axi_error_rid;
+reg  [DATA_WIDTH-1:0]                        s_axi_error_rdata;
+reg  [1:0]                                   s_axi_error_rresp;
+wire                                         s_axi_error_rlast;
+reg  [RUSER_WIDTH-1:0]                       s_axi_error_ruser;
+reg                                          s_axi_error_rvalid;
+
+assign s_axi_rid = state_q == FINISH_AXI_ERROR ? s_axi_error_rid : s_axi_data_rid;
+assign s_axi_rdata = state_q == FINISH_AXI_ERROR ? s_axi_error_rdata : s_axi_data_rdata;
+assign s_axi_rresp = state_q == FINISH_AXI_ERROR ? s_axi_error_rresp : s_axi_data_rresp;
+assign s_axi_rlast = state_q == FINISH_AXI_ERROR ? s_axi_error_rlast : s_axi_data_rlast;
+assign s_axi_ruser = state_q == FINISH_AXI_ERROR ? s_axi_error_ruser : s_axi_data_ruser;
+assign s_axi_rvalid = state_q == FINISH_AXI_ERROR ? s_axi_error_rvalid : s_axi_data_rvalid;
+
+assign s_axi_data_rresp = AXI_OKAY;
+assign s_axi_error_rlast = error_beats_left == 9'h1;
 
 initial begin
     if (DMA_TAG_WIDTH < ID_WIDTH) begin
@@ -152,213 +159,114 @@ end
 
 always @(posedge clk) begin
     state_q <= state_d;
-    dma_error_q <= dma_error_d;
-    beat_idx_q <= beat_idx_d;
     if (!rstn) begin
         state_q <= IDLE;
-        dma_error_q <= 1'b0;
-        beat_idx_q <= 8'b0;
     end
 end
+
+// length calculation
+reg [DMA_LEN_WIDTH-1:0] dma_len_d;
+localparam NUM_BYTES_BUS = DATA_WIDTH / 8;
+reg [8:0] num_beats_d;
+always @* begin
+    num_beats_d = s_axi_arlen + 1;
+    // we assume no narrow transfers => full beats
+    dma_len_d = NUM_BYTES_BUS * num_beats_d;
+end
+reg [8:0] error_beats_left;
 
 // state transition
 always @* begin
     state_d = state_q;
-    dma_error_d = dma_error_q;
-    beat_idx_d = beat_idx_q;
     case (state_q)
         IDLE: begin
             if (s_axi_arready && s_axi_arvalid)
                 state_d = ISSUE_TO_DMA;
-            dma_error_d = 1'b0;
-            beat_idx_d = 8'b0;
         end
-        ISSUE_TO_DMA: if (m_axis_read_desc_valid && m_axis_read_desc_ready)
+        ISSUE_TO_DMA, WAIT_DMA: if (m_axis_read_desc_valid && m_axis_read_desc_ready)
+            state_d = WAIT_DMA_FIN;
+        else
             state_d = WAIT_DMA;
-        WAIT_DMA: if (s_axis_read_desc_status_valid) begin
+        WAIT_DMA_FIN: if (s_axis_read_desc_status_valid) begin
             if (s_axis_read_desc_status_error != DMA_ERROR_NONE) begin
-                state_d = SEND_AXI_TAIL_BEAT; // in case of slave error we still need the required number of beats
-                dma_error_d = 1'b1;
-                // the first beat would already be sent
-                beat_idx_d = 8'h1;
+                state_d = FINISH_AXI_ERROR; // in case of slave error we still need the required number of beats
             end else
                 state_d = ISSUE_TO_CLIENT;
         end
         ISSUE_TO_CLIENT, WAIT_CLIENT: if (dma_read_desc_valid && dma_read_desc_ready)
-            state_d = CAPTURE_AXIS_DATA;
+            state_d = WAIT_CLIENT_FIN;
         else
             state_d = WAIT_CLIENT;
-        CAPTURE_AXIS_DATA: begin
-            if (axis_tvalid && axis_tready) begin
-                state_d = SEND_AXI_TAIL_BEAT;
-                if (is_full_burst || beat_idx_q == 8'h0 || s_axi_rready)
-                    beat_idx_d = beat_idx_q + 8'h1;
-                if (s_axi_rready) begin
-                    // if we use the full bus - implies curr_bl_idx == end_bl_idx
-                    // if not last beat of AXI Stream: capture again
-                    if (is_full_burst)
-                        state_d = CAPTURE_AXIS_DATA;
-                end
-            end
-            if (beat_idx_q == num_beats && s_axi_rready)
-                state_d = IDLE;
-        end
-        SEND_AXI_TAIL_BEAT: if (s_axi_rvalid && s_axi_rready) begin
-            if (!dma_error_q && curr_bl_idx == end_bl_idx)
-                state_d = axis_tlast_q ? SEND_AXI_TAIL_BEAT : CAPTURE_AXIS_DATA;
-            if (dma_error_q || !is_full_burst)
-                beat_idx_d = beat_idx_q + 8'h1;
-            if (beat_idx_q == num_beats)
-                state_d = IDLE;
-        end
-        default: begin /* nothing */ end
+        WAIT_CLIENT_FIN, FINISH_AXI_ERROR: if (s_axi_rvalid && s_axi_rready && s_axi_rlast)
+            state_d = IDLE;
     endcase
-end
-
-// calculate initial address
-reg [31:0] num_bytes_arsize, num_beats_in_axis_beat;
-reg [8:0] num_beats_d; // one more bit due to possibility of overflowing
-localparam NUM_BYTES_BUS = 1 << BYTELANE_IDX_WIDTH;
-reg [ADDR_WIDTH-1:0] addr_align_arsize, addr_align_bus;
-reg [BYTELANE_IDX_WIDTH-1:0] init_bl_idx_d, end_bl_idx_d;
-reg [DMA_LEN_WIDTH-1:0] dma_len_d; // in bytes
-always @* begin
-    num_bytes_arsize = 1 << s_axi_arsize;
-    num_beats_d = s_axi_arlen + 1;
-    num_beats_in_axis_beat = NUM_BYTES_BUS / num_bytes_arsize;
-    addr_align_arsize = s_axi_araddr / num_bytes_arsize * num_bytes_arsize;
-    addr_align_bus = s_axi_araddr / NUM_BYTES_BUS * NUM_BYTES_BUS;
-    init_bl_idx_d = (addr_align_arsize - addr_align_bus) / num_bytes_arsize;
-    end_bl_idx_d = num_beats_in_axis_beat - 1;
-    dma_len_d = NUM_BYTES_BUS * ((num_beats_d + num_beats_in_axis_beat - 1) / num_beats_in_axis_beat);
 end
 
 // state-machine output
 always @(posedge clk) begin
     case (state_d)
         IDLE: begin
-            saved_dma_len <= {DMA_LEN_WIDTH{1'b0}};
+            s_axi_arready <= 1'b1;
+            s_axi_error_rid <= {ID_WIDTH{1'b0}};
+            s_axi_error_rresp <= AXI_OKAY;
+            s_axi_error_rdata <= {DATA_WIDTH{1'b0}};
+            s_axi_error_ruser <= {RUSER_WIDTH{1'b0}};
+            s_axi_error_rvalid <= 1'b0;
+            dma_read_desc_ram_addr <= {RAM_ADDR_WIDTH{1'b0}};
+            dma_read_desc_len <= {DMA_LEN_WIDTH{1'b0}};
+            dma_read_desc_id <= {ID_WIDTH{1'b0}};
+            dma_read_desc_valid <= 1'b0;
+            m_axis_read_desc_dma_addr <= {ADDR_WIDTH{1'b0}};
+            m_axis_read_desc_ram_addr <= {RAM_ADDR_WIDTH{1'b0}};
+            m_axis_read_desc_len <= {DMA_LEN_WIDTH{1'b0}};
+            m_axis_read_desc_tag <= {DMA_TAG_WIDTH{1'b0}};
             m_axis_read_desc_valid <= 1'b0;
-            s_axi_arready <= m_axis_read_desc_ready;
-            s_axi_rid <= {ID_WIDTH{1'b0}};
-            s_axi_rdata <= {DATA_WIDTH{1'b0}};
-            s_axi_rresp <= AXI_OKAY;
-            s_axi_rlast <= 1'b0;
-            s_axi_ruser <= {RUSER_WIDTH{1'b0}};
-            s_axi_rvalid <= 1'b0;
-            axis_tready <= 1'b0;
-            axis_tlast_q <= 1'b0;
-            axis_tdata_q <= {DATA_WIDTH{1'b0}};
-            axis_tid_q <= {ID_WIDTH{1'b0}};
-            use_skid_buffer <= 1'b0;
-            init_bl_idx <= {BYTELANE_IDX_WIDTH{1'b0}};
-            end_bl_idx <= {BYTELANE_IDX_WIDTH{1'b0}};
+            error_beats_left <= 9'h0;
         end
         ISSUE_TO_DMA: begin
-            // save bytelane calculations
-            init_bl_idx <= init_bl_idx_d;
-            end_bl_idx <= end_bl_idx_d;
-            // save dma len
+            // always zero RAM address
             saved_dma_len <= dma_len_d;
-            // save number of beats in total for error handling
-            num_beats <= num_beats_d;
-            // issue to DMA intf
-            m_axis_read_desc_dma_addr <= addr_align_bus;
-            m_axis_read_desc_ram_sel <= {RAM_SEL_WIDTH{1'b0}};
-            m_axis_read_desc_ram_addr <= {RAM_ADDR_WIDTH{1'b0}};
+            error_beats_left <= num_beats_d;
+            m_axis_read_desc_dma_addr <= s_axi_araddr;
             m_axis_read_desc_len <= dma_len_d;
-            // FIXME: when we support multiple inflight txns:
-            // - tag should be internal idx into txn table
-            // - id should be (saved) ARID/RID
             m_axis_read_desc_tag <= s_axi_arid;
-            saved_id <= s_axi_arid;
             m_axis_read_desc_valid <= 1'b1;
             // block AR
             s_axi_arready <= 1'b0;
+
+            `assert('h1 << s_axi_arsize == NUM_BYTES_BUS, "narrow burst not supported");
+            `assert(s_axi_arburst == BURST_INCR, "burst other than INCR not supported");
+            `assert(s_axi_araddr % NUM_BYTES_BUS == 'h0, "unaligned transfer not supported");
         end
         WAIT_DMA: if (m_axis_read_desc_ready)
             m_axis_read_desc_valid <= 1'b0;
-        ISSUE_TO_CLIENT: begin
+        WAIT_DMA_FIN:
             m_axis_read_desc_valid <= 1'b0;
-
-            dma_read_desc_ram_addr <= {RAM_ADDR_WIDTH{1'b0}};
+        ISSUE_TO_CLIENT: begin
             dma_read_desc_len <= saved_dma_len;
             dma_read_desc_id <= s_axis_read_desc_status_tag;
+            // always zero RAM address
             dma_read_desc_valid <= 1'b1;
         end
         WAIT_CLIENT: if (dma_read_desc_ready)
             dma_read_desc_valid <= 1'b0;
-        CAPTURE_AXIS_DATA: begin
+        WAIT_CLIENT_FIN:
             dma_read_desc_valid <= 1'b0;
+        FINISH_AXI_ERROR: begin
+            s_axi_error_rresp <= AXI_SLVERR;
+            s_axi_error_rdata <= {DATA_WIDTH{1'b0}};
+            s_axi_error_rid <= s_axis_read_desc_status_tag;
+            s_axi_error_ruser <= 1'b0;
+            s_axi_error_rvalid <= 1'b1;
 
-            axis_tready <= 1'b1;
-            // latch AXI Stream data
-            // only directly into the AXI bus if the last beat has finished tx
-            if (axis_tvalid && axis_tready) begin
-                axis_tdata_q <= axis_tdata;
-                axis_tid_q <= axis_tid;
-                axis_tlast_q <= axis_tlast;
-
-                if (s_axi_rready) begin
-                    // send first beat directly
-                    s_axi_rvalid <= 1'b1;
-                    s_axi_rdata <= axis_tdata;
-                    s_axi_rid <= axis_tid;
-                    s_axi_rresp <= AXI_OKAY;
-                    s_axi_rlast <= beat_idx_d == num_beats;
-                    use_skid_buffer <= 1'b0;
-                end else begin
-                    use_skid_buffer <= 1'b1;
-                end
-            end else begin
-                // if full burst
-                // valid=0 if acknowledged
-                if (is_full_burst && s_axi_rready)
-                    s_axi_rvalid <= 1'b0;
-            end
-        end
-        SEND_AXI_TAIL_BEAT: begin
-            // latch AXI Stream data
-            if (axis_tvalid && axis_tready) begin
-                // latch last for state transfer
-                axis_tlast_q <= axis_tlast;
-                axis_tdata_q <= axis_tdata;
-                axis_tid_q <= axis_tid;
-
-                if (!s_axi_rready)
-                    use_skid_buffer <= 1'b1;
-
-                if (beat_idx_q == 8'h0 || s_axi_rready) begin
-                    s_axi_rvalid <= 1'b1;
-                    s_axi_rdata <= axis_tdata;
-                    s_axi_rid <= axis_tid;
-                    s_axi_rresp <= AXI_OKAY;
-                end
-            end
-
-            // if skid buffer is full
-            if (use_skid_buffer && s_axi_rready) begin
-                // send next beat
-                s_axi_rvalid <= 1'b1;
-                s_axi_rdata <= axis_tdata_q;
-                s_axi_rid <= axis_tid_q;
-                s_axi_rresp <= AXI_OKAY;
-            end
-
-            s_axi_rlast <= beat_idx_d == num_beats;
-            axis_tready <= 1'b0;
-
-            if (dma_error_d) begin
-                // handle error
-                s_axi_rid <= saved_id;
-                s_axi_rresp <= AXI_SLVERR;
-                s_axi_rvalid <= 1'b1;
-            end
+            if (s_axi_error_rvalid && s_axi_rready)
+                error_beats_left <= error_beats_left - 9'h1;
         end
         default: begin /* nothing */ end
     endcase
 end
 
+assign m_axis_read_desc_ram_sel = {RAM_SEL_WIDTH{1'b0}};
 
 dma_client_axis_source #(
     .SEG_COUNT(RAM_SEG_COUNT),
@@ -404,14 +312,14 @@ dma_client_axis_source #(
     /*
      * AXI stream read data output
      */
-    .m_axis_read_data_tdata(axis_tdata),
+    .m_axis_read_data_tdata(s_axi_data_rdata),
     .m_axis_read_data_tkeep(),
-    .m_axis_read_data_tvalid(axis_tvalid),
-    .m_axis_read_data_tready(axis_tready),
-    .m_axis_read_data_tlast(axis_tlast),
-    .m_axis_read_data_tid(axis_tid),
+    .m_axis_read_data_tvalid(s_axi_data_rvalid),
+    .m_axis_read_data_tready(s_axi_rready),
+    .m_axis_read_data_tlast(s_axi_data_rlast),
+    .m_axis_read_data_tid(s_axi_data_rid),
     .m_axis_read_data_tdest(),
-    .m_axis_read_data_tuser(),
+    .m_axis_read_data_tuser(s_axi_data_ruser),
 
     /*
      * RAM interface

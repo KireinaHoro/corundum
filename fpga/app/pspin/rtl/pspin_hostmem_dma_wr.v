@@ -208,6 +208,8 @@ always @(posedge clk) begin
             dma_write_desc_valid <= 1'b1;
             saved_dma_addr <= s_axi_awaddr;
             saved_dma_len <= dma_len_d;
+            // block AW
+            s_axi_awready <= 1'b0;
 
             // checks for simulation
             `assert('h1 << s_axi_awsize == NUM_BYTES_BUS, "narrow burst not supported");
