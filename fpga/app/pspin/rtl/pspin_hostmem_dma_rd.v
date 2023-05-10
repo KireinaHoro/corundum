@@ -91,12 +91,12 @@ module pspin_hostmem_dma_rd #(
     input  wire [ARUSER_WIDTH-1:0]                      s_axi_aruser,
     input  wire                                         s_axi_arvalid,
     output reg                                          s_axi_arready,
-    output reg  [ID_WIDTH-1:0]                          s_axi_rid,
-    output reg  [DATA_WIDTH-1:0]                        s_axi_rdata,
-    output reg  [1:0]                                   s_axi_rresp,
-    output reg                                          s_axi_rlast,
-    output reg  [RUSER_WIDTH-1:0]                       s_axi_ruser,
-    output reg                                          s_axi_rvalid,
+    output wire [ID_WIDTH-1:0]                          s_axi_rid,
+    output wire [DATA_WIDTH-1:0]                        s_axi_rdata,
+    output wire [1:0]                                   s_axi_rresp,
+    output wire                                         s_axi_rlast,
+    output wire [RUSER_WIDTH-1:0]                       s_axi_ruser,
+    output wire                                         s_axi_rvalid,
     input  wire                                         s_axi_rready
 );
 
