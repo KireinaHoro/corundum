@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -41,9 +42,10 @@ int main(int argc, char *argv[]) {
     ret = EXIT_FAILURE;
     goto fail;
   }
+  if (fclose(fp)) {
+    perror("close hostdma configuration");
+  }
   printf("Host DMA buffer: %d pages\n", hostdma_num_pages);
-
-  fclose(fp);
 
   int len = hostdma_num_pages * PAGE_SIZE;
   void *pspin_dma_mem =
@@ -53,16 +55,24 @@ int main(int argc, char *argv[]) {
     ret = EXIT_FAILURE;
     goto fail;
   }
-
+  if (madvise(pspin_dma_mem, len, MADV_DONTFORK)) {
+    perror("madvise DONTFORK");
+    ret = EXIT_FAILURE;
+    goto unmap;
+  }
   printf("Mapped host dma at %p\n", pspin_dma_mem);
 
   struct pspin_ioctl_msg msg = {
       .req.ctx_id = dest_ctx,
   };
   if (ioctl(fd, PSPIN_HOSTDMA_QUERY, &msg) < 0) {
-    perror("ioctl device");
+    perror("ioctl pspin device");
     ret = EXIT_FAILURE;
     goto unmap;
+  }
+  // we can close after mmap and ioctl already - map will stay active
+  if (close(fd)) {
+    perror("close pspin device");
   }
 
   assert(msg.resp.enabled);
@@ -82,7 +92,13 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "loader returned %d\n", WEXITSTATUS(ret));
     ret = EXIT_FAILURE;
     goto unmap;
+  } else if (WIFSIGNALED(ret)) {
+    fprintf(stderr, "loader killed by signal: %s\n", strsignal(WTERMSIG(ret)));
+    ret = EXIT_FAILURE;
+    goto unmap;
   }
+
+  // loading finished - application logic from here
 
   ret = EXIT_SUCCESS;
 
@@ -92,6 +108,5 @@ unmap:
   }
 
 fail:
-  close(fd);
   return ret;
 }
