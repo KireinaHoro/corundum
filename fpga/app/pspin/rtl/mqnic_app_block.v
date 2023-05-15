@@ -979,7 +979,7 @@ wire                                            m_axi_pspin_no_rready;
 
 // in PsPIN clock domain
 wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_awid;
-wire [AXI_ADDR_WIDTH-1:0]                       s_axi_pspin_dma_awaddr;
+wire [AXI_HOST_ADDR_WIDTH-1:0]                  s_axi_pspin_dma_awaddr;
 wire [7:0]                                      s_axi_pspin_dma_awlen;
 wire [2:0]                                      s_axi_pspin_dma_awsize;
 wire [1:0]                                      s_axi_pspin_dma_awburst;
@@ -1000,7 +1000,7 @@ wire [1:0]                                      s_axi_pspin_dma_bresp;
 wire                                            s_axi_pspin_dma_bvalid;
 wire                                            s_axi_pspin_dma_bready;
 wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_arid;
-wire [AXI_ADDR_WIDTH-1:0]                       s_axi_pspin_dma_araddr;
+wire [AXI_HOST_ADDR_WIDTH-1:0]                  s_axi_pspin_dma_araddr;
 wire [7:0]                                      s_axi_pspin_dma_arlen;
 wire [2:0]                                      s_axi_pspin_dma_arsize;
 wire [1:0]                                      s_axi_pspin_dma_arburst;
@@ -1020,7 +1020,7 @@ wire                                            s_axi_pspin_dma_rready;
 
 // in Corundum clock domain
 wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_fast_awid;
-wire [AXI_ADDR_WIDTH-1:0]                       s_axi_pspin_dma_fast_awaddr;
+wire [AXI_HOST_ADDR_WIDTH-1:0]                  s_axi_pspin_dma_fast_awaddr;
 wire [7:0]                                      s_axi_pspin_dma_fast_awlen;
 wire [2:0]                                      s_axi_pspin_dma_fast_awsize;
 wire [1:0]                                      s_axi_pspin_dma_fast_awburst;
@@ -1041,7 +1041,7 @@ wire [1:0]                                      s_axi_pspin_dma_fast_bresp;
 wire                                            s_axi_pspin_dma_fast_bvalid;
 wire                                            s_axi_pspin_dma_fast_bready;
 wire [AXI_ID_WIDTH-1:0]                         s_axi_pspin_dma_fast_arid;
-wire [AXI_ADDR_WIDTH-1:0]                       s_axi_pspin_dma_fast_araddr;
+wire [AXI_HOST_ADDR_WIDTH-1:0]                  s_axi_pspin_dma_fast_araddr;
 wire [7:0]                                      s_axi_pspin_dma_fast_arlen;
 wire [2:0]                                      s_axi_pspin_dma_fast_arsize;
 wire [1:0]                                      s_axi_pspin_dma_fast_arburst;

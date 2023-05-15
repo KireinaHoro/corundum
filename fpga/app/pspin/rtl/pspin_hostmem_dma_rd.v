@@ -9,7 +9,6 @@
  * will be correctly received (such that the state machine does not get stuck),
  * but a SLVERR will be raised and the transaction will not take place.
  *
- *
  * This module does not contain the DMA memory between the client and
  * interface, for the sake of ease of testing (verilog-pcie only provides
  * a model for the RAM and not a RAM master).  The RAM should be instantiated
