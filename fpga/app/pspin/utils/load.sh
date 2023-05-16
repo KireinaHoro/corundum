@@ -118,7 +118,30 @@ udp_ruleset() {
     echo -n 0 > "$REGS/me_mode/$1" # MODE_AND
 }
 
-[[ $# == 5 ]] || die "usage: $0 <ctx id> <elf> <hostmem addr hi> <hostmem addr lo> <hostmem size>"
+ctx_id=$1
+cmd=$2
+
+usage="usage: $0 <ctx id> <up|down> [<elf> <hostmem addr hi> <hostmem addr lo> <hostmem size>]"
+
+[[ $# -ge 2 ]] || die $usage
+
+if [[ "$cmd" == "down" ]]; then
+    # disable HER context
+    echo Disabling HER context $ctx_id...
+    echo -n 0 > "$REGS/her_valid/0"
+    echo -n 0 > "$REGS/her_ctx_enabled/$ctx_id"
+    echo -n 1 > "$REGS/her_valid/0"
+    echo Done!
+    exit 0
+elif [[ "$cmd" != up ]]; then
+    die "Action must be one of {up, down}"
+fi
+
+[[ $# == 6 ]] || die $usage
+elf=$3
+hostmem_hi=$4
+hostmem_lo=$5
+hostmem_sz=$6
 
 # cycle reset (mandated by kernel module)
 echo Disabling fetch...
@@ -129,17 +152,17 @@ echo Bringing cluster out of reset...
 echo -n 0 > $RESET
 
 # readelf -S ; sw/pulp-sdk/linker/link.ld
-write_section $2 .rodata            1c000000
-write_section $2 .l2_handler_data   1c0c0000
-write_section $2 .vectors           1d000000
-write_section $2 .text              1d000100
+write_section $elf .rodata            1c000000
+write_section $elf .l2_handler_data   1c0c0000
+write_section $elf .vectors           1d000000
+write_section $elf .text              1d000100
 
 echo Enabling fetch...
 # enable fetching - 2 clusters
 echo -n 3 > $FETCH
 
 echo -n 0 > "$REGS/me_valid/0"
-udp_ruleset $1
+udp_ruleset $ctx_id
 # match_ruleset 0
 # bypass_ruleset 0
 # bypass_ruleset 1
@@ -151,23 +174,23 @@ echo -n 1 > "$REGS/me_valid/0"
 echo Setting HER generator...
 echo -n 0 > "$REGS/her_valid/0"
 
-get_handler $2 hh
+get_handler $elf hh
 printf "HH @ %#x\t(size %d)\n" $handler_addr $handler_size
-echo -n $handler_addr > "$REGS/her_hh_addr/$1"
-echo -n $handler_size > "$REGS/her_hh_size/$1"
-get_handler $2 ph
+echo -n $handler_addr > "$REGS/her_hh_addr/$ctx_id"
+echo -n $handler_size > "$REGS/her_hh_size/$ctx_id"
+get_handler $elf ph
 printf "PH @ %#x\t(size %d)\n" $handler_addr $handler_size
-echo -n $handler_addr > "$REGS/her_ph_addr/$1"
-echo -n $handler_size > "$REGS/her_ph_size/$1"
-get_handler $2 th
+echo -n $handler_addr > "$REGS/her_ph_addr/$ctx_id"
+echo -n $handler_size > "$REGS/her_ph_size/$ctx_id"
+get_handler $elf th
 printf "TH @ %#x\t(size %d)\n" $handler_addr $handler_size
-echo -n $handler_addr > "$REGS/her_th_addr/$1"
-echo -n $handler_size > "$REGS/her_th_size/$1"
+echo -n $handler_addr > "$REGS/her_th_addr/$ctx_id"
+echo -n $handler_size > "$REGS/her_th_size/$ctx_id"
 
-echo -n 1 > "$REGS/her_ctx_enabled/$1"
+echo -n 1 > "$REGS/her_ctx_enabled/$ctx_id"
 
 # end of l2_handler_data is her_handler_mem_addr
-l2_hnd_data_section=$($READELF -S $2 | grep l2_handler_data | tr -s ' ')
+l2_hnd_data_section=$($READELF -S $elf | grep l2_handler_data | tr -s ' ')
 l2_hnd_data_addr=$(hex_to_dec $(cut -d ' ' -f 5 <<< "$l2_hnd_data_section"))
 l2_hnd_data_size=$(hex_to_dec $(cut -d ' ' -f 7 <<< "$l2_hnd_data_section"))
 
@@ -177,18 +200,18 @@ her_handler_mem_size=$(($L2_END - $her_handler_mem_addr))
 printf "HER handler mem addr: %#x\n" $her_handler_mem_addr
 printf "HER handler mem size: %#x\n" $her_handler_mem_size
 
-echo -n $her_handler_mem_addr > "$REGS/her_handler_mem_addr/$1"
-echo -n $her_handler_mem_size > "$REGS/her_handler_mem_size/$1"
+echo -n $her_handler_mem_addr > "$REGS/her_handler_mem_addr/$ctx_id"
+echo -n $her_handler_mem_size > "$REGS/her_handler_mem_size/$ctx_id"
 
 # TODO: scratchpad
 
-printf "HER host mem hi: %#x\n" $3
-printf "HER host mem lo: %#x\n" $4
-printf "HER host mem size: %#x\n" $5
+printf "HER host mem hi: %#x\n" $hostmem_hi
+printf "HER host mem lo: %#x\n" $hostmem_lo
+printf "HER host mem size: %#x\n" $hostmem_sz
 
-echo -n $3 > "$REGS/her_host_mem_addr_hi/$1"
-echo -n $4 > "$REGS/her_host_mem_addr_lo/$1"
-echo -n $5 > "$REGS/her_host_mem_size/$1"
+echo -n $hostmem_hi > "$REGS/her_host_mem_addr_hi/$ctx_id"
+echo -n $hostmem_lo > "$REGS/her_host_mem_addr_lo/$ctx_id"
+echo -n $hostmem_sz > "$REGS/her_host_mem_size/$ctx_id"
 
 echo -n 1 > "$REGS/her_valid/0"
 
