@@ -3,7 +3,7 @@ PREFIX ?= /usr/local
 BINDIR = $(DESTDIR)$(PREFIX)/bin
 
 CC ?= gcc
-CFLAGS ?= -O3
+CFLAGS ?= -O3 -g -fsanitize=address -march=native
 
 CFLAGS += -Wall -D__PSPIN_USER__
 CPPFLAGS += -Ilib -Iinclude

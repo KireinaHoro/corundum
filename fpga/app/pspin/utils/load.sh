@@ -118,19 +118,24 @@ udp_ruleset() {
     echo -n 0 > "$REGS/me_mode/$1" # MODE_AND
 }
 
+usage="usage: $0 <ctx id> <up|down> [<elf> <hostmem addr hi> <hostmem addr lo> <hostmem size>]"
+[[ $# -ge 2 ]] || die $usage
+
 ctx_id=$1
 cmd=$2
 
-usage="usage: $0 <ctx id> <up|down> [<elf> <hostmem addr hi> <hostmem addr lo> <hostmem size>]"
-
-[[ $# -ge 2 ]] || die $usage
-
 if [[ "$cmd" == "down" ]]; then
-    # disable HER context
-    echo Disabling HER context $ctx_id...
-    echo -n 0 > "$REGS/her_valid/0"
-    echo -n 0 > "$REGS/her_ctx_enabled/$ctx_id"
-    echo -n 1 > "$REGS/her_valid/0"
+    echo Disabling fetch...
+    echo -n 0 > $FETCH
+    echo Resetting...
+    echo -n 1 > $RESET
+    echo Bringing cluster out of reset...
+    echo -n 0 > $RESET
+
+    echo -n 0 > "$REGS/me_valid/0"
+    bypass_ruleset $ctx_id
+    echo -n 1 > "$REGS/me_valid/0"
+
     echo Done!
     exit 0
 elif [[ "$cmd" != up ]]; then
@@ -162,14 +167,11 @@ echo Enabling fetch...
 echo -n 3 > $FETCH
 
 echo -n 0 > "$REGS/me_valid/0"
-udp_ruleset $ctx_id
-# match_ruleset 0
-# bypass_ruleset 0
-# bypass_ruleset 1
-# bypass_ruleset 2
-# bypass_ruleset 3
+udp_ruleset 0
+bypass_ruleset 1
+bypass_ruleset 2
+bypass_ruleset 3
 echo -n 1 > "$REGS/me_valid/0"
-# TODO: set all match rule
 
 echo Setting HER generator...
 echo -n 0 > "$REGS/her_valid/0"
@@ -203,8 +205,6 @@ printf "HER handler mem size: %#x\n" $her_handler_mem_size
 echo -n $her_handler_mem_addr > "$REGS/her_handler_mem_addr/$ctx_id"
 echo -n $her_handler_mem_size > "$REGS/her_handler_mem_size/$ctx_id"
 
-# TODO: scratchpad
-
 printf "HER host mem hi: %#x\n" $hostmem_hi
 printf "HER host mem lo: %#x\n" $hostmem_lo
 printf "HER host mem size: %#x\n" $hostmem_sz
@@ -212,6 +212,10 @@ printf "HER host mem size: %#x\n" $hostmem_sz
 echo -n $hostmem_hi > "$REGS/her_host_mem_addr_hi/$ctx_id"
 echo -n $hostmem_lo > "$REGS/her_host_mem_addr_lo/$ctx_id"
 echo -n $hostmem_sz > "$REGS/her_host_mem_size/$ctx_id"
+
+# scratchpad 0 and 1 - address is calculated in hardware
+echo -n 4096 > "$REGS/her_scratchpad_0_size/$ctx_id"
+echo -n 4096 > "$REGS/her_scratchpad_1_size/$ctx_id"
 
 echo -n 1 > "$REGS/her_valid/0"
 

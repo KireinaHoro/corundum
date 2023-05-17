@@ -19,14 +19,21 @@ struct ctx_dma_area {
 
 struct pspin_ioctl_msg {
   union {
+    union {
+      struct {
+        int ctx_id;
+      } req;
+      struct ctx_dma_area resp;
+    } query;
     struct {
-      int ctx_id;
-    } req;
-    struct ctx_dma_area resp;
+      u64 addr;
+      u64 data;
+    } write_raw;
   };
 };
 
 #define PSPIN_IOCTL_MAGIC 0x95910
 #define PSPIN_HOSTDMA_QUERY _IOWR(PSPIN_IOCTL_MAGIC, 0x1, struct pspin_ioctl_msg)
+#define PSPIN_HOSTDMA_WRITE_RAW _IOW(PSPIN_IOCTL_MAGIC, 0x2, struct pspin_ioctl_msg)
 
 #endif // __PSPIN_IOCTL_H__

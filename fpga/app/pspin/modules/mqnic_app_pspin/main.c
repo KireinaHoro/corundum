@@ -71,6 +71,8 @@ MODULE_VERSION("0.1");
 #define HER_NUM_HANDLER_CTX 4
 #define PSPIN_DEVICE_NAME "pspin"
 #define PSPIN_NUM_CLUSTERS 2
+#define NUM_HPUS_PER_CLUSTER 8
+#define NUM_HPUS (NUM_HPUS_PER_CLUSTER * PSPIN_NUM_CLUSTERS)
 
 static int hostdma_num_pages = 16;
 module_param(hostdma_num_pages, int, 0444);
@@ -509,6 +511,10 @@ static ssize_t pspin_write(struct file *filp, const char __user *buf,
   }
 
   for (i = 0; i < count; i += 4) {
+    if ((u64)PSPIN_MEM(app, *f_pos + i) == 0x1c000210) {
+      dev_info(dev->dev, "writing %#x to %p\n", *((u32 *)&dev->block_buffer[i]),
+               PSPIN_MEM(app, *f_pos + i));
+    }
     iowrite32(*((u32 *)&dev->block_buffer[i]), PSPIN_MEM(app, *f_pos + i));
   }
   *f_pos += count;
@@ -565,6 +571,7 @@ static long pspin_ioctl(struct file *filp, unsigned int cmd,
   struct pspin_ioctl_msg *user_ptr = (struct pspin_ioctl_msg *)arg;
 
   int ctx_id;
+  u64 addr, data;
 
   if (cdev->type == TY_FIFO) {
     dev_warn(dev, "stdout FIFO does not support writing\n");
@@ -573,7 +580,7 @@ static long pspin_ioctl(struct file *filp, unsigned int cmd,
 
   switch (cmd) {
   case PSPIN_HOSTDMA_QUERY:
-    if (copy_from_user(&ctx_id, &user_ptr->req.ctx_id, sizeof(int))) {
+    if (copy_from_user(&ctx_id, &user_ptr->query.req.ctx_id, sizeof(int))) {
       dev_err(dev, "read ctx_id error\n");
       return -EFAULT;
     }
@@ -581,11 +588,22 @@ static long pspin_ioctl(struct file *filp, unsigned int cmd,
       dev_err(dev, "invalid ctx_id %d; max %d\n", ctx_id, HER_NUM_HANDLER_CTX);
       return -EINVAL;
     }
-    if (copy_to_user(&user_ptr->resp, &app->dma_areas[ctx_id].phys,
+    if (copy_to_user(&user_ptr->query.resp, &app->dma_areas[ctx_id].phys,
                      sizeof(struct ctx_dma_area))) {
       dev_err(dev, "write dma area error\n");
       return -EFAULT;
     }
+    break;
+  case PSPIN_HOSTDMA_WRITE_RAW:
+    if (copy_from_user(&addr, &user_ptr->write_raw.addr, sizeof(u64))) {
+      dev_err(dev, "read flag error\n");
+      return -EFAULT;
+    }
+    if (copy_from_user(&data, &user_ptr->write_raw.data, sizeof(u64))) {
+      dev_err(dev, "read flag error\n");
+      return -EFAULT;
+    }
+    iowrite64_lo_hi(data, PSPIN_MEM(app, addr));
     break;
 
   default:
@@ -695,7 +713,7 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
     dev_info(dev,
              "allocated host dma region virt %#llx, dma %#llx, phys %#llx, "
              "size %lld for ctx %d\n",
-             area->cpu_addr, area->phys.dma_handle,
+             (u64)area->cpu_addr, area->phys.dma_handle,
              virt_to_phys(area->cpu_addr), area->phys.dma_size, ctx_id);
   } else {
     // in use by another process
@@ -709,6 +727,7 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
     dev_err(dev, "failed to map dma region into user\n");
     return -EIO;
   }
+  dev_info(dev, "mapped into user at %#llx\n", (u64)vma->vm_start);
 
   // ref counting
   pspin_vma_open(vma);
