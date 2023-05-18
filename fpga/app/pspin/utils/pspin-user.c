@@ -172,6 +172,15 @@ int main(int argc, char *argv[]) {
   uint8_t dma_idx[NUM_HPUS];
   memset(dma_idx, 0, sizeof(dma_idx));
 
+  for (int i = 0; i < NUM_HPUS; ++i) {
+    volatile uint8_t *flag_addr =
+        (volatile uint8_t *)pspin_dma_mem + i * PAGE_SIZE;
+    volatile uint64_t *flag = (volatile uint64_t *)flag_addr;
+
+    uint64_t flag_to_host = *flag;
+    dma_idx[i] = FLAG_DMA_ID(flag_to_host);
+  }
+
   // loading finished - application logic from here
   // examples/ping_pong
   while (true) {
@@ -202,8 +211,10 @@ int main(int argc, char *argv[]) {
       printf("Host flag addr: %p\n", flag);
       printf("Received packet on HPU %d, flag %#lx (id %#lx, len %d):\n", i,
              flag_to_host, FLAG_DMA_ID(flag_to_host), pkt_len);
-      if (FLAG_HPU_ID(flag_to_host) != i) {
-        printf("HPU ID mismatch!  Actual HPU ID: %ld\n", FLAG_HPU_ID(flag_to_host));
+
+      int dest = FLAG_HPU_ID(flag_to_host);
+      if (dest != i) {
+        printf("HPU ID mismatch!  Actual HPU ID: %d\n", dest);
       }
       hexdump(pkt_addr, pkt_len);
 
@@ -218,8 +229,8 @@ int main(int argc, char *argv[]) {
       printf("Return packet:\n");
       hexdump(pkt_addr, pkt_len);
       // notify pspin via host flag
-      uint64_t flag_from_host = MKFLAG(dma_idx[i], pkt_len, i);
-      uint64_t hpu_host_flag_off = host_flag_base - l2_base + 8 * i;
+      uint64_t flag_from_host = MKFLAG(dma_idx[i], pkt_len, dest);
+      uint64_t hpu_host_flag_off = host_flag_base - l2_base + 8 * dest;
       struct pspin_ioctl_msg flag_msg = {
           .write_raw.addr = hpu_host_flag_off,
           .write_raw.data = flag_from_host,
@@ -227,6 +238,7 @@ int main(int argc, char *argv[]) {
       if (ioctl(fd, PSPIN_HOSTDMA_WRITE_RAW, &flag_msg) < 0) {
         perror("ioctl pspin device");
       }
+      printf("Wrote flag %#lx to offset %#lx\n", flag_from_host, hpu_host_flag_off);
     }
   }
 
