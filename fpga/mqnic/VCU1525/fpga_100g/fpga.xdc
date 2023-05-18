@@ -851,3 +851,4 @@ set_property -dict {LOC P15 IOSTANDARD DIFF_POD12_DCI} [get_ports {ddr4_c3_dqs_c
 set_property -dict {LOC T13 IOSTANDARD DIFF_POD12_DCI} [get_ports {ddr4_c3_dqs_t[17]}]
 set_property -dict {LOC R13 IOSTANDARD DIFF_POD12_DCI} [get_ports {ddr4_c3_dqs_c[17]}]
 
+
