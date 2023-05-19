@@ -1,4 +1,7 @@
 #include "../modules/mqnic_app_pspin/pspin_ioctl.h"
+#include "fpspin.h"
+
+#include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
@@ -22,45 +25,39 @@
 #define NUM_HPUS 16
 #define NM "nm"
 
-#define FLAG_DMA_ID(fl) ((fl)&0xf)
-#define FLAG_LEN(fl) (((fl) >> 8) & 0xff)
-#define FLAG_HPU_ID(fl) ((fl) >> 24 & 0xff)
-#define MKFLAG(id, len, hpuid)                                                 \
-  (((id)&0xf) | (((len)&0xff) << 8) | (((hpuid)&0xff) << 24))
-
-static const uint64_t l2_base = 0x1c000000;
-
 volatile sig_atomic_t exit_flag = 0;
 static void sigint_handler(int signum) { exit_flag = 1; }
 
-void hexdump(const volatile void *data, size_t size) {
-  char ascii[17];
-  size_t i, j;
-  ascii[16] = '\0';
-  for (i = 0; i < size; ++i) {
-    printf("%02X ", ((unsigned char *)data)[i]);
-    if (((unsigned char *)data)[i] >= ' ' &&
-        ((unsigned char *)data)[i] <= '~') {
-      ascii[i % 16] = ((unsigned char *)data)[i];
-    } else {
-      ascii[i % 16] = '.';
-    }
-    if ((i + 1) % 8 == 0 || i + 1 == size) {
-      printf(" ");
-      if ((i + 1) % 16 == 0) {
-        printf("|  %s \n", ascii);
-      } else if (i + 1 == size) {
-        ascii[(i + 1) % 16] = '\0';
-        if ((i + 1) % 16 <= 8) {
-          printf(" ");
-        }
-        for (j = (i + 1) % 16; j < 16; ++j) {
-          printf("   ");
-        }
-        printf("|  %s \n", ascii);
-      }
+// http://www.microhowto.info/howto/calculate_an_internet_protocol_checksum_in_c.html
+uint16_t ip_checksum(void *vdata, size_t length) {
+  // Cast the data pointer to one that can be indexed.
+  char *data = (char *)vdata;
+
+  // Initialise the accumulator.
+  uint32_t acc = 0xffff;
+
+  // Handle complete 16-bit blocks.
+  for (size_t i = 0; i + 1 < length; i += 2) {
+    uint16_t word;
+    memcpy(&word, data + i, 2);
+    acc += ntohs(word);
+    if (acc > 0xffff) {
+      acc -= 0xffff;
     }
   }
+
+  // Handle any partial block at the end of the data.
+  if (length & 1) {
+    uint16_t word = 0;
+    memcpy(&word, data + length - 1, 1);
+    acc += ntohs(word);
+    if (acc > 0xffff) {
+      acc -= 0xffff;
+    }
+  }
+
+  // Return the checksum in network byte order.
+  return htons(~acc);
 }
 
 int main(int argc, char *argv[]) {
@@ -79,6 +76,7 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
+  // TODO: take initialization code into lib
   int fd = open(PSPIN_DEV, O_RDWR | O_CLOEXEC | O_SYNC);
   int dest_ctx = 0;
   int ret = 0;
@@ -106,7 +104,7 @@ int main(int argc, char *argv[]) {
 
   int len = hostdma_num_pages * PAGE_SIZE;
   void *pspin_dma_mem =
-      mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, dest_ctx * len);
+      mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, dest_ctx * len);
   if (pspin_dma_mem == MAP_FAILED) {
     perror("map host dma area");
     ret = EXIT_FAILURE;
@@ -173,9 +171,8 @@ int main(int argc, char *argv[]) {
   memset(dma_idx, 0, sizeof(dma_idx));
 
   for (int i = 0; i < NUM_HPUS; ++i) {
-    volatile uint8_t *flag_addr =
-        (volatile uint8_t *)pspin_dma_mem + i * PAGE_SIZE;
-    volatile uint64_t *flag = (volatile uint64_t *)flag_addr;
+    volatile uint8_t *flag_addr = (uint8_t *)pspin_dma_mem + i * PAGE_SIZE;
+    volatile uint64_t *flag = (uint64_t *)flag_addr;
 
     uint64_t flag_to_host = *flag;
     dma_idx[i] = FLAG_DMA_ID(flag_to_host);
@@ -189,13 +186,11 @@ int main(int argc, char *argv[]) {
       break;
     }
     for (int i = 0; i < NUM_HPUS; ++i) {
-      volatile uint8_t *flag_addr =
-          (volatile uint8_t *)pspin_dma_mem + i * PAGE_SIZE;
-      volatile uint64_t *flag = (volatile uint64_t *)flag_addr;
-      volatile uint8_t *pkt_addr = flag_addr + sizeof(uint64_t);
-
-      _mm_clflush((void *)flag);
-      __sync_synchronize();
+      volatile uint8_t *flag_addr = (uint8_t *)pspin_dma_mem + i * PAGE_SIZE;
+      volatile uint64_t *flag = (uint64_t *)flag_addr;
+      volatile uint8_t *pkt_addr = flag_addr + DMA_ALIGN;
+      volatile pkt_hdr_t *hdrs = (pkt_hdr_t *)pkt_addr;
+      volatile uint8_t *payload = (uint8_t *)hdrs + sizeof(pkt_hdr_t);
 
       uint64_t flag_to_host = *flag;
 
@@ -203,34 +198,57 @@ int main(int argc, char *argv[]) {
       if (FLAG_DMA_ID(flag_to_host) == dma_idx[i])
         continue;
 
-      uint16_t pkt_len = FLAG_LEN(flag_to_host);
-
       // set as processed
       dma_idx[i] = FLAG_DMA_ID(flag_to_host);
 
+      uint16_t dma_len = FLAG_LEN(flag_to_host);
+      uint16_t udp_len = ntohs(hdrs->udp_hdr.length);
+      uint16_t payload_len = udp_len - sizeof(udp_hdr_t);
+
       printf("Host flag addr: %p\n", flag);
-      printf("Received packet on HPU %d, flag %#lx (id %#lx, len %d):\n", i,
-             flag_to_host, FLAG_DMA_ID(flag_to_host), pkt_len);
+      printf("Received packet on HPU %d, flag %#lx (id %#lx, dma len %d, UDP "
+             "payload len %d):\n",
+             i, flag_to_host, FLAG_DMA_ID(flag_to_host), dma_len, payload_len);
 
       int dest = FLAG_HPU_ID(flag_to_host);
       if (dest != i) {
         printf("HPU ID mismatch!  Actual HPU ID: %d\n", dest);
       }
-      hexdump(pkt_addr, pkt_len);
+      hexdump(pkt_addr, dma_len);
 
       // to upper
-      // FIXME: IHL
-      // 42: UDP + IP + ETH
-      for (int pi = 42; pi < pkt_len; ++pi) {
-        char *c = (char *)(pkt_addr + pi);
-        *c = toupper(*c);
+      for (int pi = 0; pi < payload_len; ++pi) {
+        volatile char *c = (char *)(payload + pi);
+        // FIXME: bounds check for large packets
+        volatile char *lower = (char *)(payload + payload_len + pi);
+        *lower = *c;
+        if (*c == '\n') {
+          *c = '|';
+        } else {
+          *c = toupper(*c);
+        }
       }
 
+      // recalculate lengths
+      uint16_t ul_host = 2 * payload_len + sizeof(udp_hdr_t);
+      uint16_t il_host = sizeof(ip_hdr_t) + ul_host;
+      uint16_t return_len = il_host + sizeof(eth_hdr_t);
+      hdrs->udp_hdr.length = htons(ul_host);
+      hdrs->udp_hdr.checksum = 0;
+      hdrs->ip_hdr.length = htons(il_host);
+      hdrs->ip_hdr.checksum = 0;
+      hdrs->ip_hdr.checksum =
+          ip_checksum((uint8_t *)&hdrs->ip_hdr, sizeof(ip_hdr_t));
+
       printf("Return packet:\n");
-      hexdump(pkt_addr, pkt_len);
+      hexdump(pkt_addr, return_len);
+
+      // make sure memory writes finish
+      __sync_synchronize();
+
       // notify pspin via host flag
-      uint64_t flag_from_host = MKFLAG(dma_idx[i], pkt_len, dest);
-      uint64_t hpu_host_flag_off = host_flag_base - l2_base + 8 * dest;
+      uint64_t flag_from_host = MKFLAG(dma_idx[i], return_len, dest);
+      uint64_t hpu_host_flag_off = host_flag_base - L2_BASE + 8 * dest;
       struct pspin_ioctl_msg flag_msg = {
           .write_raw.addr = hpu_host_flag_off,
           .write_raw.data = flag_from_host,
@@ -238,7 +256,8 @@ int main(int argc, char *argv[]) {
       if (ioctl(fd, PSPIN_HOSTDMA_WRITE_RAW, &flag_msg) < 0) {
         perror("ioctl pspin device");
       }
-      printf("Wrote flag %#lx to offset %#lx\n", flag_from_host, hpu_host_flag_off);
+      printf("Wrote flag %#lx to offset %#lx\n", flag_from_host,
+             hpu_host_flag_off);
     }
   }
 

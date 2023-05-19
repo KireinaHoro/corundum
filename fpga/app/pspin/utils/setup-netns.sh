@@ -23,9 +23,6 @@ on() {
     echo "Route to PsPIN from $BYPASS_NS:"
     ip -n $BYPASS_NS route get 10.0.0.1
 
-    echo "Pinging PsPIN from $BYPASS_NS:"
-    ip netns exec $BYPASS_NS ping -c 4 10.0.0.1
-
     echo "Route to bypass from $PSPIN_NS:"
     ip -n $PSPIN_NS route get 10.0.0.2
 
