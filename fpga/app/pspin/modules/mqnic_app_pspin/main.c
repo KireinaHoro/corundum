@@ -38,25 +38,24 @@
 
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/moduleparam.h>
-#include <linux/version.h>
-
+#include <asm/set_memory.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
+#include <linux/init.h>
 #include <linux/iopoll.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
-
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 MODULE_DESCRIPTION("mqnic pspin driver");
 MODULE_AUTHOR("Pengcheng Xu");
@@ -642,6 +641,7 @@ static void pspin_vma_close(struct vm_area_struct *vma) {
     if (area->phys.enabled) {
       dev_info(cdev->dev, "freeing hostdma area for ctx %d\n",
                map_data->ctx_id);
+      set_memory_wb((u64)area->cpu_addr, hostdma_num_pages);
       dma_free_coherent(cdev->app->nic_dev, area->phys.dma_size, area->cpu_addr,
                         area->phys.dma_handle);
       area->phys.enabled = false;
@@ -672,7 +672,6 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
   struct dma_area_int *area;
   unsigned long len = vma->vm_end - vma->vm_start;
   int num_pages_requested = len / PAGE_SIZE;
-  unsigned long pfn;
 
   if (ctx_id >= HER_NUM_HANDLER_CTX) {
     dev_err(dev, "dma ctx_id too large: %d; total %d\n", ctx_id,
@@ -684,6 +683,11 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
             num_pages_requested, hostdma_num_pages);
     return -EINVAL;
   }
+  if (!(vma->vm_flags & VM_SHARED)) {
+    dev_err(dev, "host dma page must be mapped shared\n");
+    return -EINVAL;
+  }
+  
   area = &app->dma_areas[ctx_id];
 
   map_data = devm_kzalloc(dev, sizeof(struct pspin_map_data), GFP_KERNEL);
@@ -697,6 +701,7 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
   vma->vm_ops = &pspin_vm_ops;
   vma->vm_flags |= VM_IO;
   vma->vm_private_data = map_data;
+  vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
   // allocate DMA buffer
   if (!area->phys.enabled) {
@@ -722,8 +727,12 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
   }
 
   // map into user
-  pfn = virt_to_phys(area->cpu_addr) >> PAGE_SHIFT;
-  if (remap_pfn_range(vma, vma->vm_start, pfn, len, vma->vm_page_prot)) {
+  // https://stackoverflow.com/questions/9890728/how-would-one-prevent-mmap-from-caching-values
+  // https://stackoverflow.com/questions/53196359/mmap-dma-memory-uncached-map-pfn-ram-range-req-uncached-minus-got-write-back
+  // FIXME: figure out is uncached the right thing to do (or e.g. write
+  // combine?)
+  set_memory_uc((u64)area->cpu_addr, hostdma_num_pages);
+  if (vm_iomap_memory(vma, virt_to_phys(area->cpu_addr), len)) {
     dev_err(dev, "failed to map dma region into user\n");
     return -EIO;
   }
