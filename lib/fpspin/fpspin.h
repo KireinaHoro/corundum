@@ -1,9 +1,12 @@
 #ifndef __FPSPIN_H__
 #define __FPSPIN_H__
 
+#include "../../fpga/app/pspin/modules/mqnic_app_pspin/pspin_ioctl.h"
+
+#include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef struct mac_addr {
   uint8_t data[6];
@@ -58,45 +61,42 @@ typedef struct pkt_hdr {
   // app_hdr_t app_hdr;
 } __attribute__((__packed__)) pkt_hdr_t;
 
+#define NUM_HPUS 16
+
+typedef struct {
+  int ctx_id;
+  int fd;
+  void *cpu_addr;
+  size_t mmap_len;
+  uint8_t dma_idx[NUM_HPUS];
+  uint64_t host_flag_base;
+} fpspin_ctx_t;
+
+// TODO: refactor into descriptor struct?
+//       different format for to_host and from_host
+// TODO: do proper descriptor ring
+// used by fpspin_pop_req
 #define FLAG_DMA_ID(fl) ((fl)&0xf)
+// can be freely redefined by app
 #define FLAG_LEN(fl) (((fl) >> 8) & 0xff)
 #define FLAG_HPU_ID(fl) ((fl) >> 24 & 0xff)
-#define MKFLAG(id, len, hpuid)                                                 \
+#define MKFLAG_FULL(id, hpuid, len)                                            \
   (((id)&0xf) | (((len)&0xff) << 8) | (((hpuid)&0xff) << 24))
+#define MKFLAG_LIB(id, hpuid) MKFLAG_FULL(id, hpuid, 0)
+#define MKFLAG(len) MKFLAG_FULL(0, 0, len)
 #define DMA_BUS_WIDTH 512
 #define DMA_ALIGN (DMA_BUS_WIDTH / 8)
 
 #define L2_BASE 0x1c000000UL
+#define PAGE_SIZE 4096
 
-static void hexdump(const volatile void *data, size_t size) {
-  char ascii[17];
-  size_t i, j;
-  ascii[16] = '\0';
-  for (i = 0; i < size; ++i) {
-    printf("%02X ", ((unsigned char *)data)[i]);
-    if (((unsigned char *)data)[i] >= ' ' &&
-        ((unsigned char *)data)[i] <= '~') {
-      ascii[i % 16] = ((unsigned char *)data)[i];
-    } else {
-      ascii[i % 16] = '.';
-    }
-    if ((i + 1) % 8 == 0 || i + 1 == size) {
-      printf(" ");
-      if ((i + 1) % 16 == 0) {
-        printf("|  %s \n", ascii);
-      } else if (i + 1 == size) {
-        ascii[(i + 1) % 16] = '\0';
-        if ((i + 1) % 16 <= 8) {
-          printf(" ");
-        }
-        for (j = (i + 1) % 16; j < 16; ++j) {
-          printf("   ");
-        }
-        printf("|  %s \n", ascii);
-      }
-    }
-  }
-}
+void hexdump(const volatile void *data, size_t size);
 
+bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
+                 int dest_ctx);
+void fpspin_exit(fpspin_ctx_t *ctx);
+// TODO: rework to use streaming DMA; the coherent buffer should only be used for descriptors
+volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, uint64_t *flag);
+void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, uint64_t flag);
 
 #endif // __FPSPIN_H__

@@ -7,8 +7,8 @@ CFLAGS ?= -O3 -g -fsanitize=address -march=native
 
 CFLAGS += -Wall -D__PSPIN_USER__
 CPPFLAGS += -Ilib -Iinclude
-LDFLAGS += -Llib/mqnic
-LDLIBS += -lmqnic
+LDFLAGS += -Llib/mqnic -Llib/fpspin
+LDLIBS += -lmqnic -lfpspin
 
 LIBMQNIC = lib/mqnic/libmqnic.a
 
@@ -29,7 +29,7 @@ $(LIBMQNIC): FORCE
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
 pspin-user: pspin-user.o
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $^ -o $@
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 install:
 	install -d $(BINDIR)
