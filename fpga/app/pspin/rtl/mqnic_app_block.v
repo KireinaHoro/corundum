@@ -1462,7 +1462,7 @@ axis_async_fifo #(
     .DEST_WIDTH(AXIS_IF_RX_DEST_WIDTH),
     .USER_ENABLE(1),
     .USER_WIDTH(AXIS_IF_RX_USER_WIDTH),
-    .FRAME_FIFO(1),
+    .FRAME_FIFO(0),
     .DROP_WHEN_FULL(0)
 ) i_if_cdc_fifo_rx_to_pspin (
     .s_clk(clk),
@@ -1507,7 +1507,7 @@ axis_async_fifo #(
     .DEST_WIDTH(AXIS_IF_RX_DEST_WIDTH),
     .USER_ENABLE(1),
     .USER_WIDTH(AXIS_IF_RX_USER_WIDTH),
-    .FRAME_FIFO(1),
+    .FRAME_FIFO(0),
     .DROP_WHEN_FULL(0)
 ) i_if_cdc_fifo_rx_to_nic (
     .s_clk(pspin_clk),
@@ -1551,7 +1551,7 @@ axis_async_fifo #(
     .DEST_WIDTH(AXIS_IF_TX_DEST_WIDTH),
     .USER_ENABLE(1),
     .USER_WIDTH(AXIS_IF_TX_USER_WIDTH),
-    .FRAME_FIFO(1),
+    .FRAME_FIFO(0),
     .DROP_WHEN_FULL(0)
 ) i_if_cdc_fifo_tx_to_nic (
     .s_clk(pspin_clk),
@@ -1737,7 +1737,7 @@ pspin_ingress_datapath #(
     .UMATCH_MATCHER_LEN(UMATCH_MATCHER_LEN),
     .UMATCH_MTU(UMATCH_MTU),
     .UMATCH_BUF_FRAMES(UMATCH_BUF_FRAMES),
- 
+
     .NUM_HANDLER_CTX(NUM_HANDLER_CTX),
 
     .AXIS_IF_DATA_WIDTH(AXIS_IF_DATA_WIDTH),

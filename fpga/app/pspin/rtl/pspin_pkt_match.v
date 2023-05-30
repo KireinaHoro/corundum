@@ -496,7 +496,7 @@ axis_fifo #(
     .DEST_WIDTH(AXIS_IF_RX_DEST_WIDTH),
     .USER_ENABLE(1),
     .USER_WIDTH(AXIS_IF_RX_USER_WIDTH),
-    .FRAME_FIFO(1),
+    .FRAME_FIFO(0),
     .DROP_WHEN_FULL(0)
 ) i_fifo_rx (
     .clk             (clk),
