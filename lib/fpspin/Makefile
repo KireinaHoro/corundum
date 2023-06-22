@@ -7,7 +7,7 @@ DEVLIBDIR = $(LIBDIR)
 CC ?= gcc
 CFLAGS ?= -O3 -fPIC -g -march=native -D__PSPIN_USER__
 
-CFLAGS += -Wall
+CFLAGS += -Wall -Werror
 CPPFLAGS +=
 
 LIB = libfpspin.a
@@ -22,7 +22,7 @@ all: $(LIB)
 %.o: %.c
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
-libfpspin.a: loader.o
+libfpspin.a: loader.o runtime.o
 	ar rcs $@ $^
 
 install:

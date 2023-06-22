@@ -88,14 +88,57 @@ typedef struct {
 #define DMA_ALIGN (DMA_BUS_WIDTH / 8)
 
 #define L2_BASE 0x1c000000UL
+#define L2_END 0x1c100000UL
+#define PROG_BASE 0x1d000000UL
 #define PAGE_SIZE 4096
 
 void hexdump(const volatile void *data, size_t size);
 
+// public API
+// XXX: rbase should have static lifetime
+void fpspin_set_regs_base(const char *rbase);
+const char *fpspin_get_regs_base();
+
+#define NUM_RULES_PER_RULESET 4
+#define NUM_RULESETS 4
+typedef struct {
+  struct fpspin_rule {
+    int idx;
+    uint32_t mask;
+    uint32_t start;
+    uint32_t end;
+  } r[NUM_RULES_PER_RULESET];
+  enum {
+    FPSPIN_MODE_AND,
+    FPSPIN_MODE_OR,
+  } mode;
+} fpspin_ruleset_t;
+
+#define FPSPIN_RULE_FALSE ((struct fpspin_rule){0, 0, 1, 0})
+#define FPSPIN_RULE_EMPTY ((struct fpspin_rule){0, 0, 0, 0})
+#define FPSPIN_RULE_IP                                                         \
+  ((struct fpspin_rule){                                                       \
+      .idx = 3, .mask = 0xffff0000, .start = 0x08000000, 0x08000000})
+#define FPSPIN_RULE_IP_PROTO(num)                                              \
+  ((struct fpspin_rule){.idx = 5, .mask = 0xff, .start = num, num})
+
+void fpspin_set_me_ruleset(int ctx_id, const fpspin_ruleset_t *rs);
+void fpspin_ruleset_bypass(fpspin_ruleset_t *rs);
+void fpspin_ruleset_match(fpspin_ruleset_t *rs);
+void fpspin_ruleset_icmp(fpspin_ruleset_t *rs);
+void fpspin_ruleset_udp(fpspin_ruleset_t *rs);
+
+void fpspin_prog_me(const fpspin_ruleset_t *rs, int num_rs);
+void fpspin_load(const char *elf, uint64_t hostmem_ptr, uint32_t hostmem_size,
+                 int ctx_id);
+void fpspin_unload(int ctx_id);
+
 bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
-                 int dest_ctx);
+                 int dest_ctx, const fpspin_ruleset_t *rs, int num_rs);
 void fpspin_exit(fpspin_ctx_t *ctx);
-// TODO: rework to use streaming DMA; the coherent buffer should only be used for descriptors
+// TODO: rework to use streaming DMA; the coherent buffer should only be used
+// for descriptors
+// XXX: multi-core and out-of-order response (with ring buffer)?
 volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, uint64_t *flag);
 void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, uint64_t flag);
 

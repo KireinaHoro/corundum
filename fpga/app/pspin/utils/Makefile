@@ -11,6 +11,7 @@ LDFLAGS += -Llib/mqnic -Llib/fpspin
 LDLIBS += -lmqnic -lfpspin
 
 LIBMQNIC = lib/mqnic/libmqnic.a
+LIBFPSPIN = lib/fpspin/libfpspin.a
 
 BIN = pspin-user
 
@@ -25,10 +26,13 @@ FORCE:
 $(LIBMQNIC): FORCE
 	$(MAKE) -C $(dir $@) $(notdir $@)
 
+$(LIBFPSPIN): FORCE
+	$(MAKE) -C $(dir $@) $(notdir $@)
+
 %.o: %.c
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
-pspin-user: pspin-user.o
+pspin-user: pspin-user.o $(LIBFPSPIN)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 install:
