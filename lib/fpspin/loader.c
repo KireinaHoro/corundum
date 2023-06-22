@@ -46,7 +46,7 @@ static void cycle_reset() {
   write_reg("cl_ctrl", 1, 0);
 }
 
-static void fetch_on() { write_reg("cl_ctrl", 0, 1); }
+static void fetch_on() { write_reg("cl_ctrl", 0, (1 << NUM_CLUSTERS) - 1); }
 static void fetch_off() { write_reg("cl_ctrl", 0, 0); }
 
 static void me_on() { write_reg("me_valid", 0, 1); }

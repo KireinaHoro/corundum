@@ -101,6 +101,7 @@ const char *fpspin_get_regs_base();
 
 #define NUM_RULES_PER_RULESET 4
 #define NUM_RULESETS 4
+#define NUM_CLUSTERS 2
 typedef struct {
   struct fpspin_rule {
     int idx;
