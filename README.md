@@ -106,6 +106,8 @@ This will display the printf messages from the PsPIN cluster.  Next, in a new te
 ```console
 (pwd: fpga/app/pspin/deps/pspin/examples/icmp_ping)
 $ sudo host/icmp-ping 0 # runs on the 0th execution context
+(* OR *)
+$ sudo ./icmp-ping 0 # when testing with prebuilt artifacts; pwd: artifacts/icmp_ping
 Host DMA buffer: 32 pages
 Mapped host dma at 0x7f0f841e0000
 Host DMA physical addr: 0xfffffffffc760000, size: 131072
