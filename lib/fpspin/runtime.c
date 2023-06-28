@@ -101,7 +101,7 @@ bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
 
   // get host flag
   char cmd_buf[1024];
-  snprintf(cmd_buf, sizeof(cmd_buf), NM " %s | grep __host_flag", img);
+  snprintf(cmd_buf, sizeof(cmd_buf), NM " %s | grep __host_data", img);
   FILE *nm_fp = popen(cmd_buf, "r");
   if (!nm_fp) {
     perror("nm to get host flag");
@@ -187,4 +187,20 @@ void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, uint64_t flag) {
   }
   /* printf("Wrote flag %#lx to offset %#lx\n", flag_msg.write_raw.data,
          hpu_host_flag_off); */
+}
+
+uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx) {
+  uint64_t perf_off = ctx->host_flag_base - L2_BASE + 8 * NUM_HPUS; // perf_count & perf_sum
+  struct pspin_ioctl_msg perf_msg = {
+    .read_raw.word = perf_off,
+  };
+  if (ioctl(ctx->fd, PSPIN_HOSTDMA_READ_RAW, &perf_msg) < 0) {
+    perror("ioctl pspin device");
+  }
+  uint32_t count = (uint32_t)perf_msg.read_raw.word;
+  uint32_t sum = (uint32_t)(perf_msg.read_raw.word >> 32);
+
+  printf("Sum = %d, count = %d\n", sum, count);
+
+  return sum / count;
 }

@@ -604,6 +604,17 @@ static long pspin_ioctl(struct file *filp, unsigned int cmd,
     }
     iowrite64_lo_hi(data, PSPIN_MEM(app, addr));
     break;
+  case PSPIN_HOSTDMA_READ_RAW:
+    if (copy_from_user(&addr, &user_ptr->read_raw.word, sizeof(u64))) {
+      dev_err(dev, "read addr error\n");
+      return -EFAULT;
+    }
+    data = ioread64_lo_hi(PSPIN_MEM(app, addr));
+    if (copy_to_user(&user_ptr->read_raw.word, &data, sizeof(u64))) {
+      dev_err(dev, "write data error\n");
+      return -EFAULT;
+    }
+    break;
 
   default:
     dev_dbg(dev, "unknwon ioctl %d\n", cmd);

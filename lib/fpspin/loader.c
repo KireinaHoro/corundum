@@ -94,20 +94,6 @@ void fpspin_ruleset_match(fpspin_ruleset_t *rs) {
   }
 }
 
-void fpspin_ruleset_icmp(fpspin_ruleset_t *rs) {
-  assert(NUM_RULES_PER_RULESET == 4);
-  *rs = (fpspin_ruleset_t){
-      .mode = FPSPIN_MODE_AND,
-      .r =
-          {
-              FPSPIN_RULE_IP,
-              FPSPIN_RULE_IP_PROTO(1),
-              FPSPIN_RULE_EMPTY,
-              FPSPIN_RULE_FALSE,
-          },
-  };
-}
-
 void fpspin_ruleset_udp(fpspin_ruleset_t *rs) {
   assert(NUM_RULES_PER_RULESET == 4);
   *rs = (fpspin_ruleset_t){

@@ -119,14 +119,13 @@ typedef struct {
 #define FPSPIN_RULE_EMPTY ((struct fpspin_rule){0, 0, 0, 0})
 #define FPSPIN_RULE_IP                                                         \
   ((struct fpspin_rule){                                                       \
-      .idx = 3, .mask = 0xffff0000, .start = 0x08000000, 0x08000000})
+      .idx = 3, .mask = 0xffff0000, .start = 0x08000000, .end = 0x08000000})
 #define FPSPIN_RULE_IP_PROTO(num)                                              \
-  ((struct fpspin_rule){.idx = 5, .mask = 0xff, .start = num, num})
+  ((struct fpspin_rule){.idx = 5, .mask = 0xff, .start = num, .end = num})
 
 void fpspin_set_me_ruleset(int ctx_id, const fpspin_ruleset_t *rs);
 void fpspin_ruleset_bypass(fpspin_ruleset_t *rs);
 void fpspin_ruleset_match(fpspin_ruleset_t *rs);
-void fpspin_ruleset_icmp(fpspin_ruleset_t *rs);
 void fpspin_ruleset_udp(fpspin_ruleset_t *rs);
 
 void fpspin_prog_me(const fpspin_ruleset_t *rs, int num_rs);
@@ -142,5 +141,7 @@ void fpspin_exit(fpspin_ctx_t *ctx);
 // XXX: multi-core and out-of-order response (with ring buffer)?
 volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, uint64_t *flag);
 void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, uint64_t flag);
+
+uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx);
 
 #endif // __FPSPIN_H__
