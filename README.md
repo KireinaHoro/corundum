@@ -1,6 +1,6 @@
 # FPsPIN: FPGA Whole-system demo for PsPIN
 
-This is the the FPGA demo of sPIN, the streaming Process-In-Network paradigm.  The repo contains the PULP-based of sPIN, PsPIN, as a dependent git submodule under `fpga/app/pspin/deps/pspin`; refer to the [PsPIN readme](/fpga/app/pspin/deps/pspin/README.md) for more information.
+This is the the FPGA demo of sPIN, the streaming Process-In-Network paradigm.  The repo contains the PULP-based of sPIN, PsPIN, as a dependent git submodule under `fpga/app/pspin/deps/pspin`; refer to the [PsPIN readme](https://github.com/KireinaHoro/pspin/blob/47908ac1938d872f5a84ba88ab06dc4beb20e953/README.md) for more information.
 
 ## Building the hardware
 
