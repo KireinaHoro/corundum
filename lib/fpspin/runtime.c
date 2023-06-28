@@ -96,7 +96,8 @@ bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
   printf("Host DMA physical addr: %#lx, size: %ld\n", msg.query.resp.dma_handle,
          msg.query.resp.dma_size);
 
-  fpspin_load(img, msg.query.resp.dma_handle, msg.query.resp.dma_size, dest_ctx);
+  fpspin_load(img, msg.query.resp.dma_handle, msg.query.resp.dma_size,
+              dest_ctx);
   fpspin_prog_me(rs, num_rs);
 
   // get host flag

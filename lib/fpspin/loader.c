@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -164,15 +165,22 @@ static void set_handler(const char *elf, const char *handler, int ctx_id) {
     perror("call nm");
     exit(EXIT_FAILURE);
   }
-  if (fscanf(fp, "%x", &haddr) == 0) {
-    haddr = 0;
-    hsize = 0;
+  if (fscanf(fp, "%x", &haddr) == EOF && !errno) {
+    if (!errno) {
+      haddr = 0;
+      hsize = 0;
+    } else {
+      perror("fscanf nm");
+      exit(EXIT_FAILURE);
+    }
   } else {
     hsize = 4096;
   }
   pclose(fp);
 
   char regname[16];
+
+  printf("%s: %#x (size %d)\n", handler, haddr, hsize);
 
   snprintf(regname, sizeof(regname), "her_%s_addr", handler);
   write_reg(regname, ctx_id, haddr);
