@@ -1,1 +1,0 @@
-../../../../lib/fpspin/load.sh
