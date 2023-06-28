@@ -149,3 +149,32 @@ Unloading cluster...
 ```
 
 The `ping` roundtrip latency is `0.036 ms` on average, while the handler processing on the cluster took on average 681 cycles.  With the current cluster frequency at 40 MHz, this equals to `0.017 ms` of PsPIN processing latency.
+
+### UDP ping test instructions
+
+The instructions for testing UDP ping (`ping_pong`) stays largely the same.  The only difference is in generating packets.
+
+With `netcat`, establish connection and verify that the typed in message will be echoed back:
+
+```console
+$ sudo ip netns exec bypass netcat -v -u 10.0.0.1 45555
+Connection to 10.0.0.1 45555 port [udp/*] succeeded!
+XXXXX
+Hello
+Hello
+```
+
+With `hping`, check for latency numbers:
+
+```console
+$ sudo ip netns exec bypass hping3 10.0.0.1 -2 -p 45555 -i u1000 -c 10
+HPING 10.0.0.1 (eth1 10.0.0.1): udp mode set, 28 headers + 0 data bytes
+len=46 ip=10.0.0.1 ttl=64 id=47144 seq=0 rtt=7.9 ms
+<... output omitted ...>
+
+--- 10.0.0.1 hping statistic ---
+10 packets transmitted, 10 packets received, 0% packet loss
+round-trip min/avg/max = 0.7/4.9/7.9 ms
+```
+
+The UDP ping end-to-end latency is significantly worse than ICMP ping due to latency in the host UDP stack on the tester (`bypass` NIC).
