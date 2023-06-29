@@ -78,10 +78,10 @@ typedef struct {
 // used by fpspin_pop_req
 #define FLAG_DMA_ID(fl) ((fl)&0xf)
 // can be freely redefined by app
-#define FLAG_LEN(fl) (((fl) >> 8) & 0xff)
+#define FLAG_LEN(fl) (((fl) >> 8) & 0xffff)
 #define FLAG_HPU_ID(fl) ((fl) >> 24 & 0xff)
 #define MKFLAG_FULL(id, hpuid, len)                                            \
-  (((id)&0xf) | (((len)&0xff) << 8) | (((hpuid)&0xff) << 24))
+  (((id)&0xf) | (((len)&0xffff) << 8) | (((hpuid)&0xff) << 24))
 #define MKFLAG_LIB(id, hpuid) MKFLAG_FULL(id, hpuid, 0)
 #define MKFLAG(len) MKFLAG_FULL(0, 0, len)
 #define DMA_BUS_WIDTH 512
