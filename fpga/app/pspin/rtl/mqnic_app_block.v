@@ -887,14 +887,14 @@ wire [AXIS_IF_RX_ID_WIDTH-1:0]                  m_axis_nic_rx_tid;
 wire [AXIS_IF_RX_DEST_WIDTH-1:0]                m_axis_nic_rx_tdest;
 wire [AXIS_IF_RX_USER_WIDTH-1:0]                m_axis_nic_rx_tuser;
 
-(* mark_debug = "true" *) wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_nic_tx_tdata;
-(* mark_debug = "true" *) wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_nic_tx_tkeep;
-(* mark_debug = "true" *) wire                                            m_axis_nic_tx_tvalid;
-(* mark_debug = "true" *) wire                                            m_axis_nic_tx_tready;
-(* mark_debug = "true" *) wire                                            m_axis_nic_tx_tlast;
-(* mark_debug = "true" *) wire [AXIS_IF_TX_ID_WIDTH-1:0]                  m_axis_nic_tx_tid;
-(* mark_debug = "true" *) wire [AXIS_IF_TX_DEST_WIDTH-1:0]                m_axis_nic_tx_tdest;
-(* mark_debug = "true" *) wire [AXIS_IF_TX_USER_WIDTH-1:0]                m_axis_nic_tx_tuser;
+wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_nic_tx_tdata;
+wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_nic_tx_tkeep;
+wire                                            m_axis_nic_tx_tvalid;
+wire                                            m_axis_nic_tx_tready;
+wire                                            m_axis_nic_tx_tlast;
+wire [AXIS_IF_TX_ID_WIDTH-1:0]                  m_axis_nic_tx_tid;
+wire [AXIS_IF_TX_DEST_WIDTH-1:0]                m_axis_nic_tx_tdest;
+wire [AXIS_IF_TX_USER_WIDTH-1:0]                m_axis_nic_tx_tuser;
 
 wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_nic_fast_tx_tdata;
 wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_nic_fast_tx_tkeep;
@@ -1584,23 +1584,23 @@ axis_async_fifo #(
     .m_status_good_frame()
 );
 
-(* mark_debug = "true" *) wire [AXIS_IF_DATA_WIDTH-1:0]                   s_axis_if_0_tx_tdata;
-(* mark_debug = "true" *) wire [AXIS_IF_KEEP_WIDTH-1:0]                   s_axis_if_0_tx_tkeep;
-(* mark_debug = "true" *) wire                                            s_axis_if_0_tx_tvalid;
-(* mark_debug = "true" *) wire                                            s_axis_if_0_tx_tready;
-(* mark_debug = "true" *) wire                                            s_axis_if_0_tx_tlast;
-(* mark_debug = "true" *) wire [AXIS_IF_TX_ID_WIDTH-1:0]                  s_axis_if_0_tx_tid;
-(* mark_debug = "true" *) wire [AXIS_IF_TX_DEST_WIDTH-1:0]                s_axis_if_0_tx_tdest;
-(* mark_debug = "true" *) wire [AXIS_IF_TX_USER_WIDTH-1:0]                s_axis_if_0_tx_tuser;
+wire [AXIS_IF_DATA_WIDTH-1:0]                   s_axis_if_0_tx_tdata;
+wire [AXIS_IF_KEEP_WIDTH-1:0]                   s_axis_if_0_tx_tkeep;
+wire                                            s_axis_if_0_tx_tvalid;
+wire                                            s_axis_if_0_tx_tready;
+wire                                            s_axis_if_0_tx_tlast;
+wire [AXIS_IF_TX_ID_WIDTH-1:0]                  s_axis_if_0_tx_tid;
+wire [AXIS_IF_TX_DEST_WIDTH-1:0]                s_axis_if_0_tx_tdest;
+wire [AXIS_IF_TX_USER_WIDTH-1:0]                s_axis_if_0_tx_tuser;
 
-(* mark_debug = "true" *) wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_if_0_tx_tdata;
-(* mark_debug = "true" *) wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_if_0_tx_tkeep;
-(* mark_debug = "true" *) wire                                            m_axis_if_0_tx_tvalid;
-(* mark_debug = "true" *) wire                                            m_axis_if_0_tx_tready;
-(* mark_debug = "true" *) wire                                            m_axis_if_0_tx_tlast;
-(* mark_debug = "true" *) wire [AXIS_IF_TX_ID_WIDTH-1:0]                  m_axis_if_0_tx_tid;
-(* mark_debug = "true" *) wire [AXIS_IF_TX_DEST_WIDTH-1:0]                m_axis_if_0_tx_tdest;
-(* mark_debug = "true" *) wire [AXIS_IF_TX_USER_WIDTH-1:0]                m_axis_if_0_tx_tuser;
+wire [AXIS_IF_DATA_WIDTH-1:0]                   m_axis_if_0_tx_tdata;
+wire [AXIS_IF_KEEP_WIDTH-1:0]                   m_axis_if_0_tx_tkeep;
+wire                                            m_axis_if_0_tx_tvalid;
+wire                                            m_axis_if_0_tx_tready;
+wire                                            m_axis_if_0_tx_tlast;
+wire [AXIS_IF_TX_ID_WIDTH-1:0]                  m_axis_if_0_tx_tid;
+wire [AXIS_IF_TX_DEST_WIDTH-1:0]                m_axis_if_0_tx_tdest;
+wire [AXIS_IF_TX_USER_WIDTH-1:0]                m_axis_if_0_tx_tuser;
 
 assign s_axis_if_0_tx_tdata = `SLICE(s_axis_if_tx_tdata, 0, AXIS_IF_DATA_WIDTH);
 assign s_axis_if_0_tx_tkeep = `SLICE(s_axis_if_tx_tkeep, 0, AXIS_IF_KEEP_WIDTH);
