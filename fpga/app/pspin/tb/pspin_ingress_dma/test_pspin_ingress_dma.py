@@ -70,7 +70,8 @@ class TB:
 
         assert addr % (self.dut.AXI_DATA_WIDTH.value // 8) == 0, 'unaligned'
 
-        await self.src.send(frame)
+        self.src.send_nowait(frame)
+        await self.src.wait()
         await RisingEdge(self.dut.clk)
         # packet meta comes after packet data
         self.dut.write_desc_addr.value = addr
@@ -78,7 +79,6 @@ class TB:
         self.dut.write_desc_tag.value = idx
         self.dut.write_desc_valid.value = 1
         await WithTimeout(Active(self.dut, self.dut.write_desc_ready))
-        await RisingEdge(self.dut.clk)
         self.dut.write_desc_valid.value = 0
 
         self.pending[idx] = pkt, addr

@@ -1,14 +1,11 @@
-from ast import Assert
 import random
 import logging
 import os
 import itertools
-from re import A
-from tkinter import W
 import cocotb, cocotb_test
 import pytest
 from cocotb.clock import Clock, Timer
-from cocotb.triggers import RisingEdge, Edge, First
+from cocotb.triggers import RisingEdge, Edge, First, Join
 from cocotb.regression import TestFactory
 
 from cocotbext.axi import AxiLiteBus, AxiLiteMaster
@@ -55,19 +52,20 @@ class TB:
         return tag
 
     async def dequeue_addr(self, timeout=1000):
-        await WithTimeout(Active(self.dut, self.dut.write_ready_i), timeout_ns=timeout)
         # either packet is successfully allocated, or dropped
-        allocated = cocotb.start_soon(WithTimeout(Active(self.dut, self.dut.write_valid_o), timeout_ns=timeout))
+        allocated = cocotb.start_soon(WithTimeout(Active(self.dut, self.dut.write_valid_o, self.dut.write_ready_i), timeout_ns=timeout))
         dropped = Edge(self.dut.dropped_pkts_o)
-        result = await First(allocated, dropped)
+        result = await First(Join(allocated), dropped)
         if result is dropped:
             allocated.kill()
             return -1, 0, 0
+        allocated.join()
         return self.dut.write_addr_o.value, self.dut.write_len_o.value, self.dut.write_tag_o.value
 
     async def do_alloc(self, size, timeout=1000):
+        deq_task = cocotb.start_soon(self.dequeue_addr())
         expected_tag = await self.enqueue_pkt(size, timeout)
-        addr, len, tag = await self.dequeue_addr()
+        addr, len, tag = await deq_task.join()
         # returned length should be packet length
         assert int(len) == size or not int(len)
         assert int(addr) + int(len) <= int(self.dut.BUF_START) + int(self.dut.BUF_SIZE)
