@@ -188,7 +188,7 @@ reg [$clog2(UMATCH_RULESETS)-1:0] matched_ruleset_id_d, matched_ruleset_id_q;
 reg matched_ruleset_eom_d, matched_ruleset_eom_q;
 
 // tag output
-reg [MSG_ID_WIDTH-1:0] packet_idx;
+wire [MSG_ID_WIDTH-1:0] slmp_msg_id = `SLICE(matcher, 11, 32); // 11th 32-bit word in ETH+IP+UDP+SLMP
 
 integer idx;
 always @* begin
@@ -219,6 +219,12 @@ initial begin
     end
     if (TAG_WIDTH < MSG_ID_WIDTH + 1 + $clog2(UMATCH_RULESETS)) begin
         $error("Error: TAG_WIDTH (%d) cannot fit packet id, EOM, and ruleset id", TAG_WIDTH);
+        $finish;
+    end
+
+    // matcher should be at least as wide to include SLMP message ID
+    if (UMATCH_MATCHER_LEN < 48) begin
+        $error("Error: matcher too narrow for SLMP message ID (%d vs 48)", UMATCH_MATCHER_LEN);
         $finish;
     end
 
@@ -262,12 +268,11 @@ for (j = 0; j < UMATCH_RULESETS; j = j + 1) begin
 end
 endgenerate
 
-// packet counting
+// packet metadata
 always @(posedge clk) begin
     if (send_comb_tvalid && send_tready) begin
         packet_meta_size <= packet_meta_size + AXIS_IF_DATA_WIDTH / 8;
         if (send_comb_tlast) begin
-            packet_idx <= packet_idx + 1;
             // we should still be in PASSTHROUGH / SEND_TLAST, so capture matched_q
             // we should only output meta if matched
             packet_meta_valid <= matched_q;
@@ -285,13 +290,12 @@ always @(posedge clk) begin
     end
 
     if (!rstn) begin
-        packet_idx <= 32'b0;
         packet_meta_size <= 32'b0;
         packet_meta_valid <= 1'b0;
     end
 end
 // TODO: match for end-of-message properly
-assign packet_meta_tag = {packet_idx, matched_ruleset_eom_q, matched_ruleset_id_q};
+assign packet_meta_tag = {slmp_msg_id, matched_ruleset_eom_q, matched_ruleset_id_q};
 
 always @(posedge clk) begin
     if (!rstn) begin
