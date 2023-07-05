@@ -122,11 +122,20 @@ typedef struct {
       .idx = 3, .mask = 0xffff0000, .start = 0x08000000, .end = 0x08000000})
 #define FPSPIN_RULE_IP_PROTO(num)                                              \
   ((struct fpspin_rule){.idx = 5, .mask = 0xff, .start = num, .end = num})
+#define FPSPIN_RULE_UDP_SPORT(num)                                             \
+  ((struct fpspin_rule){                                                       \
+      .idx = 8, .mask = 0xffff, .start = htons(num), .end = htons(num)})
+#define FPSPIN_RULE_UDP_DPORT(num)                                             \
+  ((struct fpspin_rule){.idx = 9,                                              \
+                        .mask = 0xffff0000,                                    \
+                        .start = htons(num) << 16,                             \
+                        .end = htons(num) << 16})
 
 void fpspin_set_me_ruleset(int ctx_id, const fpspin_ruleset_t *rs);
 void fpspin_ruleset_bypass(fpspin_ruleset_t *rs);
 void fpspin_ruleset_match(fpspin_ruleset_t *rs);
 void fpspin_ruleset_udp(fpspin_ruleset_t *rs);
+void fpspin_ruleset_slmp(fpspin_ruleset_t *rs);
 
 void fpspin_prog_me(const fpspin_ruleset_t *rs, int num_rs);
 void fpspin_load(const char *elf, uint64_t hostmem_ptr, uint32_t hostmem_size,

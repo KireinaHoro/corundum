@@ -236,6 +236,8 @@ static bool check_her_en(struct device *dev, u32 idx, u32 reg) {
                 handle, size, hostdma_addr, hostdma_size);
         return false;
       }
+
+      // TODO: check that if ME is not in SLMP, prohibit HH and TH (packet mode)
     }
     app->in_her_conf = false;
   }

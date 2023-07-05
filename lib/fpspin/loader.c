@@ -109,6 +109,24 @@ void fpspin_ruleset_udp(fpspin_ruleset_t *rs) {
   };
 }
 
+void fpspin_ruleset_slmp(fpspin_ruleset_t *rs) {
+  assert(NUM_RULES_PER_RULESET == 4);
+  *rs = (fpspin_ruleset_t){
+      .mode = FPSPIN_MODE_AND,
+      .r =
+          {
+              FPSPIN_RULE_IP,
+              FPSPIN_RULE_IP_PROTO(17),
+              FPSPIN_RULE_UDP_DPORT(9330),
+              ((struct fpspin_rule){.idx = 10,
+                                    .mask = 0x80000000,
+                                    .start = 0x80000000,
+                                    .end = 0x80000000}), // first bit (EOM) in flags in SLMP
+          },
+  };
+  // message ID rule in hardware
+}
+
 static void write_section(const char *elf, const char *section, uint64_t addr) {
   uint64_t off;
   if (addr >= PROG_BASE)
