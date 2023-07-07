@@ -174,7 +174,8 @@ static void write_section(const char *elf, const char *section, uint64_t addr) {
   unlink(tmp);
 }
 
-static void set_handler(const char *elf, const char *handler, int ctx_id) {
+static void set_handler(const char *elf, const char *handler, int ctx_id,
+                        struct mem_area *out_area) {
   uint32_t haddr, hsize;
   char buf[1024];
   snprintf(buf, sizeof(buf), NM " %s | grep _%s", elf, handler);
@@ -200,6 +201,9 @@ static void set_handler(const char *elf, const char *handler, int ctx_id) {
 
   printf("%s: %#x (size %d)\n", handler, haddr, hsize);
 
+  out_area->addr = haddr;
+  out_area->size = hsize;
+
   snprintf(regname, sizeof(regname), "her_%s_addr", handler);
   write_reg(regname, ctx_id, haddr);
 
@@ -207,7 +211,8 @@ static void set_handler(const char *elf, const char *handler, int ctx_id) {
   write_reg(regname, ctx_id, hsize);
 }
 
-static void set_handler_mem(const char *elf, int ctx_id) {
+static void set_handler_mem(const char *elf, int ctx_id,
+                            struct mem_area *out_area) {
   uint32_t l2_daddr, l2_dsize;
   char buf[1024];
   snprintf(buf, sizeof(buf), READELF " -S %s | grep l2_handler_data", elf);
@@ -219,8 +224,16 @@ static void set_handler_mem(const char *elf, int ctx_id) {
   assert(fscanf(fp, "%*s %*s %*s %x %*x %x", &l2_daddr, &l2_dsize) == 2);
   pclose(fp);
 
-  write_reg("her_handler_mem_addr", ctx_id, l2_daddr + l2_dsize);
-  write_reg("her_handler_mem_size", ctx_id, L2_END - l2_daddr);
+  uint32_t mem_addr = l2_daddr + l2_dsize;
+  uint32_t mem_size = L2_END - l2_daddr;
+
+  printf("Handler memory addr: %#x, size: %d\n", mem_addr, mem_size);
+
+  out_area->addr = mem_addr;
+  out_area->size = mem_size;
+
+  write_reg("her_handler_mem_addr", ctx_id, mem_addr);
+  write_reg("her_handler_mem_size", ctx_id, mem_size);
 }
 
 void fpspin_prog_me(const fpspin_ruleset_t *rs, int num_rs) {
@@ -244,10 +257,12 @@ void fpspin_prog_me(const fpspin_ruleset_t *rs, int num_rs) {
   me_on();
 }
 
-void fpspin_load(const char *elf, uint64_t hostmem_ptr, uint32_t hostmem_size,
-                 int ctx_id) {
+void fpspin_load(fpspin_ctx_t *ctx, const char *elf, uint64_t hostmem_ptr,
+                 uint32_t hostmem_size) {
   fetch_off();
   cycle_reset();
+
+  int ctx_id = ctx->ctx_id;
 
   // FIXME: relocation such that multiple contexts can really co-exist
   // readelf -S ; sw/pulp-sdk/linker/link.ld
@@ -258,10 +273,10 @@ void fpspin_load(const char *elf, uint64_t hostmem_ptr, uint32_t hostmem_size,
   fetch_on();
 
   her_off();
-  set_handler(elf, "hh", ctx_id);
-  set_handler(elf, "ph", ctx_id);
-  set_handler(elf, "th", ctx_id);
-  set_handler_mem(elf, ctx_id);
+  set_handler(elf, "hh", ctx_id, &ctx->hh);
+  set_handler(elf, "ph", ctx_id, &ctx->ph);
+  set_handler(elf, "th", ctx_id, &ctx->th);
+  set_handler_mem(elf, ctx_id, &ctx->handler_mem);
 
   write_reg("her_host_mem_addr_hi", ctx_id, hostmem_ptr >> 32);
   write_reg("her_host_mem_addr_lo", ctx_id, hostmem_ptr);
@@ -275,7 +290,9 @@ void fpspin_load(const char *elf, uint64_t hostmem_ptr, uint32_t hostmem_size,
   her_on();
 }
 
-void fpspin_unload(int ctx_id) {
+void fpspin_unload(fpspin_ctx_t *ctx) {
+  int ctx_id = ctx->ctx_id;
+
   printf("Unloading cluster...\n");
   // disable fetch
   fetch_off();

@@ -63,6 +63,11 @@ typedef struct pkt_hdr {
 
 #define NUM_HPUS 16
 
+struct mem_area {
+  uint32_t addr;
+  uint32_t size;
+};
+
 typedef struct {
   int ctx_id;
   int fd;
@@ -70,6 +75,10 @@ typedef struct {
   size_t mmap_len;
   uint8_t dma_idx[NUM_HPUS];
   uint64_t host_flag_base;
+
+  // image information
+  struct mem_area hh, ph, th;
+  struct mem_area handler_mem;
 } fpspin_ctx_t;
 
 // TODO: refactor into descriptor struct?
@@ -138,9 +147,9 @@ void fpspin_ruleset_udp(fpspin_ruleset_t *rs);
 void fpspin_ruleset_slmp(fpspin_ruleset_t *rs);
 
 void fpspin_prog_me(const fpspin_ruleset_t *rs, int num_rs);
-void fpspin_load(const char *elf, uint64_t hostmem_ptr, uint32_t hostmem_size,
-                 int ctx_id);
-void fpspin_unload(int ctx_id);
+void fpspin_load(fpspin_ctx_t *ctx, const char *elf, uint64_t hostmem_ptr,
+                 uint32_t hostmem_size);
+void fpspin_unload(fpspin_ctx_t *ctx);
 
 bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
                  int dest_ctx, const fpspin_ruleset_t *rs, int num_rs);
