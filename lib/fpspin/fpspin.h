@@ -63,8 +63,9 @@ typedef struct pkt_hdr {
 
 #define NUM_HPUS 16
 
+typedef uint32_t fpspin_addr_t;
 struct mem_area {
-  uint32_t addr;
+  fpspin_addr_t addr;
   uint32_t size;
 };
 
@@ -161,5 +162,8 @@ volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, uint64_t *flag);
 void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, uint64_t flag);
 
 uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx);
+
+// for initialising handler memory from host dynamically
+void fpspin_write_memory(fpspin_ctx_t *ctx, fpspin_addr_t pspin_addr, void *host_addr, size_t len);
 
 #endif // __FPSPIN_H__

@@ -115,24 +115,49 @@ void fpspin_ruleset_slmp(fpspin_ruleset_t *rs) {
       .mode = FPSPIN_MODE_AND,
       .r =
           {
-              FPSPIN_RULE_IP,
-              FPSPIN_RULE_IP_PROTO(17),
+              FPSPIN_RULE_IP, FPSPIN_RULE_IP_PROTO(17),
               FPSPIN_RULE_UDP_DPORT(9330),
-              ((struct fpspin_rule){.idx = 10,
-                                    .mask = 0x80000000,
-                                    .start = 0x80000000,
-                                    .end = 0x80000000}), // first bit (EOM) in flags in SLMP
+              ((struct fpspin_rule){
+                  .idx = 10,
+                  .mask = 0x80000000,
+                  .start = 0x80000000,
+                  .end = 0x80000000}), // first bit (EOM) in flags in SLMP
           },
   };
   // message ID rule in hardware
 }
 
-static void write_section(const char *elf, const char *section, uint64_t addr) {
+void fpspin_write_memory(fpspin_ctx_t *ctx, fpspin_addr_t pspin_addr,
+                         void *host_addr, size_t len) {
   uint64_t off;
-  if (addr >= PROG_BASE)
-    off = addr - PROG_BASE + 0x400000;
+  if (pspin_addr >= PROG_BASE)
+    off = pspin_addr - PROG_BASE + 0x400000;
   else
-    off = addr - L2_BASE;
+    off = pspin_addr - L2_BASE;
+
+  int dev_fd = ctx->fd;
+  if (dev_fd < 0) {
+    perror("open pspin device");
+    exit(EXIT_FAILURE);
+  }
+  if (lseek(dev_fd, off, SEEK_SET) < 0) {
+    perror("seek device");
+    exit(EXIT_FAILURE);
+  }
+  size_t bytes_written;
+  do {
+    bytes_written = write(dev_fd, host_addr, len);
+    if (bytes_written < 0) {
+      perror("write to device");
+      exit(EXIT_FAILURE);
+    }
+    len -= bytes_written;
+    host_addr += bytes_written;
+  } while (len);
+}
+
+static void write_section(fpspin_ctx_t *ctx, const char *elf,
+                          const char *section, uint64_t addr) {
   char buf[1024];
   const char *tmp = tmpnam(NULL);
   snprintf(buf, sizeof(buf), OBJCOPY " -O binary --only-section=%s %s %s",
@@ -147,29 +172,17 @@ static void write_section(const char *elf, const char *section, uint64_t addr) {
     perror("open objcopy result");
     exit(EXIT_FAILURE);
   }
-  int dev_fd = open(DEV, O_WRONLY);
-  if (dev_fd < 0) {
-    perror("open pspin device");
-    exit(EXIT_FAILURE);
-  }
-  if (lseek(dev_fd, off, SEEK_SET) < 0) {
-    perror("seek device");
-    exit(EXIT_FAILURE);
-  }
+  char bin_buf[4096];
   int bytes_read;
-  uint32_t word;
   do {
-    bytes_read = read(sec_fd, &word, sizeof(word));
+    bytes_read = read(sec_fd, bin_buf, sizeof(bin_buf));
     if (bytes_read < 0) {
       perror("read objcopy result");
       exit(EXIT_FAILURE);
     }
-    if (write(dev_fd, &word, sizeof(word)) < 0) {
-      perror("write to device");
-      exit(EXIT_FAILURE);
-    }
+    fpspin_write_memory(ctx, addr, bin_buf, bytes_read);
+    addr += bytes_read;
   } while (bytes_read > 0);
-  close(dev_fd);
   close(sec_fd);
   unlink(tmp);
 }
@@ -266,10 +279,10 @@ void fpspin_load(fpspin_ctx_t *ctx, const char *elf, uint64_t hostmem_ptr,
 
   // FIXME: relocation such that multiple contexts can really co-exist
   // readelf -S ; sw/pulp-sdk/linker/link.ld
-  write_section(elf, ".rodata", 0x1c000000);
-  write_section(elf, ".l2_handler_data", 0x1c0c0000);
-  write_section(elf, ".vectors", 0x1d000000);
-  write_section(elf, ".text", 0x1d000100);
+  write_section(ctx, elf, ".rodata", 0x1c000000);
+  write_section(ctx, elf, ".l2_handler_data", 0x1c0c0000);
+  write_section(ctx, elf, ".vectors", 0x1d000000);
+  write_section(ctx, elf, ".text", 0x1d000100);
   fetch_on();
 
   her_off();
