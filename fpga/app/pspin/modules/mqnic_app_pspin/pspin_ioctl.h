@@ -4,7 +4,7 @@
 #include <linux/ioctl.h>
 #include <linux/types.h>
 
-#ifdef __PSPIN_USER__
+#ifdef __FPSPIN_HOST__
 #include <stdbool.h>
 #include <stdint.h>
 #define u64 uint64_t
