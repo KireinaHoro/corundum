@@ -189,19 +189,22 @@ void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, uint64_t flag) {
          hpu_host_flag_off); */
 }
 
-uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx) {
-  uint64_t perf_off =
-      ctx->host_flag_base - L2_BASE + 8 * NUM_HPUS; // perf_count & perf_sum
+fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id) {
+  uint64_t perf_off = ctx->host_flag_base - L2_BASE + 8 * NUM_HPUS +
+                      sizeof(fpspin_counter_t) * id; // perf_count & perf_sum
   struct pspin_ioctl_msg perf_msg = {
       .read_raw.word = perf_off,
   };
   if (ioctl(ctx->fd, PSPIN_HOSTDMA_READ_RAW, &perf_msg) < 0) {
     perror("ioctl pspin device");
   }
-  uint32_t count = (uint32_t)perf_msg.read_raw.word;
-  uint32_t sum = (uint32_t)(perf_msg.read_raw.word >> 32);
+  return (fpspin_counter_t){
+      .count = (uint32_t)perf_msg.read_raw.word,
+      .sum = (uint32_t)(perf_msg.read_raw.word >> 32),
+  };
+}
 
-  printf("Sum = %d, count = %d\n", sum, count);
-
-  return count ? sum / count : 0;
+uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx) {
+  fpspin_counter_t counter = fpspin_get_counter(ctx, 0);
+  return counter.count ? counter.sum / counter.count : 0;
 }

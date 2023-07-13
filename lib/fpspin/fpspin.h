@@ -46,6 +46,20 @@ typedef struct udp_hdr {
   uint16_t checksum;
 } __attribute__((__packed__)) udp_hdr_t;
 
+// sPIN Lightweight Message Protocol
+typedef struct slmp_hdr {
+  uint16_t flags;
+  uint32_t msg_id;  // larger than needed, but for alignment purposes (Ethernet
+                    // header is 6 bytes)
+  uint32_t pkt_off; // packet offset in message
+} __attribute__((__packed__)) slmp_hdr_t;
+#define MKEOM 0x8000
+#define MKSYN 0x4000
+#define MKACK 0x2000
+#define EOM(flags) ((flags)&MKEOM)
+#define SYN(flags) ((flags)&MKSYN)
+#define ACK(flags) ((flags)&MKACK)
+
 /*
 typedef struct app_hdr
 { //QUIC-like
@@ -88,10 +102,12 @@ typedef struct {
 // used by fpspin_pop_req
 #define FLAG_DMA_ID(fl) ((fl)&0xf)
 // can be freely redefined by app
-#define FLAG_LEN(fl) (((fl) >> 8) & 0xffff)
-#define FLAG_HPU_ID(fl) ((fl) >> 24 & 0xff)
-#define MKFLAG_FULL(id, hpuid, len)                                            \
-  (((id)&0xf) | (((len)&0xffff) << 8) | (((hpuid)&0xff) << 24))
+#define FLAG_DMA_ID(fl) ((fl)&0xf)
+#define FLAG_LEN(fl) (((fl) >> 8) & 0xffffffff)
+#define FLAG_HPU_ID(fl) (((fl) >> 40) & 0xff)
+#define MKFLAG_FULL(id, len, hpuid)                                            \
+  (((id)&0xf) | ((uint64_t)((len)&0xffffffff) << 8) |                          \
+   ((uint64_t)((hpuid)&0xff) << 40))
 #define MKFLAG_LIB(id, hpuid) MKFLAG_FULL(id, hpuid, 0)
 #define MKFLAG(len) MKFLAG_FULL(0, 0, len)
 #define DMA_BUS_WIDTH 512
@@ -136,10 +152,8 @@ typedef struct {
   ((struct fpspin_rule){                                                       \
       .idx = 8, .mask = 0xffff, .start = htons(num), .end = htons(num)})
 #define FPSPIN_RULE_UDP_DPORT(num)                                             \
-  ((struct fpspin_rule){.idx = 9,                                              \
-                        .mask = 0xffff0000,                                    \
-                        .start = htons(num) << 16,                             \
-                        .end = htons(num) << 16})
+  ((struct fpspin_rule){                                                       \
+      .idx = 9, .mask = 0xffff0000, .start = num << 16, .end = num << 16})
 
 void fpspin_set_me_ruleset(int ctx_id, const fpspin_ruleset_t *rs);
 void fpspin_ruleset_bypass(fpspin_ruleset_t *rs);
@@ -161,9 +175,15 @@ void fpspin_exit(fpspin_ctx_t *ctx);
 volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, uint64_t *flag);
 void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, uint64_t flag);
 
+typedef struct {
+  uint32_t sum;
+  uint32_t count;
+} fpspin_counter_t;
+fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id);
 uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx);
 
 // for initialising handler memory from host dynamically
-void fpspin_write_memory(fpspin_ctx_t *ctx, fpspin_addr_t pspin_addr, void *host_addr, size_t len);
+void fpspin_write_memory(fpspin_ctx_t *ctx, fpspin_addr_t pspin_addr,
+                         void *host_addr, size_t len);
 
 #endif // __FPSPIN_H__

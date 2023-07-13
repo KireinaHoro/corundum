@@ -66,7 +66,7 @@ static void set_me_rule(int ctx_id, int rid, const struct fpspin_rule *ru) {
 }
 
 static void dump_me_rule(const struct fpspin_rule *ru) {
-  printf("... %d @ %#x [%x:%x]\n", ru->idx, ru->mask, ru->start, ru->end);
+  printf("... %d:\t%08x [%08x:%08x]\n", ru->idx, ru->mask, ru->start, ru->end);
 }
 
 static void dump_me_ruleset(const fpspin_ruleset_t *rs) {
@@ -119,21 +119,26 @@ void fpspin_ruleset_slmp(fpspin_ruleset_t *rs) {
               FPSPIN_RULE_UDP_DPORT(9330),
               ((struct fpspin_rule){
                   .idx = 10,
-                  .mask = 0x80000000,
-                  .start = 0x80000000,
-                  .end = 0x80000000}), // first bit (EOM) in flags in SLMP
+                  .mask = 0x8000,
+                  .start = 0x8000,
+                  .end = 0x8000}), // first bit (EOM) in flags in SLMP
           },
   };
   // message ID rule in hardware
 }
 
-void fpspin_write_memory(fpspin_ctx_t *ctx, fpspin_addr_t pspin_addr,
-                         void *host_addr, size_t len) {
+static uint64_t addr_to_off(fpspin_addr_t pspin_addr) {
   uint64_t off;
   if (pspin_addr >= PROG_BASE)
     off = pspin_addr - PROG_BASE + 0x400000;
   else
     off = pspin_addr - L2_BASE;
+  return off;
+}
+
+void fpspin_write_memory(fpspin_ctx_t *ctx, fpspin_addr_t pspin_addr,
+                         void *host_addr, size_t len) {
+  uint64_t off = addr_to_off(pspin_addr);
 
   int dev_fd = ctx->fd;
   if (dev_fd < 0) {

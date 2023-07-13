@@ -5,7 +5,7 @@ LIBDIR = $(DESTDIR)$(PREFIX)/lib
 DEVLIBDIR = $(LIBDIR)
 
 CC ?= gcc
-CFLAGS ?= -O3 -fPIC -g -march=native -D__PSPIN_USER__
+CFLAGS ?= -O3 -fPIC -g -march=native -D__FPSPIN_HOST__
 
 CFLAGS += -Wall -Werror
 CPPFLAGS +=
