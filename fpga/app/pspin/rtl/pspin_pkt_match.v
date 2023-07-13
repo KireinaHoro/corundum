@@ -47,8 +47,8 @@ module pspin_pkt_match #(
     parameter AXIS_IF_RX_DEST_WIDTH = 8,
     parameter AXIS_IF_RX_USER_WIDTH = 16,
 
-    parameter TAG_WIDTH = 32,
-    parameter MSG_ID_WIDTH = 10
+    parameter TAG_WIDTH = 64,
+    parameter MSG_ID_WIDTH = 32
 ) (
     input wire clk,
     input wire rstn,
@@ -189,6 +189,7 @@ reg matched_ruleset_eom_d, matched_ruleset_eom_q;
 
 // tag output
 wire [MSG_ID_WIDTH-1:0] slmp_msg_id = `SLICE(matcher, 11, 32); // 11th 32-bit word in ETH+IP+UDP+SLMP
+reg  [MSG_ID_WIDTH-1:0] slmp_msg_id_q;
 
 integer idx;
 always @* begin
@@ -295,7 +296,7 @@ always @(posedge clk) begin
     end
 end
 // TODO: match for end-of-message properly
-assign packet_meta_tag = {slmp_msg_id, matched_ruleset_eom_q, matched_ruleset_id_q};
+assign packet_meta_tag = {slmp_msg_id_q, matched_ruleset_eom_q, matched_ruleset_id_q};
 
 always @(posedge clk) begin
     if (!rstn) begin
@@ -412,6 +413,9 @@ always @(posedge clk) begin
             saved_tuser[matcher_idx] <= buffered_tuser;
             saved_tid[matcher_idx] <= buffered_tid;
             saved_tdest[matcher_idx] <= buffered_tdest;
+
+            // update message ID reg
+            slmp_msg_id_q <= slmp_msg_id;
         end
         // RECV_WAIT: nothing
         RECV_LAST: begin
@@ -423,11 +427,17 @@ always @(posedge clk) begin
             saved_tid[matcher_idx] <= buffered_tid;
             saved_tdest[matcher_idx] <= buffered_tdest;
             buffered_tready <= 1'b0;
+
+            // update message ID reg
+            slmp_msg_id_q <= slmp_msg_id;
         end
         MATCH: begin
             matched_ruleset_id_q <= matched_ruleset_id_d;
             matched_ruleset_eom_q <= matched_ruleset_eom_d;
             matched_q <= matched_d;
+
+            // update message ID reg - one cycle latency from matcher
+            slmp_msg_id_q <= slmp_msg_id;
         end
         SEND: begin
             send_tdata <= `SLICE(matcher, matcher_idx, AXIS_IF_DATA_WIDTH);
@@ -456,6 +466,8 @@ always @(posedge clk) begin
     if (!rstn) begin
         matched_ruleset_id_q <= {$clog2(UMATCH_RULESETS){1'b0}};
         matched_ruleset_eom_q <= 1'b0;
+
+        slmp_msg_id_q <= {MSG_ID_WIDTH{1'b0}};
     end
 end
 assign send_tready = matched_q ? m_axis_pspin_rx_tready : m_axis_nic_rx_tready;

@@ -51,8 +51,8 @@ module pspin_ingress_datapath #(
     parameter AXI_ID_WIDTH = 8,
 
     parameter LEN_WIDTH = 32,
-    parameter TAG_WIDTH = 32,
-    parameter MSG_ID_WIDTH = 10,
+    parameter TAG_WIDTH = 64,
+    parameter MSG_ID_WIDTH = 32,
 
     parameter [AXI_ADDR_WIDTH-1:0] BUF_START = 32'h1c100000, // 1c000000 + MEM_HND_SIZE
     parameter [AXI_ADDR_WIDTH-1:0] BUF_SIZE = 512*1024 // match with pspin_cfg_pkg.sv:MEM_PKT_SIZE

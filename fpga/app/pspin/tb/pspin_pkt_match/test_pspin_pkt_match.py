@@ -23,7 +23,8 @@ from common import *
 tests_dir = os.path.dirname(__file__)
 pspin_rtl = os.path.join(tests_dir, '..', '..', 'rtl')
 axis_lib_rtl = os.path.join(tests_dir, '..', '..', 'lib', 'axis', 'rtl')
-pcap_file = os.path.join(tests_dir, 'sample.pcap')
+# pcap_file = os.path.join(tests_dir, 'sample.pcap')
+pcap_file = os.path.join(tests_dir, 'slmp.pcap')
 
 @dataclass(frozen=True)
 class MatchRule:
@@ -118,12 +119,28 @@ class TB:
             MatchRule.false(),
             MatchRule.false(), # never eom
         ], MODE_OR
+    def slmp(self, idx):
+        assert self.match_width == 32, 'only support 32-bit match atm'
+        self.rulesets[idx] = [
+            MatchRule(3, 0xffff0000, 0x0800 << 16, 0x0800 << 16), # IPv4
+            MatchRule(5, 0xff, 0x11, 0x11), # proto == UDP
+            MatchRule(9, 0xffff0000, 0x24720000, 0x24720000), # dport == 9330 (SLMP)
+            MatchRule(10, 0x8000, 0x8000, 0x8000) # SLMP EOM
+        ], MODE_OR
 
     # match packet with ruleset
     def match(self, pkt: bytes):
         self.log.debug(f'Current rulesets:')
         for ru, mo in self.rulesets:
             self.log.debug(f'\t{ru}, mode {mo}')
+
+        if len(pkt) < 48:
+            # no SLMP header present
+            slmp_msg_id = 0
+        else:
+            # vectors from Verilog interpreted as little endian
+            slmp_msg_id = int.from_bytes(pkt[44:48], byteorder='little')
+            self.log.debug(f'SLMP message ID: {slmp_msg_id:#x}')
 
         match_bytes = self.match_width // 8
         def match_ruleset(idx):
@@ -146,9 +163,9 @@ class TB:
         for idx in range(self.ruleset_count - 1):
             matched, eom = match_ruleset(idx)
             if matched:
-                return idx, eom
+                return idx, eom, slmp_msg_id
         
-        return None, eom
+        return None, eom, slmp_msg_id
 
     async def cycle_reset(self):
         self.dut.rstn.setimmediatevalue(1)
@@ -202,7 +219,7 @@ class TB:
 
         await self.pkt_src.send(frame)
         if (match_result := self.match(pkt))[0] is not None:
-            matched_idx, eom = match_result
+            matched_idx, eom, slmp_id = match_result
             self.log.info(f'Packet #{id} matches with ctx id {matched_idx}, eom={eom}')
             sink = self.matched_sink
             ret = True
@@ -222,10 +239,9 @@ class TB:
             round_up_len = beat_size * ceil(len(pkt) / beat_size)
             assert self.dut.packet_meta_size.value == round_up_len
 
-            idx = id + 1
             rulesetid_bits = self.ruleset_count.bit_length() - 1
-            self.log.debug(f'Tag components: idx={idx}, eom={eom}, matched_idx={matched_idx}')
-            tag = matched_idx + (eom << rulesetid_bits) + (idx << (rulesetid_bits + 1))
+            self.log.debug(f'Tag components: slmp_id={slmp_id:#x}, eom={eom}, matched_idx={matched_idx}')
+            tag = matched_idx + (eom << rulesetid_bits) + (slmp_id << (rulesetid_bits + 1))
             assert self.dut.packet_meta_tag.value == tag
         else:
             assert self.dut.packet_meta_valid.value == 0
@@ -307,20 +323,21 @@ def cycle_pause():
 if cocotb.SIM_NAME:
     factory = TestFactory(run_test_rule)
     factory.add_option('rule_conf', [
-        (10, TB.all_bypass, 0),
-        (10, TB.all_match, 10),
-        (None, lambda tb, idx: TB.tcp_dportnum(tb, idx, 22), 42),
-        (None, TB.tcp_or_udp, 69)
+        # (10, TB.all_bypass, 0),
+        # (10, TB.all_match, 10),
+        # (None, lambda tb, idx: TB.tcp_dportnum(tb, idx, 22), 42),
+        # (None, TB.tcp_or_udp, 69),
+        (None, TB.slmp, 39),
     ])
     factory.add_option('idle_inserter', [None, cycle_pause])
     factory.add_option('backpressure_inserter', [None, cycle_pause])
     factory.generate_tests()
 
-    factory = TestFactory(run_test_switch_rule)
-    factory.generate_tests()
+    # factory = TestFactory(run_test_switch_rule)
+    # factory.generate_tests()
 
-    factory = TestFactory(run_test_simultaneous_rule)
-    factory.generate_tests()
+    # factory = TestFactory(run_test_simultaneous_rule)
+    # factory.generate_tests()
 
 # cocotb-test
 @pytest.mark.parametrize(

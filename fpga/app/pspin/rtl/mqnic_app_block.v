@@ -668,7 +668,7 @@ localparam AXI_STRB_WIDTH = (AXI_DATA_WIDTH/8);
 localparam AXI_ID_WIDTH = 8;
 
 localparam LEN_WIDTH = 32;
-localparam TAG_WIDTH = 32;
+localparam TAG_WIDTH = 64;
 localparam MSG_ID_WIDTH = 32;
 
 localparam [AXI_ADDR_WIDTH-1:0] BUF_START = 32'h1c100000; // 1c000000 + MEM_HND_SIZE
