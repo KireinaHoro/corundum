@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <arpa/inet.h>
+
 typedef struct mac_addr {
   uint8_t data[6];
 } __attribute__((__packed__)) mac_addr_t;
@@ -59,6 +61,13 @@ typedef struct slmp_hdr {
 #define EOM(flags) ((flags)&MKEOM)
 #define SYN(flags) ((flags)&MKSYN)
 #define ACK(flags) ((flags)&MKACK)
+
+#define SLMP_PAYLOAD_SIZE                                                      \
+  ((1462 / DMA_ALIGN) * DMA_ALIGN) // 1500 - 20 (IP) - 8 (UDP) - 10 (SLMP)
+#define SLMP_PORT 9330
+
+int slmp_socket();
+int slmp_sendmsg(int sockfd, in_addr_t server, int msgid, void *buf, size_t sz);
 
 /*
 typedef struct app_hdr

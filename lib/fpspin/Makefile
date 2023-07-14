@@ -22,7 +22,7 @@ all: $(LIB)
 %.o: %.c
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
-libfpspin.a: loader.o runtime.o
+libfpspin.a: loader.o runtime.o slmp.o
 	ar rcs $@ $^
 
 install:
