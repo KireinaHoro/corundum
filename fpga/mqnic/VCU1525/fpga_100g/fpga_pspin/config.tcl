@@ -293,8 +293,8 @@ set_property verilog_define {TARGET_SYNTHESIS PULP_FPGA_EMUL} $fileset
 set_property top fpga $fileset
 
 # performance explore and incremental implementation
-set_property strategy Performance_ExploreWithRemap [get_runs impl_1]
-set_property AUTO_INCREMENTAL_CHECKPOINT 1 [get_runs impl_1]
-set utils [get_property DIRECTORY [current_project]]/fpga.srcs/utils_1
-set_property AUTO_INCREMENTAL_CHECKPOINT.DIRECTORY $utils/imports/impl_1 [get_runs impl_1]
-set_property incremental_checkpoint.directive TimingClosure [get_runs impl_1]
+set_property strategy Performance_ExplorePostRoutePhysOpt [get_runs impl_1]
+# set_property AUTO_INCREMENTAL_CHECKPOINT 1 [get_runs impl_1]
+# set utils [get_property DIRECTORY [current_project]]/fpga.srcs/utils_1
+# set_property AUTO_INCREMENTAL_CHECKPOINT.DIRECTORY $utils/imports/impl_1 [get_runs impl_1]
+# set_property incremental_checkpoint.directive TimingClosure [get_runs impl_1]
