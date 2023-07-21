@@ -20,8 +20,11 @@ int slmp_socket() {
 }
 
 int slmp_sendmsg(int sockfd, in_addr_t srv_addr, int msgid, void *buf,
-                 size_t sz) {
+                 size_t sz, int fc_us) {
   printf("Sending SLMP message of size %ld\n", sz);
+  if (fc_us) {
+    printf("Flow control: %d us inter-packet gap\n", fc_us);
+  }
 
   uint8_t packet[SLMP_PAYLOAD_SIZE + sizeof(slmp_hdr_t)];
   slmp_hdr_t *hdr = (slmp_hdr_t *)packet;
@@ -63,7 +66,7 @@ int slmp_sendmsg(int sockfd, in_addr_t srv_addr, int msgid, void *buf,
       return -1;
     }
 
-    printf("Sent packet offset=%d in msg #%d\n", offset, msgid);
+    // printf("Sent packet offset=%d in msg #%d\n", offset, msgid);
 
     if (expect_ack) {
       uint8_t ack[sizeof(slmp_hdr_t)];
@@ -84,6 +87,8 @@ int slmp_sendmsg(int sockfd, in_addr_t srv_addr, int msgid, void *buf,
         return -1;
       }
     }
+
+    usleep(fc_us);
   }
 
   return 0;

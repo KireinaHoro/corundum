@@ -68,7 +68,8 @@ typedef struct slmp_hdr {
 #define SLMP_PORT 9330
 
 int slmp_socket();
-int slmp_sendmsg(int sockfd, in_addr_t server, int msgid, void *buf, size_t sz);
+int slmp_sendmsg(int sockfd, in_addr_t server, int msgid, void *buf, size_t sz,
+                 int fc_us);
 
 /*
 typedef struct app_hdr
