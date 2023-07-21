@@ -3,6 +3,7 @@
 
 #include "../../fpga/app/pspin/modules/mqnic_app_pspin/pspin_ioctl.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -105,20 +106,20 @@ typedef struct {
   struct mem_area handler_mem;
 } fpspin_ctx_t;
 
-// TODO: refactor into descriptor struct?
-//       different format for to_host and from_host
 // TODO: do proper descriptor ring
-// used by fpspin_pop_req
-#define FLAG_DMA_ID(fl) ((fl)&0xf)
-// can be freely redefined by app
-#define FLAG_DMA_ID(fl) ((fl)&0xf)
-#define FLAG_LEN(fl) (((fl) >> 8) & 0xffffffff)
-#define FLAG_HPU_ID(fl) (((fl) >> 40) & 0xff)
-#define MKFLAG_FULL(id, len, hpuid)                                            \
-  (((id)&0xf) | ((uint64_t)((len)&0xffffffff) << 8) |                          \
-   ((uint64_t)((hpuid)&0xff) << 40))
-#define MKFLAG_LIB(id, hpuid) MKFLAG_FULL(id, hpuid, 0)
-#define MKFLAG(len) MKFLAG_FULL(0, 0, len)
+typedef struct {
+  union {
+    struct {
+      uint8_t dma_id;
+      uint32_t len;
+      uint16_t hpu_id;
+    } __attribute__((packed));
+    uint64_t data;
+  };
+} fpspin_flag_t;
+static_assert(sizeof(fpspin_flag_t) == sizeof(uint64_t),
+              "flag size not correct");
+
 #define DMA_BUS_WIDTH 512
 #define DMA_ALIGN (DMA_BUS_WIDTH / 8)
 
@@ -181,8 +182,8 @@ void fpspin_exit(fpspin_ctx_t *ctx);
 // TODO: rework to use streaming DMA; the coherent buffer should only be used
 // for descriptors
 // XXX: multi-core and out-of-order response (with ring buffer)?
-volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, uint64_t *flag);
-void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, uint64_t flag);
+volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t *f);
+void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t flag);
 
 typedef struct {
   uint32_t sum;

@@ -121,8 +121,10 @@ bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
     volatile uint8_t *flag_addr = (uint8_t *)ctx->cpu_addr + i * PAGE_SIZE;
     volatile uint64_t *flag = (uint64_t *)flag_addr;
 
-    uint64_t flag_to_host = *flag;
-    ctx->dma_idx[i] = FLAG_DMA_ID(flag_to_host);
+    fpspin_flag_t flag_to_host = {
+        .data = *flag,
+    };
+    ctx->dma_idx[i] = flag_to_host.dma_id;
   }
 
   return true;
@@ -154,39 +156,40 @@ void fpspin_exit(fpspin_ctx_t *ctx) {
   }
 }
 
-volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, uint64_t *f) {
+volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t *f) {
   volatile uint8_t *flag_addr = (uint8_t *)ctx->cpu_addr + hpu_id * PAGE_SIZE;
-  volatile uint64_t *flag = (uint64_t *)flag_addr;
+  volatile fpspin_flag_t *flag = (fpspin_flag_t *)flag_addr;
 
   *f = *flag;
-  if (FLAG_DMA_ID(*f) == ctx->dma_idx[hpu_id])
+  if (f->dma_id == ctx->dma_idx[hpu_id])
     return NULL;
 
-  int dest = FLAG_HPU_ID(*f);
+  int dest = f->hpu_id;
   if (dest != hpu_id) {
     printf("HPU ID mismatch!  Actual HPU ID: %d\n", dest);
   }
 
   // set as processed
-  ctx->dma_idx[hpu_id] = FLAG_DMA_ID(*f);
+  ctx->dma_idx[hpu_id] = f->dma_id;
   return flag_addr + DMA_ALIGN;
 }
 
-void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, uint64_t flag) {
+void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t flag) {
   // make sure memory writes finish
   __sync_synchronize();
+
+  flag.dma_id = ctx->dma_idx[hpu_id];
+  flag.hpu_id = hpu_id;
 
   // notify pspin via host flag
   uint64_t hpu_host_flag_off = ctx->host_flag_base - L2_BASE + 8 * hpu_id;
   struct pspin_ioctl_msg flag_msg = {
       .write_raw.addr = hpu_host_flag_off,
-      .write_raw.data = flag | MKFLAG_LIB(ctx->dma_idx[hpu_id], hpu_id),
+      .write_raw.data = flag.data,
   };
   if (ioctl(ctx->fd, PSPIN_HOSTDMA_WRITE_RAW, &flag_msg) < 0) {
     perror("ioctl pspin device");
   }
-  /* printf("Wrote flag %#lx to offset %#lx\n", flag_msg.write_raw.data,
-         hpu_host_flag_off); */
 }
 
 fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id) {
