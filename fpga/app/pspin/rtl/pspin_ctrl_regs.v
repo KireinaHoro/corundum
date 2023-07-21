@@ -181,6 +181,8 @@ wire [NUM_REGS-1:0] REGFILE_IDX_READONLY;
     `DECL_REG_RDONLY(name, rdonly)
 
 generate
+// FIXME: ideally this is generated from one source of ground-truth for all
+//        consumers (this module in Verilog AND the kernel driver)
 `DECL_REG_HEAD(CL_CTRL, 2,           1'b0,   32'h0000)
 `DECL_REG(CL_STAT,  2,               1'b1,   32'h0100, CL_CTRL)
 `DECL_REG(MPQ,      1,               1'b1,   32'h0200, CL_STAT)
