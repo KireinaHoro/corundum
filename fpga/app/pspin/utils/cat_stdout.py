@@ -17,7 +17,9 @@ args = parser.parse_args()
 files = [[None] * NUM_CORES for _ in range(NUM_CLUSTERS)]
 if args.dump_files:
     for cl, co in product(range(NUM_CLUSTERS), range(NUM_CORES)):
-        files[cl][co] = open(f'{args.prefix}{cl}.{co}.log', 'ab+')
+        # buffering=0 => no buffering
+        # https://stackoverflow.com/questions/3167494/how-often-does-python-flush-to-a-file
+        files[cl][co] = open(f'{args.prefix}{cl}.{co}.log', 'ab+', buffering=0)
 
 print(f'Printing stdout for core {args.cluster}.{args.core}')
 print(f'Dump files: {"yes" if args.dump_files else "no"}')
