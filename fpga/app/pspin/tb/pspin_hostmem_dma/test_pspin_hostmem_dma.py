@@ -49,6 +49,7 @@ class TB:
         
         # AXI master
         self.axi_master = AxiMaster(AxiBus.from_prefix(dut, 's_axi'), dut.clk, dut.rstn, reset_active_level=False)
+        self.axi_align = self.axi_master.write_if.width // 8
 
         # read datapath
         self.rd_desc_sink = DescSink(DescBus.from_prefix(
@@ -163,37 +164,76 @@ async def run_test_dma_read_error(dut, idle_inserter=None, backpressure_inserter
         await with_timeout(read_op.wait(), 1000, 'ns')
         assert read_op.data.resp == AxiResp.SLVERR
 
-async def run_test_dma_write(dut, idle_inserter=None, backpressure_inserter=None):
-    tb = await setup_tb(dut, idle_inserter, backpressure_inserter)
-    clk_edge = RisingEdge(tb.dut.clk)
-    
-    ram_base_addr = 0
-    
-    for i in range(5):
-        size = None
+async def test_write_single(tb, addr, data):
+    length = len(data)
 
-        write_op = tb.axi_master.init_write(addr, data, size=size)
-        
-        # wait for write DMA req
+    write_op = tb.axi_master.init_write(addr, data, None)
+
+    # round down addr to cover start of transaction
+    ram_addr = addr % tb.axi_align
+    round_addr = addr - addr % tb.axi_align
+
+    # round up length to cover entire extent
+    round_len = (addr - round_addr) + length
+    round_len -= round_len % (-tb.axi_align)
+    
+    # wait for write DMA req
+    # could be in multiple bursts
+    remaining_len = round_len
+    next_addr = round_addr
+    ram_data = b''
+    while remaining_len > 0:
         desc = await WithTimeout(tb.wr_desc_sink.recv())
-        assert int(desc.dma_addr) == addr
-        assert int(desc.len) == length
-        tb.log.info(f'Received DMA descriptor {desc}')
+        tb.log.info(f'Received DMA descriptor {desc}, round_addr {round_addr:#x}, round_len {round_len}')
 
-        ram_data = tb.ram_wr.read(ram_base_addr, length)
-        if ram_data != data:
-            print('Data mismatch: written vs expected')
-            print(hexdiffs(ram_data, data))
-            assert False
+        desc_addr = int(desc.dma_addr)
+        len_burst = int(desc.len)
+        assert desc_addr == next_addr
+
+        # XXX: if we would have byte enable in DMA requests, test for it here
+
+        # later bursts start at start of RAM
+        ram_data += tb.ram_wr.read(ram_addr, len_burst - ram_addr)
+        remaining_len -= len_burst
+        next_addr += len_burst
+        ram_addr = 0
 
         # send finish
         resp = DescStatusTransaction(tag=desc.tag, error=0)
         tb.log.info(f'Sending DMA completion {resp}')
         await tb.wr_desc_status_source.send(resp)
 
-        # wait for AXI transaction to finish
-        await with_timeout(write_op.wait(), 1000, 'ns')
-        assert write_op.data.resp == AxiResp.OKAY
+    assert remaining_len == 0
+
+    # we will have trailing data in ram_data
+    if ram_data[:length] != data:
+        print('Data mismatch: written vs expected')
+        print(hexdiffs(ram_data, data))
+        assert False
+
+    # wait for AXI transaction to finish
+    await with_timeout(write_op.wait(), 1000, 'ns')
+    assert write_op.data.resp == AxiResp.OKAY
+
+
+async def run_test_dma_write(dut, idle_inserter=None, backpressure_inserter=None):
+    tb = await setup_tb(dut, idle_inserter, backpressure_inserter)
+    clk_edge = RisingEdge(tb.dut.clk)
+    
+    for i in range(5):
+        await test_write_single(tb, addr, data)
+
+async def run_test_dma_write_unaligned(dut, idle_inserter=None, backpressure_inserter=None):
+    tb = await setup_tb(dut, idle_inserter, backpressure_inserter)
+    clk_edge = RisingEdge(tb.dut.clk)
+    
+    # 4-byte word align
+    unaligned_offsets = [x * 4 for x in range(1, 16)]
+    lengths = [x * 4 for x in range(1, 65)]
+    for off, length in product(unaligned_offsets, lengths):
+        tb.log.info(f'Testing unaligned: offset={off} length={length}')
+        data = randbytes(length)
+        await test_write_single(tb, addr + off, data)
 
 async def run_test_dma_write_error(dut, idle_inserter=None, backpressure_inserter=None):
     tb = await setup_tb(dut, idle_inserter, backpressure_inserter)
@@ -228,7 +268,7 @@ if cocotb.SIM_NAME:
     factory.add_option('is_narrow', [False])
     factory.generate_tests()
 
-    for t in [run_test_dma_read_error, run_test_dma_write, run_test_dma_write_error]:
+    for t in [run_test_dma_read_error, run_test_dma_write, run_test_dma_write_error, run_test_dma_write_unaligned]:
         factory = TestFactory(t)
         factory.add_option('idle_inserter', [None, cycle_pause])
         factory.add_option('backpressure_inserter', [None, cycle_pause])
