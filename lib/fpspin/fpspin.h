@@ -67,9 +67,14 @@ typedef struct slmp_hdr {
   ((1462 / DMA_ALIGN) * DMA_ALIGN) // 1500 - 20 (IP) - 8 (UDP) - 10 (SLMP)
 #define SLMP_PORT 9330
 
-int slmp_socket();
-int slmp_sendmsg(int sockfd, in_addr_t server, int msgid, void *buf, size_t sz,
-                 int fc_us);
+typedef struct {
+  int fd;
+  bool always_ack;
+} slmp_sock_t;
+int slmp_socket(slmp_sock_t *sock, bool always_ack);
+int slmp_sendmsg(slmp_sock_t *sock, in_addr_t server, int msgid, void *buf,
+                 size_t sz, int fc_us);
+int slmp_close(slmp_sock_t *sock);
 
 /*
 typedef struct app_hdr
