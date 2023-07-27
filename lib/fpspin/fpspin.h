@@ -110,6 +110,9 @@ typedef struct {
   // image information
   struct mem_area hh, ph, th;
   struct mem_area handler_mem;
+
+  // user pointer
+  void *app_data;
 } fpspin_ctx_t;
 
 // TODO: do proper descriptor ring
