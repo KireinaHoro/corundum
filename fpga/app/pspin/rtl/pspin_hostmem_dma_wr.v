@@ -133,6 +133,11 @@ wire [ID_WIDTH-1:0] dma_write_desc_status_tag;
 reg [ADDR_WIDTH-1:0] saved_dma_addr;
 reg [DMA_LEN_WIDTH-1:0] saved_dma_len;
 
+// reassemble unaligned transfer
+// full beats = front_off + real_len + back_off
+reg [ADDR_WIDTH-1:0] front_off, back_off;
+reg front_off_set; // as we do not have a first beat signal
+
 initial begin
     `assert(DMA_TAG_WIDTH >= ID_WIDTH, "DMA interface tag too narrow");
 end
@@ -153,6 +158,23 @@ always @* begin
     // we assume no narrow transfers => full beats
     dma_len_d = NUM_BYTES_BUS * num_beats_d;
 end
+
+// unaligned transfers
+wire [$clog2(STRB_WIDTH)-1:0] lz_front, lz_back;
+clz #(
+    .REF_VECTOR_WIDTH(STRB_WIDTH),
+    .REVERSE(1)
+) i_clz_front (
+    .ref_vector(s_axi_wstrb),
+    .dout(lz_front)
+);
+clz #(
+    .REF_VECTOR_WIDTH(STRB_WIDTH),
+    .REVERSE(0)
+) i_clz_back (
+    .ref_vector(s_axi_wstrb),
+    .dout(lz_back)
+);
 
 // state transition
 always @* begin
@@ -200,6 +222,10 @@ always @(posedge clk) begin
             m_axis_write_desc_imm <= {DMA_IMM_WIDTH{1'b0}};
             m_axis_write_desc_imm_en <= 1'b0;
             m_axis_write_desc_valid <= 1'b0;
+
+            front_off <= {ADDR_WIDTH{1'b0}};
+            back_off <= {ADDR_WIDTH{1'b0}};
+            front_off_set <= 1'b0;
         end
         ISSUE_TO_CLIENT: begin
             // always zero RAM address
@@ -218,11 +244,24 @@ always @(posedge clk) begin
         end
         WAIT_CLIENT: if (dma_write_desc_ready)
             dma_write_desc_valid <= 1'b0;
-        WAIT_CLIENT_FIN:
+        WAIT_CLIENT_FIN: begin
             dma_write_desc_valid <= 1'b0;
+            
+            // capture wstrb modifications to dma length
+            if (!front_off_set && s_axi_wvalid && s_axi_wready) begin
+                front_off <= {{ADDR_WIDTH{1'b0}}, lz_front};
+                front_off_set <= 1'b1;
+            end
+
+            if (s_axi_wvalid && s_axi_wready && s_axi_wlast) begin
+                back_off <= {{ADDR_WIDTH{1'b0}}, lz_back};
+            end
+        end
         ISSUE_TO_DMA: begin
-            m_axis_write_desc_dma_addr <= saved_dma_addr;
-            m_axis_write_desc_len <= saved_dma_len;
+            // restore unaligned transfer
+            m_axis_write_desc_dma_addr <= saved_dma_addr + front_off;
+            m_axis_write_desc_ram_addr <= front_off;
+            m_axis_write_desc_len <= saved_dma_len - front_off - back_off; // saved: full beats
             m_axis_write_desc_tag <= dma_write_desc_status_tag;
             // always zero RAM address
             m_axis_write_desc_valid <= 1'b1;
@@ -293,4 +332,43 @@ dma_client_axis_sink #(
     .enable(1'b1),
     .abort(1'b0)
 );
+endmodule
+
+// https://electronics.stackexchange.com/a/649761
+// modified to support counting trailing zeros
+module clz (ref_vector, dout);
+    parameter  REF_VECTOR_WIDTH=32;
+    parameter  REVERSE=0; // if 1: trailing zeros
+    localparam DOUT_WIDTH    = $clog2(REF_VECTOR_WIDTH)+1;
+    localparam DOUT_LR_WIDTH = DOUT_WIDTH-1;
+    input  [REF_VECTOR_WIDTH-1:0]  ref_vector;
+
+    output [DOUT_WIDTH-1:0]  dout;
+
+    wire  [DOUT_LR_WIDTH-1:0]  dout_r;
+    wire  [DOUT_LR_WIDTH-1:0]  dout_l;
+
+    wire  [REF_VECTOR_WIDTH/2-1:0]  ref_vector_r;
+    wire  [REF_VECTOR_WIDTH/2-1:0]  ref_vector_l;
+
+    wire  [REF_VECTOR_WIDTH-1:0] ref_vector_tmp;
+
+    genvar i;
+    generate 
+        for (i = 0; i < REF_VECTOR_WIDTH; i = i + 1) begin
+            assign ref_vector_tmp[i] = REVERSE ? ref_vector[REF_VECTOR_WIDTH-1-i] : ref_vector[i];
+        end
+
+        if (REF_VECTOR_WIDTH  == 2)
+            assign dout = (ref_vector_tmp == 2'b00) ? 'd2 : 
+                          (ref_vector_tmp == 2'b01) ? 'd1 : 0;
+        else begin 
+            assign ref_vector_l = ref_vector_tmp[REF_VECTOR_WIDTH-1:REF_VECTOR_WIDTH/2];
+            assign ref_vector_r = ref_vector_tmp[REF_VECTOR_WIDTH/2-1:0];
+            clz #(.REF_VECTOR_WIDTH(REF_VECTOR_WIDTH/2)) u_nv_clz_l(ref_vector_l, dout_l);
+            clz #(.REF_VECTOR_WIDTH(REF_VECTOR_WIDTH/2)) u_nv_clz_r(ref_vector_r, dout_r);
+            assign dout = (~dout_l[DOUT_LR_WIDTH-1]) ? {dout_l [DOUT_LR_WIDTH-1] & dout_r [DOUT_LR_WIDTH-1], 1'b0                    , dout_l[DOUT_LR_WIDTH-2:0]} :
+                                                       {dout_l [DOUT_LR_WIDTH-1] & dout_r [DOUT_LR_WIDTH-1], ~dout_r[DOUT_LR_WIDTH-1], dout_r[DOUT_LR_WIDTH-2:0]};
+        end
+    endgenerate
 endmodule

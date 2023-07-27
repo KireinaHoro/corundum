@@ -171,29 +171,24 @@ async def test_write_single(tb, addr, data):
 
     # round down addr to cover start of transaction
     ram_addr = addr % tb.axi_align
-    round_addr = addr - addr % tb.axi_align
-
-    # round up length to cover entire extent
-    round_len = (addr - round_addr) + length
-    round_len -= round_len % (-tb.axi_align)
     
     # wait for write DMA req
     # could be in multiple bursts
-    remaining_len = round_len
-    next_addr = round_addr
+    remaining_len = length
+    next_addr = addr
     ram_data = b''
     while remaining_len > 0:
         desc = await WithTimeout(tb.wr_desc_sink.recv())
-        tb.log.info(f'Received DMA descriptor {desc}, round_addr {round_addr:#x}, round_len {round_len}')
-
         desc_addr = int(desc.dma_addr)
+        desc_ram_addr = int(desc.ram_addr)
         len_burst = int(desc.len)
-        assert desc_addr == next_addr
+        tb.log.info(f'Received DMA descriptor {desc}, desc_addr={desc_addr:#x}, ram_addr={desc_ram_addr:#x}')
 
-        # XXX: if we would have byte enable in DMA requests, test for it here
+        assert desc_addr == next_addr
+        assert desc_ram_addr == ram_addr
 
         # later bursts start at start of RAM
-        ram_data += tb.ram_wr.read(ram_addr, len_burst - ram_addr)
+        ram_data += tb.ram_wr.read(ram_addr, len_burst)
         remaining_len -= len_burst
         next_addr += len_burst
         ram_addr = 0
