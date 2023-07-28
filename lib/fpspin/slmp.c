@@ -1,12 +1,12 @@
 #include "fpspin.h"
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <stdbool.h>
 
-int slmp_socket(slmp_sock_t *sock, bool always_ack) {
+int slmp_socket(slmp_sock_t *sock, bool always_ack, int align) {
   sock->fd = socket(AF_INET, SOCK_DGRAM, 0);
   struct timeval tv = {
       .tv_sec = 0,
@@ -18,6 +18,7 @@ int slmp_socket(slmp_sock_t *sock, bool always_ack) {
     return -1;
   }
   sock->always_ack = always_ack;
+  sock->align = align;
   return 0;
 }
 
@@ -34,6 +35,7 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
   uint8_t packet[SLMP_PAYLOAD_SIZE + sizeof(slmp_hdr_t)];
   slmp_hdr_t *hdr = (slmp_hdr_t *)packet;
   uint8_t *payload = packet + sizeof(slmp_hdr_t);
+  size_t payload_size = (SLMP_PAYLOAD_SIZE / sock->align) * sock->align;
 
   struct sockaddr_in server = {
       .sin_family = AF_INET,
@@ -43,10 +45,10 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
 
   hdr->msg_id = htonl(msgid);
   uint8_t *char_buf = (uint8_t *)buf;
-  for (uint8_t *cur = char_buf; cur - char_buf < sz; cur += SLMP_PAYLOAD_SIZE) {
+  for (uint8_t *cur = char_buf; cur - char_buf < sz; cur += payload_size) {
     bool expect_ack = true;
     uint16_t hflags;
-    if (cur + SLMP_PAYLOAD_SIZE >= char_buf + sz) {
+    if (cur + payload_size >= char_buf + sz) {
       // last packet requires synchronisation
       hflags = MKEOM | MKSYN;
     } else if (cur == char_buf) {
@@ -56,7 +58,7 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
       hflags = 0;
       expect_ack = false;
     }
-    
+
     if (ack_for_all) {
       hflags |= MKSYN;
       expect_ack = true;
@@ -67,7 +69,7 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
     hdr->pkt_off = htonl(offset);
 
     size_t left = sz - (cur - char_buf);
-    size_t to_copy = left > SLMP_PAYLOAD_SIZE ? SLMP_PAYLOAD_SIZE : left;
+    size_t to_copy = left > payload_size ? payload_size : left;
 
     memcpy(payload, cur, to_copy);
 
@@ -106,6 +108,4 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
   return 0;
 }
 
-int slmp_close(slmp_sock_t *sock) {
-  return close(sock->fd);
-}
+int slmp_close(slmp_sock_t *sock) { return close(sock->fd); }

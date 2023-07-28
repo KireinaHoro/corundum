@@ -63,15 +63,15 @@ typedef struct slmp_hdr {
 #define SYN(flags) ((flags)&MKSYN)
 #define ACK(flags) ((flags)&MKACK)
 
-#define SLMP_PAYLOAD_SIZE                                                      \
-  ((1462 / DMA_ALIGN) * DMA_ALIGN) // 1500 - 20 (IP) - 8 (UDP) - 10 (SLMP)
+#define SLMP_PAYLOAD_SIZE 1462
 #define SLMP_PORT 9330
 
 typedef struct {
   int fd;
   bool always_ack;
+  int align;
 } slmp_sock_t;
-int slmp_socket(slmp_sock_t *sock, bool always_ack);
+int slmp_socket(slmp_sock_t *sock, bool always_ack, int align);
 int slmp_sendmsg(slmp_sock_t *sock, in_addr_t server, int msgid, void *buf,
                  size_t sz, int fc_us);
 int slmp_close(slmp_sock_t *sock);
