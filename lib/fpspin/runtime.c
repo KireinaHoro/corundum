@@ -202,8 +202,8 @@ fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id) {
     perror("ioctl pspin device");
   }
   return (fpspin_counter_t){
-      .count = (uint32_t)perf_msg.read_raw.word,
-      .sum = (uint32_t)(perf_msg.read_raw.word >> 32),
+      .sum = (uint32_t)perf_msg.read_raw.word,
+      .count = (uint32_t)(perf_msg.read_raw.word >> 32),
   };
 }
 
