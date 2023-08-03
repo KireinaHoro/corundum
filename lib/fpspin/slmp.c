@@ -7,16 +7,7 @@
 #include <unistd.h>
 
 int slmp_socket(slmp_sock_t *sock, bool always_ack, int align) {
-  sock->fd = socket(AF_INET, SOCK_DGRAM, 0);
-  struct timeval tv = {
-      .tv_sec = 0,
-      .tv_usec = 100 * 1000, // 100ms
-  };
-  if (setsockopt(sock->fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-    perror("setsockopt");
-    close(sock->fd);
-    return -1;
-  }
+  // socket opened in sendmsg to have different source ports in parallel send
   sock->always_ack = always_ack;
   sock->align = align;
   return 0;
@@ -24,10 +15,21 @@ int slmp_socket(slmp_sock_t *sock, bool always_ack, int align) {
 
 int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
                  size_t sz, int fc_us) {
-  int sockfd = sock->fd;
+  int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  struct timeval tv = {
+      .tv_sec = 0,
+      .tv_usec = 100 * 1000, // 100ms
+  };
+  if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+    perror("setsockopt");
+    close(sockfd);
+    return -1;
+  }
+  int ret = 0;
+
   bool ack_for_all = sock->always_ack;
 
-  printf("Sending SLMP message of size %ld\n", sz);
+  printf("Sending SLMP message #%d of size %ld\n", msgid, sz);
   if (fc_us) {
     printf("Flow control: %d us inter-packet gap\n", fc_us);
   }
@@ -77,7 +79,8 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
     if (sendto(sockfd, packet, to_copy + sizeof(slmp_hdr_t), 0,
                (const struct sockaddr *)&server, sizeof(server)) < 0) {
       perror("sendto");
-      return -1;
+      ret = -1;
+      goto fail;
     }
 
     // printf("Sent packet offset=%d in msg #%d\n", offset, msgid);
@@ -88,24 +91,31 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
       // we should be bound at this time == not setting addr
       if (rcvd < 0) {
         perror("recvfrom ACK");
-        return -1;
+        ret = -1;
+        goto fail;
+
       } else if (rcvd != sizeof(slmp_hdr_t)) {
         fprintf(stderr, "ACK size mismatch: expected %ld, got %ld\n",
                 sizeof(slmp_hdr_t), rcvd);
-        return -1;
+        ret = -1;
+        goto fail;
       }
       slmp_hdr_t *hdr = (slmp_hdr_t *)ack;
       uint16_t flags = ntohs(hdr->flags);
       if (!ACK(flags)) {
         fprintf(stderr, "no ACK set in reply; flag=%#x\n", flags);
-        return -1;
+        ret = -1;
+        goto fail;
       }
     }
 
     usleep(fc_us);
   }
+  ret = 0;
 
-  return 0;
+fail:
+  close(sockfd);
+  return ret;
 }
 
-int slmp_close(slmp_sock_t *sock) { return close(sock->fd); }
+int slmp_close(slmp_sock_t *sock) { return 0; }

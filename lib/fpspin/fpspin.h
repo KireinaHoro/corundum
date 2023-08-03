@@ -67,7 +67,6 @@ typedef struct slmp_hdr {
 #define SLMP_PORT 9330
 
 typedef struct {
-  int fd;
   bool always_ack;
   int align;
 } slmp_sock_t;
