@@ -1,5 +1,7 @@
 app-pspin
 test-mem
 *.log
+*.txt
 *.pcap
 pspin-user
+read_mem

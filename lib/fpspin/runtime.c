@@ -182,9 +182,8 @@ void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t flag) {
   flag.hpu_id = hpu_id;
 
   // notify pspin via host flag
-  uint64_t hpu_host_flag_off = ctx->host_flag_base - L2_BASE + 8 * hpu_id;
   struct pspin_ioctl_msg flag_msg = {
-      .write_raw.addr = hpu_host_flag_off,
+      .write_raw.addr = fpspin_addr_to_off(ctx->host_flag_base + 8 * hpu_id),
       .write_raw.data = flag.data,
   };
   if (ioctl(ctx->fd, PSPIN_HOSTDMA_WRITE_RAW, &flag_msg) < 0) {
@@ -193,8 +192,9 @@ void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t flag) {
 }
 
 fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id) {
-  uint64_t perf_off = ctx->host_flag_base - L2_BASE + 8 * NUM_HPUS +
-                      sizeof(fpspin_counter_t) * id; // perf_count & perf_sum
+  uint64_t perf_off = fpspin_addr_to_off(ctx->host_flag_base + 8 * NUM_HPUS +
+                                         sizeof(fpspin_counter_t) *
+                                             id); // perf_count & perf_sum
   struct pspin_ioctl_msg perf_msg = {
       .read_raw.word = perf_off,
   };

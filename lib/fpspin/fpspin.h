@@ -201,6 +201,8 @@ typedef struct {
 fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id);
 uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx);
 
+uint64_t fpspin_addr_to_off(fpspin_addr_t pspin_addr);
+
 // for initialising handler memory from host dynamically
 void fpspin_write_memory(fpspin_ctx_t *ctx, fpspin_addr_t pspin_addr,
                          void *host_addr, size_t len);
