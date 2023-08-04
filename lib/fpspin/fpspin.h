@@ -56,6 +56,13 @@ typedef struct slmp_hdr {
                     // header is 6 bytes)
   uint32_t pkt_off; // packet offset in message
 } __attribute__((__packed__)) slmp_hdr_t;
+
+typedef struct slmp_pkt_hdr {
+  eth_hdr_t eth_hdr;
+  ip_hdr_t ip_hdr; // FIXME: assumes ihl=4
+  udp_hdr_t udp_hdr;
+  slmp_hdr_t slmp_hdr;
+} __attribute__((__packed__)) slmp_pkt_hdr_t;
 #define MKEOM 0x8000
 #define MKSYN 0x4000
 #define MKACK 0x2000
@@ -145,7 +152,12 @@ const char *fpspin_get_regs_base();
 
 #define NUM_RULES_PER_RULESET 4
 #define NUM_RULESETS 4
+
+// hw/verilator_model/include/spin_hw_conf.h
+#ifndef __VERILATOR__
 #define NUM_CLUSTERS 2
+#endif
+
 typedef struct {
   struct fpspin_rule {
     int idx;
