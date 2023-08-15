@@ -209,7 +209,10 @@ typedef struct {
   uint32_t sum;
   uint32_t count;
 } fpspin_counter_t;
+static_assert(sizeof(fpspin_counter_t) == sizeof(uint64_t),
+              "counter size should not exceed a uint64_t");
 fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id);
+void fpspin_clear_counter(fpspin_ctx_t *ctx, int id);
 uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx);
 
 uint64_t fpspin_addr_to_off(fpspin_addr_t pspin_addr);

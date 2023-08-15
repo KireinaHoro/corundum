@@ -191,6 +191,19 @@ void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t flag) {
   }
 }
 
+void fpspin_clear_counter(fpspin_ctx_t *ctx, int id) {
+  uint64_t perf_off = fpspin_addr_to_off(ctx->host_flag_base + 8 * NUM_HPUS +
+                                         sizeof(fpspin_counter_t) *
+                                             id); // perf_count & perf_sum
+  struct pspin_ioctl_msg perf_msg = {
+      .write_raw.addr = perf_off,
+      .write_raw.data = 0UL,
+  };
+  if (ioctl(ctx->fd, PSPIN_HOSTDMA_WRITE_RAW, &perf_msg) < 0) {
+    perror("ioctl pspin device");
+  }
+}
+
 fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id) {
   uint64_t perf_off = fpspin_addr_to_off(ctx->host_flag_base + 8 * NUM_HPUS +
                                          sizeof(fpspin_counter_t) *
