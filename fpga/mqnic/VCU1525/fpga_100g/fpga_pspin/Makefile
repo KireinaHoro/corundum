@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2019-2023 The Regents of the University of California
 
 # FPGA settings
 FPGA_PART = xcvu9p-fsgd2104-2L-e
@@ -12,6 +14,7 @@ SYN_FILES += rtl/sync_signal.v
 SYN_FILES += rtl/common/mqnic_core_pcie_us.v
 SYN_FILES += rtl/common/mqnic_core_pcie.v
 SYN_FILES += rtl/common/mqnic_core.v
+SYN_FILES += rtl/common/mqnic_dram_if.v
 SYN_FILES += rtl/common/mqnic_interface.v
 SYN_FILES += rtl/common/mqnic_interface_tx.v
 SYN_FILES += rtl/common/mqnic_interface_rx.v
@@ -32,7 +35,6 @@ SYN_FILES += rtl/common/cpl_write.v
 SYN_FILES += rtl/common/cpl_op_mux.v
 SYN_FILES += rtl/common/desc_fetch.v
 SYN_FILES += rtl/common/desc_op_mux.v
-SYN_FILES += rtl/common/event_mux.v
 SYN_FILES += rtl/common/queue_manager.v
 SYN_FILES += rtl/common/cpl_queue_manager.v
 SYN_FILES += rtl/common/tx_fifo.v
@@ -110,7 +112,6 @@ SYN_FILES += lib/pcie/rtl/pcie_us_if_rq.v
 SYN_FILES += lib/pcie/rtl/pcie_us_if_cc.v
 SYN_FILES += lib/pcie/rtl/pcie_us_if_cq.v
 SYN_FILES += lib/pcie/rtl/pcie_us_cfg.v
-SYN_FILES += lib/pcie/rtl/pcie_us_msi.v
 SYN_FILES += lib/pcie/rtl/pulse_merge.v
 
 # Corundum-PsPIN
@@ -399,6 +400,7 @@ XDC_FILES += ../../../common/syn/vivado/cmac_gty_ch_wrapper.tcl
 IP_TCL_FILES = ip/pcie4_uscale_plus_0.tcl
 IP_TCL_FILES += ip/cmac_usplus.tcl
 IP_TCL_FILES += ip/cmac_gty.tcl
+#IP_TCL_FILES += ip/ddr4_0.tcl
 IP_TCL_FILES += ip/pspin_clk_wiz.tcl
 IP_TCL_FILES += ip/pspin_host_clk_converter.tcl
 IP_TCL_FILES += ip/pspin_host_protocol_converter.tcl
