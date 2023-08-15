@@ -1,8 +1,12 @@
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2019-2023 The Regents of the University of California
+
 ifneq ($(KERNELRELEASE),)
 
 # object files to build
 obj-m += mqnic.o
 mqnic-y += mqnic_main.o
+mqnic-y += mqnic_res.o
 mqnic-y += mqnic_reg_block.o
 mqnic-y += mqnic_irq.o
 mqnic-y += mqnic_dev.o
@@ -21,6 +25,10 @@ mqnic-y += mqnic_rx.o
 mqnic-y += mqnic_cq.o
 mqnic-y += mqnic_eq.o
 mqnic-y += mqnic_ethtool.o
+
+ifneq ($(DEBUG),)
+ccflags-y += -DDEBUG
+endif
 
 else
 

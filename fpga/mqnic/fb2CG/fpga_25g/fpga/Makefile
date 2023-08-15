@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2019-2023 The Regents of the University of California
 
 # FPGA settings
 FPGA_PART = xcku15p-ffve1760-2-e
@@ -8,11 +10,11 @@ FPGA_ARCH = kintexuplus
 SYN_FILES = rtl/fpga.v
 SYN_FILES += rtl/fpga_core.v
 SYN_FILES += rtl/bmc_spi.v
-SYN_FILES += rtl/led_sreg_driver.v
 SYN_FILES += rtl/sync_signal.v
 SYN_FILES += rtl/common/mqnic_core_pcie_us.v
 SYN_FILES += rtl/common/mqnic_core_pcie.v
 SYN_FILES += rtl/common/mqnic_core.v
+SYN_FILES += rtl/common/mqnic_dram_if.v
 SYN_FILES += rtl/common/mqnic_interface.v
 SYN_FILES += rtl/common/mqnic_interface_tx.v
 SYN_FILES += rtl/common/mqnic_interface_rx.v
@@ -33,7 +35,6 @@ SYN_FILES += rtl/common/cpl_write.v
 SYN_FILES += rtl/common/cpl_op_mux.v
 SYN_FILES += rtl/common/desc_fetch.v
 SYN_FILES += rtl/common/desc_op_mux.v
-SYN_FILES += rtl/common/event_mux.v
 SYN_FILES += rtl/common/queue_manager.v
 SYN_FILES += rtl/common/cpl_queue_manager.v
 SYN_FILES += rtl/common/tx_fifo.v
@@ -58,6 +59,7 @@ SYN_FILES += rtl/common/tx_scheduler_rr.v
 SYN_FILES += rtl/common/tdma_scheduler.v
 SYN_FILES += rtl/common/tdma_ber.v
 SYN_FILES += rtl/common/tdma_ber_ch.v
+SYN_FILES += rtl/common/led_sreg_driver.v
 SYN_FILES += lib/eth/rtl/eth_mac_10g.v
 SYN_FILES += lib/eth/rtl/axis_xgmii_rx_64.v
 SYN_FILES += lib/eth/rtl/axis_xgmii_tx_64.v
@@ -129,7 +131,6 @@ SYN_FILES += lib/pcie/rtl/pulse_merge.v
 XDC_FILES = fpga.xdc
 XDC_FILES += placement.xdc
 XDC_FILES += boot.xdc
-XDC_FILES += led.tcl
 XDC_FILES += lib/axis/syn/vivado/axis_async_fifo.tcl
 XDC_FILES += lib/axis/syn/vivado/sync_reset.tcl
 XDC_FILES += lib/eth/syn/vivado/ptp_clock_cdc.tcl
@@ -139,6 +140,7 @@ XDC_FILES += ../../../common/syn/vivado/mqnic_rb_clk_info.tcl
 XDC_FILES += ../../../common/syn/vivado/rb_drp.tcl
 XDC_FILES += ../../../common/syn/vivado/eth_xcvr_phy_10g_gty_wrapper.tcl
 XDC_FILES += ../../../common/syn/vivado/tdma_ber_ch.tcl
+XDC_FILES += ../../../common/syn/vivado/led_sreg_driver.tcl
 
 # IP
 IP_TCL_FILES = ip/pcie4_uscale_plus_0.tcl

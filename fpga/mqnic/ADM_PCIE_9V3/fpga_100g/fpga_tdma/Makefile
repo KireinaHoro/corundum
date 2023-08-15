@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2019-2023 The Regents of the University of California
 
 # FPGA settings
 FPGA_PART = xcvu3p-ffvc1517-2-i
@@ -12,6 +14,7 @@ SYN_FILES += rtl/sync_signal.v
 SYN_FILES += rtl/common/mqnic_core_pcie_us.v
 SYN_FILES += rtl/common/mqnic_core_pcie.v
 SYN_FILES += rtl/common/mqnic_core.v
+SYN_FILES += rtl/common/mqnic_dram_if.v
 SYN_FILES += rtl/common/mqnic_interface.v
 SYN_FILES += rtl/common/mqnic_interface_tx.v
 SYN_FILES += rtl/common/mqnic_interface_rx.v
@@ -32,7 +35,6 @@ SYN_FILES += rtl/common/cpl_write.v
 SYN_FILES += rtl/common/cpl_op_mux.v
 SYN_FILES += rtl/common/desc_fetch.v
 SYN_FILES += rtl/common/desc_op_mux.v
-SYN_FILES += rtl/common/event_mux.v
 SYN_FILES += rtl/common/queue_manager.v
 SYN_FILES += rtl/common/cpl_queue_manager.v
 SYN_FILES += rtl/common/tx_fifo.v
@@ -58,6 +60,7 @@ SYN_FILES += rtl/common/tx_scheduler_ctrl_tdma.v
 SYN_FILES += rtl/common/tdma_scheduler.v
 SYN_FILES += rtl/common/cmac_pad.v
 SYN_FILES += rtl/common/mac_ts_insert.v
+SYN_FILES += rtl/common/i2c_single_reg.v
 SYN_FILES += lib/eth/rtl/ptp_clock.v
 SYN_FILES += lib/eth/rtl/ptp_clock_cdc.v
 SYN_FILES += lib/eth/rtl/ptp_perout.v

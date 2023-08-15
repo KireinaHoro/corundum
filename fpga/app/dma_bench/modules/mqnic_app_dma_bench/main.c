@@ -1,36 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause-Views
 /*
- * Copyright 2022, The Regents of the University of California.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *    1. Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *
- *    2. Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * The views and conclusions contained in the software and documentation
- * are those of the authors and should not be interpreted as representing
- * official policies, either expressed or implied, of The Regents of the
- * University of California.
+ * Copyright (c) 2022-2023 The Regents of the University of California
  */
 
 #include "mqnic.h"
@@ -391,6 +361,7 @@ static int mqnic_app_dma_bench_probe(struct auxiliary_device *adev,
 
 	int mismatch = 0;
 	int k;
+	int rb_index;
 
 	dev_info(dev, "%s() called", __func__);
 
@@ -448,6 +419,8 @@ static int mqnic_app_dma_bench_probe(struct auxiliary_device *adev,
 	print_counters(app);
 
 	// DMA test
+	dev_info(dev, "Run DMA benchmark");
+
 	dev_info(dev, "Write test data");
 	for (k = 0; k < 256; k++)
 		((char *)app->dma_region)[k] = k;
@@ -545,6 +518,141 @@ static int mqnic_app_dma_bench_probe(struct auxiliary_device *adev,
 	// Dump counters
 	dev_info(dev, "Statistics counters");
 	print_counters(app);
+
+	// DRAM test
+	rb_index = 0;
+	while ((rb = mqnic_find_reg_block(app->rb_list, 0x12348102, 0x00000100, rb_index))) {
+		u32 data_width;
+		u32 lane_count;
+		u64 size;
+		u64 base_addr;
+		u64 size_mask;
+		u64 cycles, time;
+		dev_info(dev, "Run DRAM benchmark (channel %d)", rb_index);
+
+		data_width = ioread32(rb->regs + 0x14);
+		lane_count = ioread32(rb->regs + 0x18);
+
+		dev_info(dev, "Address width: %d", ioread32(rb->regs + 0x10));
+		dev_info(dev, "Data width: %d", data_width);
+		base_addr = ioread32(rb->regs + 0x30);
+		base_addr |= ((u64)ioread32(rb->regs + 0x34)) << 32;
+		dev_info(dev, "Base address: 0x%016llx", base_addr);
+		size_mask = ioread32(rb->regs + 0x38);
+		size_mask |= ((u64)ioread32(rb->regs + 0x3C)) << 32;
+		dev_info(dev, "Size mask: 0x%016llx", size_mask);
+
+		// reset FIFO and data generator/checker
+		iowrite32(0x00000002, rb->regs + 0x20);
+		iowrite32(0x00000202, rb->regs + 0x24);
+
+		// enable FIFO
+		iowrite32(0x00000001, rb->regs + 0x20);
+
+		size = 1024*1024;
+
+		dev_info(dev, "Write test, size %lld", size);
+
+		// clear cycle count
+		iowrite32(0, rb->regs + 0x60);
+
+		// set up and start transfer
+		iowrite32(size, rb->regs + 0x68);
+		iowrite32(0, rb->regs + 0x6C);
+		iowrite32(0x00000001, rb->regs + 0x24);
+
+		// wait for transfer to complete
+		for (k = 0; k < 10; k++) {
+			udelay(10000);
+			if (ioread32(rb->regs + 0x24) == 0)
+				break;
+		}
+
+		dev_info(dev, "Status: %d", ioread32(rb->regs + 0x24));
+		dev_info(dev, "Occupancy: %d", ioread32(rb->regs + 0x50));
+		cycles = ioread32(rb->regs + 0x60);
+		time = mqnic_core_clk_cycles_to_ns(app->mdev, cycles);
+		dev_info(dev, "Time: %lld ns (%lld cycles)", time, cycles);
+		dev_info(dev, "Bandwidth: %lld Mbps", size*data_width*1000/time);
+
+		dev_info(dev, "Read+write test with offset, size %lld", size);
+
+		// clear cycle count
+		iowrite32(0, rb->regs + 0x60);
+
+		// set up and start transfer
+		iowrite32(size, rb->regs + 0x68);
+		iowrite32(size, rb->regs + 0x6C);
+		iowrite32(0x00000101, rb->regs + 0x24);
+
+		// wait for transfer to complete
+		for (k = 0; k < 10; k++) {
+			udelay(10000);
+			if (ioread32(rb->regs + 0x24) == 0)
+				break;
+		}
+
+		dev_info(dev, "Status: %d", ioread32(rb->regs + 0x24));
+		dev_info(dev, "Occupancy: %d", ioread32(rb->regs + 0x50));
+		cycles = ioread32(rb->regs + 0x60);
+		time = mqnic_core_clk_cycles_to_ns(app->mdev, cycles);
+		dev_info(dev, "Time: %lld ns (%lld cycles)", time, cycles);
+		dev_info(dev, "Bandwidth: %lld Mbps", size*data_width*1000/time);
+
+		dev_info(dev, "Read test, size %lld", size);
+
+		// clear cycle count
+		iowrite32(0, rb->regs + 0x60);
+
+		// set up and start transfer
+		iowrite32(0, rb->regs + 0x68);
+		iowrite32(size, rb->regs + 0x6C);
+		iowrite32(0x00000100, rb->regs + 0x24);
+
+		// wait for transfer to complete
+		for (k = 0; k < 10; k++) {
+			udelay(10000);
+			if (ioread32(rb->regs + 0x24) == 0)
+				break;
+		}
+
+		dev_info(dev, "Status: %d", ioread32(rb->regs + 0x24));
+		dev_info(dev, "Occupancy: %d", ioread32(rb->regs + 0x50));
+		cycles = ioread32(rb->regs + 0x60);
+		time = mqnic_core_clk_cycles_to_ns(app->mdev, cycles);
+		dev_info(dev, "Time: %lld ns (%lld cycles)", time, cycles);
+		dev_info(dev, "Bandwidth: %lld Mbps", size*data_width*1000/time);
+
+		dev_info(dev, "Read+write test, size %lld", size);
+
+		// clear cycle count
+		iowrite32(0, rb->regs + 0x60);
+
+		// set up and start transfer
+		iowrite32(size, rb->regs + 0x68);
+		iowrite32(size, rb->regs + 0x6C);
+		iowrite32(0x00000101, rb->regs + 0x24);
+
+		// wait for transfer to complete
+		for (k = 0; k < 10; k++) {
+			udelay(10000);
+			if (ioread32(rb->regs + 0x24) == 0)
+				break;
+		}
+
+		dev_info(dev, "Status: %d", ioread32(rb->regs + 0x24));
+		dev_info(dev, "Occupancy: %d", ioread32(rb->regs + 0x50));
+		cycles = ioread32(rb->regs + 0x60);
+		time = mqnic_core_clk_cycles_to_ns(app->mdev, cycles);
+		dev_info(dev, "Time: %lld ns (%lld cycles)", time, cycles);
+		dev_info(dev, "Bandwidth: %lld Mbps", size*data_width*1000/time);
+
+		for (k = 0; k < lane_count; k++) {
+			dev_info(dev, "Lane %d error count: %d", k, ioread32(rb->regs + 0x80 + k*4));
+		}
+
+		rb_index++;
+	}
 
 	return 0;
 

@@ -57,6 +57,10 @@ module example_core_pcie #
     parameter READ_OP_TABLE_SIZE = PCIE_TAG_COUNT,
     // In-flight transmit limit (read)
     parameter READ_TX_LIMIT = 2**TX_SEQ_NUM_WIDTH,
+    // Completion header flow control credit limit (read)
+    parameter READ_CPLH_FC_LIMIT = 0,
+    // Completion data flow control credit limit (read)
+    parameter READ_CPLD_FC_LIMIT = READ_CPLH_FC_LIMIT*4,
     // Operation table size (write)
     parameter WRITE_OP_TABLE_SIZE = 2**TX_SEQ_NUM_WIDTH,
     // In-flight transmit limit (write)
@@ -158,6 +162,7 @@ module example_core_pcie #
      */
     input  wire [7:0]                                    bus_num,
     input  wire                                          ext_tag_enable,
+    input  wire                                          rcb_128b,
     input  wire [2:0]                                    max_read_request_size,
     input  wire [2:0]                                    max_payload_size,
     input  wire                                          msix_enable,
@@ -167,7 +172,12 @@ module example_core_pcie #
      * Status
      */
     output wire                                          status_error_cor,
-    output wire                                          status_error_uncor
+    output wire                                          status_error_uncor,
+
+    /*
+     * Control and status
+     */
+    output wire                                          rx_cpl_stall
 );
 
 parameter AXIL_CTRL_DATA_WIDTH = 32;
@@ -339,6 +349,11 @@ wire                                    msix_tx_cpl_tlp_ready;
 wire [IRQ_INDEX_WIDTH-1:0]  irq_index;
 wire                        irq_valid;
 wire                        irq_ready;
+
+// Control and status
+wire dma_enable;
+wire dma_rd_busy;
+wire dma_wr_busy;
 
 pcie_tlp_demux_bar #(
     .PORTS(3),
@@ -784,6 +799,8 @@ dma_if_pcie #(
     .TAG_WIDTH(DMA_TAG_WIDTH),
     .READ_OP_TABLE_SIZE(READ_OP_TABLE_SIZE),
     .READ_TX_LIMIT(READ_TX_LIMIT),
+    .READ_CPLH_FC_LIMIT(READ_CPLH_FC_LIMIT),
+    .READ_CPLD_FC_LIMIT(READ_CPLD_FC_LIMIT),
     .WRITE_OP_TABLE_SIZE(WRITE_OP_TABLE_SIZE),
     .WRITE_TX_LIMIT(WRITE_TX_LIMIT),
     .TLP_FORCE_64_BIT_ADDR(TLP_FORCE_64_BIT_ADDR),
@@ -893,9 +910,10 @@ dma_if_pcie_inst (
     /*
      * Configuration
      */
-    .read_enable(1'b1),
-    .write_enable(1'b1),
+    .read_enable(dma_enable),
+    .write_enable(dma_enable),
     .ext_tag_enable(ext_tag_enable),
+    .rcb_128b(rcb_128b),
     .requester_id({bus_num, 5'd0, 3'd0}),
     .max_read_request_size(max_read_request_size),
     .max_payload_size(max_payload_size),
@@ -903,6 +921,8 @@ dma_if_pcie_inst (
     /*
      * Status
      */
+    .status_rd_busy(dma_rd_busy),
+    .status_wr_busy(dma_wr_busy),
     .status_error_cor(status_error_cor_int[3]),
     .status_error_uncor(status_error_uncor_int[3])
 );
@@ -1099,7 +1119,18 @@ core_inst (
      */
     .irq_index(irq_index),
     .irq_valid(irq_valid),
-    .irq_ready(irq_ready)
+    .irq_ready(irq_ready),
+
+    /*
+     * Control and status
+     */
+    .dma_enable(dma_enable),
+    .dma_rd_busy(dma_rd_busy),
+    .dma_wr_busy(dma_wr_busy),
+    .dma_rd_req(tx_rd_req_tlp_valid && tx_rd_req_tlp_sop && tx_rd_req_tlp_ready),
+    .dma_rd_cpl(rx_cpl_tlp_valid && rx_cpl_tlp_sop && rx_cpl_tlp_ready),
+    .dma_wr_req(tx_wr_req_tlp_valid && tx_wr_req_tlp_sop && tx_wr_req_tlp_ready),
+    .rx_cpl_stall(rx_cpl_stall)
 );
 
 endmodule

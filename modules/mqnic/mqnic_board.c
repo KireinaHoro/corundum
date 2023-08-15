@@ -1,36 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause-Views
 /*
- * Copyright 2019-2021, The Regents of the University of California.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *    1. Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *
- *    2. Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * The views and conclusions contained in the software and documentation
- * are those of the authors and should not be interpreted as representing
- * official policies, either expressed or implied, of The Regents of the
- * University of California.
+ * Copyright (c) 2019-2023 The Regents of the University of California
  */
 
 #include "mqnic.h"
@@ -44,14 +14,17 @@ static const struct property_entry i2c_mux_props[] = {
 	{}
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+static const struct software_node i2c_mux_node = {
+	.properties = i2c_mux_props
+};
+#endif
+
 static struct i2c_client *create_i2c_client(struct i2c_adapter *adapter,
-		const char *type, int addr, const struct property_entry *props)
+		const char *type, int addr)
 {
 	struct i2c_client *client;
 	struct i2c_board_info board_info;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
-	struct software_node sw_node;
-#endif
 	int err;
 
 	if (!adapter)
@@ -60,15 +33,11 @@ static struct i2c_client *create_i2c_client(struct i2c_adapter *adapter,
 	memset(&board_info, 0, sizeof(board_info));
 	strscpy(board_info.type, type, I2C_NAME_SIZE);
 	board_info.addr = addr;
-	if (props) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
-		memset(&sw_node, 0, sizeof(sw_node));
-		sw_node.properties = props;
-		board_info.swnode = &sw_node;
+	board_info.swnode = &i2c_mux_node;
 #else
-		board_info.properties = props;
+	board_info.properties = i2c_mux_props;
 #endif
-	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
 	client = i2c_new_client_device(adapter, &board_info);
 #else
@@ -165,6 +134,31 @@ static int read_mac_from_eeprom_hex(struct mqnic_dev *mqnic,
 	return 0;
 }
 
+static int init_mac_list_from_eeprom(struct mqnic_dev *mqnic,
+		struct i2c_client *eeprom, int offset, int count)
+{
+	int ret, k;
+	char mac[ETH_ALEN];
+
+	count = min(count, MQNIC_MAX_IF);
+
+	for (k = 0; k < count; k++) {
+		ret = read_mac_from_eeprom(mqnic, eeprom, offset + ETH_ALEN*k, mac);
+		if (ret < 0)
+			return ret;
+
+		if (!is_valid_ether_addr(mac)) {
+			dev_warn(mqnic->dev, "MAC is not valid");
+			return -1;
+		}
+
+		memcpy(mqnic->mac_list[k], mac, ETH_ALEN);
+		mqnic->mac_count = k+1;
+	}
+
+	return 0;
+}
+
 static int init_mac_list_from_eeprom_base(struct mqnic_dev *mqnic,
 		struct i2c_client *eeprom, int offset, int count)
 {
@@ -205,6 +199,7 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 {
 	struct i2c_adapter *adapter;
 	struct i2c_client *mux;
+	struct i2c_client *client;
 	int ret = 0;
 
 	mqnic->mod_i2c_client_count = 0;
@@ -236,19 +231,19 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// IC31 TCA9548 I2C MUX
-		mux = create_i2c_client(adapter, "pca9548", 0x74, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9548", 0x74);
 
 		// IC3 SFP1
-		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c02", 0x50);
 
 		// IC5 SFP2
-		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 1), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 1), "24c02", 0x50);
 
 		// IC6 SFP3
-		mqnic->mod_i2c_client[2] = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[2] = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c02", 0x50);
 
 		// IC8 SFP4
-		mqnic->mod_i2c_client[3] = create_i2c_client(get_i2c_mux_channel(mux, 3), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[3] = create_i2c_client(get_i2c_mux_channel(mux, 3), "24c02", 0x50);
 
 		mqnic->mod_i2c_client_count = 4;
 
@@ -277,16 +272,16 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// U28 TCA9548 I2C MUX
-		mux = create_i2c_client(adapter, "pca9548", 0x74, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9548", 0x74);
 
 		// U145 QSFP
-		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c02", 0x50);
 
 		// U80 PCA9544 I2C MUX
-		mux = create_i2c_client(adapter, "pca9544", 0x75, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9544", 0x75);
 
 		// U12 I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 3), "24c08", 0x54, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 3), "24c08", 0x54);
 
 		mqnic->mod_i2c_client_count = 1;
 
@@ -322,19 +317,19 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// U28 TCA9548 I2C MUX
-		mux = create_i2c_client(adapter, "pca9548", 0x74, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9548", 0x74);
 
 		// U145 QSFP1
-		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c02", 0x50);
 
 		// U123 QSFP2
-		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 3), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 3), "24c02", 0x50);
 
 		// U80 PCA9548 I2C MUX
-		mux = create_i2c_client(adapter, "pca9548", 0x75, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9548", 0x75);
 
 		// U12 I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 3), "24c08", 0x54, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 3), "24c08", 0x54);
 
 		mqnic->mod_i2c_client_count = 2;
 
@@ -358,16 +353,16 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// U28 TCA9546 I2C MUX
-		mux = create_i2c_client(adapter, "pca9546", 0x74, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9546", 0x74);
 
 		// J7 QSFP0
-		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c02", 0x50);
 
 		// J9 QSFP1
-		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 1), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 1), "24c02", 0x50);
 
 		// U12 I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c08", 0x54, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c08", 0x54);
 
 		mqnic->mod_i2c_client_count = 2;
 
@@ -411,24 +406,100 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// U34 TCA9548 I2C MUX
-		mux = create_i2c_client(adapter, "pca9548", 0x74, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9548", 0x74);
 
 		// U23 I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c08", 0x54, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c08", 0x54);
 
 		// U135 TCA9548 I2C MUX
-		mux = create_i2c_client(adapter, "pca9548", 0x75, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9548", 0x75);
 
 		// P1 SFP0
-		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 7), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 7), "24c02", 0x50);
 
 		// P2 SFP1
-		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 6), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 6), "24c02", 0x50);
 
 		mqnic->mod_i2c_client_count = 2;
 
 		// read MACs from EEPROM
 		init_mac_list_from_eeprom_base(mqnic, mqnic->eeprom_i2c_client, 0x20, MQNIC_MAX_IF);
+
+		break;
+	case MQNIC_BOARD_ID_DK_DEV_1SMX_H_A:
+
+		request_module("i2c_mux_pca954x");
+		request_module("at24");
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 0);
+
+		// Virtual I2C MUX
+		mux = create_i2c_client(adapter, "pca9543", 0x74);
+
+		// J4 QSFP0
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c02", 0x50);
+
+		// J5 QSFP1
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 1), "24c02", 0x50);
+
+		mqnic->mod_i2c_client_count = 2;
+
+		break;
+	case MQNIC_BOARD_ID_DK_DEV_1SDX_P_A:
+
+		request_module("at24");
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 0);
+
+		// FPC202 default address 0x0f, module addresses 0x78 and 0x7c
+		// release reset and deassert lpmode
+		client = create_i2c_client(adapter, "24c02", 0x0f);
+
+		if (client) {
+			i2c_smbus_write_i2c_block_data(client, 0x08, 1, "\x55");
+			i2c_smbus_write_i2c_block_data(client, 0x0A, 1, "\x05");
+
+			i2c_unregister_device(client);
+		}
+
+		// QSFP 1
+		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x78);
+
+		// QSFP 2
+		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x7c);
+
+		mqnic->mod_i2c_client_count = 2;
+
+		// U94 I2C EEPROM
+		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c128", 0x57);
+
+		break;
+	case MQNIC_BOARD_ID_DK_DEV_AGF014EA:
+
+		request_module("i2c_mux_pca954x");
+		request_module("at24");
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 0);
+
+		// U23 I2C EEPROM
+		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c64", 0x50);
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 1);
+
+		// Virtual I2C MUX
+		mux = create_i2c_client(adapter, "pca9543", 0x74);
+
+		// QSFPDD0
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c02", 0x50);
+
+		// QSFPDD1
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 1), "24c02", 0x50);
+
+		mqnic->mod_i2c_client_count = 2;
 
 		break;
 	case MQNIC_BOARD_ID_DE10_AGILEX:
@@ -439,13 +510,13 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// QSFP-DD A
-		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50);
 
 		// I2C adapter
 		adapter = mqnic_i2c_adapter_create(mqnic, 1);
 
 		// QSFP-DD B
-		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50);
 
 		mqnic->mod_i2c_client_count = 2;
 
@@ -465,19 +536,20 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		//   AT24C16C U51 0x54
 		//   TMP431C U52 0x4C
 
+		request_module("i2c_mux_pca954x");
 		request_module("at24");
 
 		// I2C adapter
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// U34 TCA9548 I2C MUX
-		mux = create_i2c_client(adapter, "pca9548", 0x70, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9548", 0x70);
 
 		// QSFP0
-		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 6), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 6), "24c02", 0x50);
 
 		// QSFP1
-		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 7), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 7), "24c02", 0x50);
 
 		mqnic->mod_i2c_client_count = 2;
 
@@ -488,7 +560,50 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 2);
 
 		// I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c16", 0x50, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c16", 0x50);
+
+		break;
+	case MQNIC_BOARD_ID_520NMX:
+		// FPGA I2C
+		//   TCA9548 0x72
+		//     CH0: OC_2 J22
+		//     CH1: OC_3 J23
+		//     CH2: OC_0 J26
+		//     CH3: OC_1 J27
+		//     CH4: QSFP_0
+		//     CH5: QSFP_1
+		//     CH6: QSFP_2
+		//     CH7: QSFP_3
+		//   EEPROM 0x57
+
+		request_module("i2c_mux_pca954x");
+		request_module("at24");
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 0);
+
+		// TCA9548 I2C MUX
+		mux = create_i2c_client(adapter, "pca9548", 0x72);
+
+		// QSFP0
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 4), "24c02", 0x50);
+
+		// QSFP1
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 5), "24c02", 0x50);
+
+		// QSFP2
+		mqnic->mod_i2c_client[2] = create_i2c_client(get_i2c_mux_channel(mux, 6), "24c02", 0x50);
+
+		// QSFP3
+		mqnic->mod_i2c_client[3] = create_i2c_client(get_i2c_mux_channel(mux, 7), "24c02", 0x50);
+
+		mqnic->mod_i2c_client_count = 4;
+
+		// I2C EEPROM
+		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c02", 0x57);
+
+		// read MACs from EEPROM
+		init_mac_list_from_eeprom(mqnic, mqnic->eeprom_i2c_client, 0x4B, 16);
 
 		break;
 	case MQNIC_BOARD_ID_XUPP3R:
@@ -499,25 +614,25 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// QSFP0
-		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50);
 
 		// I2C adapter
 		adapter = mqnic_i2c_adapter_create(mqnic, 1);
 
 		// QSFP1
-		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50);
 
 		// I2C adapter
 		adapter = mqnic_i2c_adapter_create(mqnic, 2);
 
 		// QSFP2
-		mqnic->mod_i2c_client[2] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[2] = create_i2c_client(adapter, "24c02", 0x50);
 
 		// I2C adapter
 		adapter = mqnic_i2c_adapter_create(mqnic, 3);
 
 		// QSFP3
-		mqnic->mod_i2c_client[3] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[3] = create_i2c_client(adapter, "24c02", 0x50);
 
 		mqnic->mod_i2c_client_count = 4;
 
@@ -525,7 +640,7 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 4);
 
 		// I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c04", 0x50, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c04", 0x50);
 
 		// read MACs from EEPROM
 		init_mac_list_from_eeprom_base_hex(mqnic, mqnic->eeprom_i2c_client, 4, MQNIC_MAX_IF);
@@ -535,13 +650,28 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 	case MQNIC_BOARD_ID_NEXUS_K3P_S:
 	case MQNIC_BOARD_ID_ADM_PCIE_9V3:
 
+		request_module("i2c_mux_pca954x");
 		request_module("at24");
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 0);
+
+		// Virtual I2C MUX
+		mux = create_i2c_client(adapter, "pca9543", 0x74);
+
+		// QSFP0
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c02", 0x50);
+
+		// QSFP1
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 1), "24c02", 0x50);
+
+		mqnic->mod_i2c_client_count = 2;
 
 		// create I2C adapter
 		adapter = mqnic_i2c_adapter_create(mqnic, 1);
 
 		// I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c02", 0x50);
 
 		// read MACs from EEPROM
 		init_mac_list_from_eeprom_base(mqnic, mqnic->eeprom_i2c_client, 0, MQNIC_MAX_IF);
@@ -555,13 +685,13 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// QSFP0
-		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50);
 
 		// I2C adapter
 		adapter = mqnic_i2c_adapter_create(mqnic, 1);
 
 		// QSFP1
-		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50);
 
 		mqnic->mod_i2c_client_count = 2;
 
@@ -569,7 +699,7 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 2);
 
 		// I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c02", 0x50);
 
 		// read MACs from EEPROM
 		init_mac_list_from_eeprom_base(mqnic, mqnic->eeprom_i2c_client, 0, MQNIC_MAX_IF);
@@ -583,13 +713,13 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// QSFP0
-		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50);
 
 		// I2C adapter
 		adapter = mqnic_i2c_adapter_create(mqnic, 1);
 
 		// QSFP1
-		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50);
 
 		mqnic->mod_i2c_client_count = 2;
 
@@ -597,10 +727,41 @@ static int mqnic_generic_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 2);
 
 		// I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c256", 0x50, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(adapter, "24c256", 0x50);
 
 		// read MACs from EEPROM
 		// init_mac_list_from_eeprom(mqnic, mqnic->eeprom_i2c_client, 0x000E, MQNIC_MAX_IF);
+
+		break;
+	case MQNIC_BOARD_ID_FB4CGG3_VU9P:
+
+		request_module("at24");
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 0);
+
+		// QSFP0
+		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50);
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 1);
+
+		// QSFP1
+		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50);
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 2);
+
+		// QSFP2
+		mqnic->mod_i2c_client[2] = create_i2c_client(adapter, "24c02", 0x50);
+
+		// I2C adapter
+		adapter = mqnic_i2c_adapter_create(mqnic, 3);
+
+		// QSFP3
+		mqnic->mod_i2c_client[3] = create_i2c_client(adapter, "24c02", 0x50);
+
+		mqnic->mod_i2c_client_count = 4;
 
 		break;
 	default:
@@ -728,16 +889,16 @@ static int mqnic_alveo_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// U28 TCA9546 I2C MUX
-		mux = create_i2c_client(adapter, "pca9546", 0x74, i2c_mux_props);
+		mux = create_i2c_client(adapter, "pca9546", 0x74);
 
 		// J7 QSFP0
-		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(get_i2c_mux_channel(mux, 0), "24c02", 0x50);
 
 		// J9 QSFP1
-		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 1), "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(get_i2c_mux_channel(mux, 1), "24c02", 0x50);
 
 		// U12 I2C EEPROM
-		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c08", 0x54, NULL);
+		mqnic->eeprom_i2c_client = create_i2c_client(get_i2c_mux_channel(mux, 2), "24c08", 0x54);
 
 		mqnic->mod_i2c_client_count = 2;
 
@@ -906,13 +1067,13 @@ static int mqnic_gecko_board_init(struct mqnic_dev *mqnic)
 		adapter = mqnic_i2c_adapter_create(mqnic, 0);
 
 		// QSFP0
-		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[0] = create_i2c_client(adapter, "24c02", 0x50);
 
 		// I2C adapter
 		adapter = mqnic_i2c_adapter_create(mqnic, 1);
 
 		// QSFP1
-		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50, NULL);
+		mqnic->mod_i2c_client[1] = create_i2c_client(adapter, "24c02", 0x50);
 
 		mqnic->mod_i2c_client_count = 2;
 

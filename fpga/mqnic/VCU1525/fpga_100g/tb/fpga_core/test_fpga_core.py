@@ -1,35 +1,5 @@
-"""
-
-Copyright 2020-2021, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-"""
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2020-2023 The Regents of the University of California
 
 import logging
 import os
@@ -196,7 +166,7 @@ class TB(object):
             # cfg_rx_pm_state
             # cfg_tx_pm_state
             # cfg_ltssm_state
-            # cfg_rcb_status
+            cfg_rcb_status=dut.cfg_rcb_status,
             # cfg_obff_enable
             # cfg_pl_status_change
             # cfg_tph_requester_enable
@@ -429,7 +399,7 @@ async def run_test_nic(dut):
     # enable queues
     tb.log.info("Enable queues")
     await tb.driver.interfaces[0].sched_blocks[0].schedulers[0].rb.write_dword(mqnic.MQNIC_RB_SCHED_RR_REG_CTRL, 0x00000001)
-    for k in range(tb.driver.interfaces[0].tx_queue_count):
+    for k in range(len(tb.driver.interfaces[0].txq)):
         await tb.driver.interfaces[0].sched_blocks[0].schedulers[0].hw_regs.write_dword(4*k, 0x00000003)
 
     # wait for all writes to complete
@@ -495,7 +465,7 @@ async def run_test_nic(dut):
     tb.loopback_enable = True
 
     for k in range(4):
-        await tb.driver.interfaces[0].set_rx_queue_map_offset(0, k)
+        await tb.driver.interfaces[0].set_rx_queue_map_indir_table(0, 0, k)
 
         await tb.driver.interfaces[0].start_xmit(data, 0)
 
@@ -507,11 +477,14 @@ async def run_test_nic(dut):
 
     tb.loopback_enable = False
 
-    await tb.driver.interfaces[0].set_rx_queue_map_offset(0, 0)
+    await tb.driver.interfaces[0].set_rx_queue_map_indir_table(0, 0, 0)
 
     tb.log.info("Queue mapping RSS mask test")
 
     await tb.driver.interfaces[0].set_rx_queue_map_rss_mask(0, 0x00000003)
+
+    for k in range(4):
+        await tb.driver.interfaces[0].set_rx_queue_map_indir_table(0, k, k)
 
     tb.loopback_enable = True
 
@@ -629,6 +602,7 @@ def test_fpga_core(request):
         os.path.join(rtl_dir, "common", "mqnic_core_pcie_us.v"),
         os.path.join(rtl_dir, "common", "mqnic_core_pcie.v"),
         os.path.join(rtl_dir, "common", "mqnic_core.v"),
+        os.path.join(rtl_dir, "common", "mqnic_dram_if.v"),
         os.path.join(rtl_dir, "common", "mqnic_interface.v"),
         os.path.join(rtl_dir, "common", "mqnic_interface_tx.v"),
         os.path.join(rtl_dir, "common", "mqnic_interface_rx.v"),
@@ -649,7 +623,6 @@ def test_fpga_core(request):
         os.path.join(rtl_dir, "common", "cpl_op_mux.v"),
         os.path.join(rtl_dir, "common", "desc_fetch.v"),
         os.path.join(rtl_dir, "common", "desc_op_mux.v"),
-        os.path.join(rtl_dir, "common", "event_mux.v"),
         os.path.join(rtl_dir, "common", "queue_manager.v"),
         os.path.join(rtl_dir, "common", "cpl_queue_manager.v"),
         os.path.join(rtl_dir, "common", "tx_fifo.v"),
@@ -749,22 +722,20 @@ def test_fpga_core(request):
     parameters['EVENT_QUEUE_OP_TABLE_SIZE'] = 32
     parameters['TX_QUEUE_OP_TABLE_SIZE'] = 32
     parameters['RX_QUEUE_OP_TABLE_SIZE'] = 32
-    parameters['TX_CPL_QUEUE_OP_TABLE_SIZE'] = parameters['TX_QUEUE_OP_TABLE_SIZE']
-    parameters['RX_CPL_QUEUE_OP_TABLE_SIZE'] = parameters['RX_QUEUE_OP_TABLE_SIZE']
-    parameters['EVENT_QUEUE_INDEX_WIDTH'] = 6
+    parameters['CQ_OP_TABLE_SIZE'] = 32
+    parameters['EQN_WIDTH'] = 6
     parameters['TX_QUEUE_INDEX_WIDTH'] = 13
     parameters['RX_QUEUE_INDEX_WIDTH'] = 8
-    parameters['TX_CPL_QUEUE_INDEX_WIDTH'] = parameters['TX_QUEUE_INDEX_WIDTH']
-    parameters['RX_CPL_QUEUE_INDEX_WIDTH'] = parameters['RX_QUEUE_INDEX_WIDTH']
-    parameters['EVENT_QUEUE_PIPELINE'] = 3
+    parameters['CQN_WIDTH'] = max(parameters['TX_QUEUE_INDEX_WIDTH'], parameters['RX_QUEUE_INDEX_WIDTH']) + 1
+    parameters['EQ_PIPELINE'] = 3
     parameters['TX_QUEUE_PIPELINE'] = 3 + max(parameters['TX_QUEUE_INDEX_WIDTH']-12, 0)
     parameters['RX_QUEUE_PIPELINE'] = 3 + max(parameters['RX_QUEUE_INDEX_WIDTH']-12, 0)
-    parameters['TX_CPL_QUEUE_PIPELINE'] = parameters['TX_QUEUE_PIPELINE']
-    parameters['RX_CPL_QUEUE_PIPELINE'] = parameters['RX_QUEUE_PIPELINE']
+    parameters['CQ_PIPELINE'] = 3 + max(parameters['CQN_WIDTH']-12, 0)
 
     # TX and RX engine configuration
     parameters['TX_DESC_TABLE_SIZE'] = 32
     parameters['RX_DESC_TABLE_SIZE'] = 32
+    parameters['RX_INDIR_TBL_ADDR_WIDTH'] = min(parameters['RX_QUEUE_INDEX_WIDTH'], 8)
 
     # Scheduler configuration
     parameters['TX_SCHEDULER_OP_TABLE_SIZE'] = parameters['TX_DESC_TABLE_SIZE']
@@ -808,7 +779,7 @@ def test_fpga_core(request):
     parameters['VF_COUNT'] = 0
 
     # Interrupt configuration
-    parameters['IRQ_INDEX_WIDTH'] = parameters['EVENT_QUEUE_INDEX_WIDTH']
+    parameters['IRQ_INDEX_WIDTH'] = parameters['EQN_WIDTH']
 
     # AXI lite interface configuration (control)
     parameters['AXIL_CTRL_DATA_WIDTH'] = 32

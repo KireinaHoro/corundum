@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2019-2021, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2019-2023 The Regents of the University of California
+ */
 
 // Language: Verilog 2001
 
@@ -76,22 +48,20 @@ module fpga #
     parameter EVENT_QUEUE_OP_TABLE_SIZE = 32,
     parameter TX_QUEUE_OP_TABLE_SIZE = 32,
     parameter RX_QUEUE_OP_TABLE_SIZE = 32,
-    parameter TX_CPL_QUEUE_OP_TABLE_SIZE = TX_QUEUE_OP_TABLE_SIZE,
-    parameter RX_CPL_QUEUE_OP_TABLE_SIZE = RX_QUEUE_OP_TABLE_SIZE,
-    parameter EVENT_QUEUE_INDEX_WIDTH = 5,
+    parameter CQ_OP_TABLE_SIZE = 32,
+    parameter EQN_WIDTH = 5,
     parameter TX_QUEUE_INDEX_WIDTH = 13,
     parameter RX_QUEUE_INDEX_WIDTH = 8,
-    parameter TX_CPL_QUEUE_INDEX_WIDTH = TX_QUEUE_INDEX_WIDTH,
-    parameter RX_CPL_QUEUE_INDEX_WIDTH = RX_QUEUE_INDEX_WIDTH,
-    parameter EVENT_QUEUE_PIPELINE = 3,
+    parameter CQN_WIDTH = (TX_QUEUE_INDEX_WIDTH > RX_QUEUE_INDEX_WIDTH ? TX_QUEUE_INDEX_WIDTH : RX_QUEUE_INDEX_WIDTH) + 1,
+    parameter EQ_PIPELINE = 3,
     parameter TX_QUEUE_PIPELINE = 3+(TX_QUEUE_INDEX_WIDTH > 12 ? TX_QUEUE_INDEX_WIDTH-12 : 0),
     parameter RX_QUEUE_PIPELINE = 3+(RX_QUEUE_INDEX_WIDTH > 12 ? RX_QUEUE_INDEX_WIDTH-12 : 0),
-    parameter TX_CPL_QUEUE_PIPELINE = TX_QUEUE_PIPELINE,
-    parameter RX_CPL_QUEUE_PIPELINE = RX_QUEUE_PIPELINE,
+    parameter CQ_PIPELINE = 3+(CQN_WIDTH > 12 ? CQN_WIDTH-12 : 0),
 
     // TX and RX engine configuration
     parameter TX_DESC_TABLE_SIZE = 32,
     parameter RX_DESC_TABLE_SIZE = 32,
+    parameter RX_INDIR_TBL_ADDR_WIDTH = RX_QUEUE_INDEX_WIDTH > 8 ? 8 : RX_QUEUE_INDEX_WIDTH,
 
     // Scheduler configuration
     parameter TX_SCHEDULER_OP_TABLE_SIZE = TX_DESC_TABLE_SIZE,
@@ -144,7 +114,7 @@ module fpga #
     parameter VF_COUNT = 0,
 
     // Interrupt configuration
-    parameter IRQ_INDEX_WIDTH = EVENT_QUEUE_INDEX_WIDTH,
+    parameter IRQ_INDEX_WIDTH = EQN_WIDTH,
 
     // AXI lite interface configuration (control)
     parameter AXIL_CTRL_DATA_WIDTH = 32,
@@ -534,35 +504,20 @@ assign qsfp_1_i2c_sda = qsfp_1_i2c_sda_t_reg ? 1'bz : qsfp_1_i2c_sda_o_reg;
 
 wire [7:0] led_red;
 wire [7:0] led_green;
-wire [15:0] led_merged;
-
-assign led_merged[0] = led_red[0];
-assign led_merged[1] = led_green[0];
-assign led_merged[2] = led_red[1];
-assign led_merged[3] = led_green[1];
-assign led_merged[4] = led_red[2];
-assign led_merged[5] = led_green[2];
-assign led_merged[6] = led_red[3];
-assign led_merged[7] = led_green[3];
-assign led_merged[8] = led_red[4];
-assign led_merged[9] = led_green[4];
-assign led_merged[10] = led_red[5];
-assign led_merged[11] = led_green[5];
-assign led_merged[12] = led_red[6];
-assign led_merged[13] = led_green[6];
-assign led_merged[14] = led_red[7];
-assign led_merged[15] = led_green[7];
 
 led_sreg_driver #(
-    .COUNT(16),
+    .COUNT(8),
     .INVERT(1),
+    .REVERSE(0),
+    .INTERLEAVE(1),
     .PRESCALE(63)
 )
 led_sreg_driver_inst (
     .clk(pcie_user_clk),
     .rst(pcie_user_reset),
 
-    .led(led_merged),
+    .led_a(led_red),
+    .led_b(led_green),
 
     .sreg_d(led_sreg_d),
     .sreg_ld(led_sreg_ld),
@@ -788,6 +743,7 @@ wire [3:0] pcie_tfc_npd_av;
 
 wire [2:0] cfg_max_payload;
 wire [2:0] cfg_max_read_req;
+wire [3:0] cfg_rcb_status;
 
 wire [9:0]  cfg_mgmt_addr;
 wire [7:0]  cfg_mgmt_function_number;
@@ -952,7 +908,7 @@ pcie4_uscale_plus_inst (
     .cfg_ltssm_state(),
     .cfg_rx_pm_state(),
     .cfg_tx_pm_state(),
-    .cfg_rcb_status(),
+    .cfg_rcb_status(cfg_rcb_status),
     .cfg_obff_enable(),
     .cfg_pl_status_change(),
     .cfg_tph_requester_enable(),
@@ -1535,9 +1491,19 @@ clk_ddr4_refclk1_bufg_inst (
 
 if (DDR_ENABLE && DDR_CH > 0) begin
 
+reg ddr4_rst_reg = 1'b1;
+
+always @(posedge pcie_user_clk or posedge pcie_user_reset) begin
+    if (pcie_user_reset) begin
+        ddr4_rst_reg <= 1'b1;
+    end else begin
+        ddr4_rst_reg <= 1'b0;
+    end
+end
+
 ddr4_0 ddr4_c0_inst (
     .c0_sys_clk_i(clk_ddr4_refclk1),
-    .sys_rst(pcie_user_reset),
+    .sys_rst(ddr4_rst_reg),
 
     .c0_init_calib_complete(ddr_status[0 +: 1]),
     .c0_ddr4_interrupt(),
@@ -1666,9 +1632,19 @@ assign ddr4_c0_ten = 1'b0;
 
 if (DDR_ENABLE && DDR_CH > 1) begin
 
+reg ddr4_rst_reg = 1'b1;
+
+always @(posedge pcie_user_clk or posedge pcie_user_reset) begin
+    if (pcie_user_reset) begin
+        ddr4_rst_reg <= 1'b1;
+    end else begin
+        ddr4_rst_reg <= 1'b0;
+    end
+end
+
 ddr4_0 ddr4_c1_inst (
     .c0_sys_clk_i(clk_ddr4_refclk1),
-    .sys_rst(pcie_user_reset),
+    .sys_rst(ddr4_rst_reg),
 
     .c0_init_calib_complete(ddr_status[1 +: 1]),
     .c0_ddr4_interrupt(),
@@ -1799,9 +1775,19 @@ clk_ddr4_refclk2_bufg_inst (
 
 if (DDR_ENABLE && DDR_CH > 2) begin
 
+reg ddr4_rst_reg = 1'b1;
+
+always @(posedge pcie_user_clk or posedge pcie_user_reset) begin
+    if (pcie_user_reset) begin
+        ddr4_rst_reg <= 1'b1;
+    end else begin
+        ddr4_rst_reg <= 1'b0;
+    end
+end
+
 ddr4_0 ddr4_c2_inst (
     .c0_sys_clk_i(clk_ddr4_refclk2),
-    .sys_rst(pcie_user_reset),
+    .sys_rst(ddr4_rst_reg),
 
     .c0_init_calib_complete(ddr_status[2 +: 1]),
     .c0_ddr4_interrupt(),
@@ -1913,9 +1899,19 @@ assign ddr4_c2_ten = 1'b0;
 
 if (DDR_ENABLE && DDR_CH > 3) begin
 
+reg ddr4_rst_reg = 1'b1;
+
+always @(posedge pcie_user_clk or posedge pcie_user_reset) begin
+    if (pcie_user_reset) begin
+        ddr4_rst_reg <= 1'b1;
+    end else begin
+        ddr4_rst_reg <= 1'b0;
+    end
+end
+
 ddr4_0 ddr4_c3_inst (
     .c0_sys_clk_i(clk_ddr4_refclk2),
-    .sys_rst(pcie_user_reset),
+    .sys_rst(ddr4_rst_reg),
 
     .c0_init_calib_complete(ddr_status[3 +: 1]),
     .c0_ddr4_interrupt(),
@@ -2068,22 +2064,20 @@ fpga_core #(
     .EVENT_QUEUE_OP_TABLE_SIZE(EVENT_QUEUE_OP_TABLE_SIZE),
     .TX_QUEUE_OP_TABLE_SIZE(TX_QUEUE_OP_TABLE_SIZE),
     .RX_QUEUE_OP_TABLE_SIZE(RX_QUEUE_OP_TABLE_SIZE),
-    .TX_CPL_QUEUE_OP_TABLE_SIZE(TX_CPL_QUEUE_OP_TABLE_SIZE),
-    .RX_CPL_QUEUE_OP_TABLE_SIZE(RX_CPL_QUEUE_OP_TABLE_SIZE),
-    .EVENT_QUEUE_INDEX_WIDTH(EVENT_QUEUE_INDEX_WIDTH),
+    .CQ_OP_TABLE_SIZE(CQ_OP_TABLE_SIZE),
+    .EQN_WIDTH(EQN_WIDTH),
     .TX_QUEUE_INDEX_WIDTH(TX_QUEUE_INDEX_WIDTH),
     .RX_QUEUE_INDEX_WIDTH(RX_QUEUE_INDEX_WIDTH),
-    .TX_CPL_QUEUE_INDEX_WIDTH(TX_CPL_QUEUE_INDEX_WIDTH),
-    .RX_CPL_QUEUE_INDEX_WIDTH(RX_CPL_QUEUE_INDEX_WIDTH),
-    .EVENT_QUEUE_PIPELINE(EVENT_QUEUE_PIPELINE),
+    .CQN_WIDTH(CQN_WIDTH),
+    .EQ_PIPELINE(EQ_PIPELINE),
     .TX_QUEUE_PIPELINE(TX_QUEUE_PIPELINE),
     .RX_QUEUE_PIPELINE(RX_QUEUE_PIPELINE),
-    .TX_CPL_QUEUE_PIPELINE(TX_CPL_QUEUE_PIPELINE),
-    .RX_CPL_QUEUE_PIPELINE(RX_CPL_QUEUE_PIPELINE),
+    .CQ_PIPELINE(CQ_PIPELINE),
 
     // TX and RX engine configuration
     .TX_DESC_TABLE_SIZE(TX_DESC_TABLE_SIZE),
     .RX_DESC_TABLE_SIZE(RX_DESC_TABLE_SIZE),
+    .RX_INDIR_TBL_ADDR_WIDTH(RX_INDIR_TBL_ADDR_WIDTH),
 
     // Scheduler configuration
     .TX_SCHEDULER_OP_TABLE_SIZE(TX_SCHEDULER_OP_TABLE_SIZE),
@@ -2257,6 +2251,7 @@ core_inst (
 
     .cfg_max_payload(cfg_max_payload),
     .cfg_max_read_req(cfg_max_read_req),
+    .cfg_rcb_status(cfg_rcb_status),
 
     .cfg_mgmt_addr(cfg_mgmt_addr),
     .cfg_mgmt_function_number(cfg_mgmt_function_number),

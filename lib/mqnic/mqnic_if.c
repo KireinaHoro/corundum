@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2019-2022, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2019-2023 The Regents of the University of California
+ */
 
 #include "mqnic.h"
 
@@ -39,6 +11,8 @@ either expressed or implied, of The Regents of the University of California.
 struct mqnic_if *mqnic_if_open(struct mqnic *dev, int index, volatile uint8_t *regs)
 {
     struct mqnic_if *interface = calloc(1, sizeof(struct mqnic_if));
+    uint32_t count, offset, stride;
+    uint32_t val;
 
     if (!interface)
         return NULL;
@@ -80,80 +54,85 @@ struct mqnic_if *mqnic_if_open(struct mqnic *dev, int index, volatile uint8_t *r
     interface->max_tx_mtu = mqnic_reg_read32(interface->if_ctrl_rb->regs, MQNIC_RB_IF_CTRL_REG_MAX_TX_MTU);
     interface->max_rx_mtu = mqnic_reg_read32(interface->if_ctrl_rb->regs, MQNIC_RB_IF_CTRL_REG_MAX_RX_MTU);
 
-    interface->event_queue_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_EVENT_QM_TYPE, MQNIC_RB_EVENT_QM_VER, 0);
+    interface->eq_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_EQM_TYPE, MQNIC_RB_EQM_VER, 0);
 
-    if (!interface->event_queue_rb)
+    if (!interface->eq_rb)
     {
-        fprintf(stderr, "Error: Event queue block not found\n");
+        fprintf(stderr, "Error: EQ block not found\n");
         goto fail;
     }
 
-    interface->event_queue_offset = mqnic_reg_read32(interface->event_queue_rb->regs, MQNIC_RB_EVENT_QM_REG_OFFSET);
-    interface->event_queue_count = mqnic_reg_read32(interface->event_queue_rb->regs, MQNIC_RB_EVENT_QM_REG_COUNT);
-    interface->event_queue_stride = mqnic_reg_read32(interface->event_queue_rb->regs, MQNIC_RB_EVENT_QM_REG_STRIDE);
+    offset = mqnic_reg_read32(interface->eq_rb->regs, MQNIC_RB_EQM_REG_OFFSET);
+    count = mqnic_reg_read32(interface->eq_rb->regs, MQNIC_RB_EQM_REG_COUNT);
+    stride = mqnic_reg_read32(interface->eq_rb->regs, MQNIC_RB_EQM_REG_STRIDE);
 
-    if (interface->event_queue_count > MQNIC_MAX_EVENT_RINGS)
-        interface->event_queue_count = MQNIC_MAX_EVENT_RINGS;
+    if (count > MQNIC_MAX_EQ)
+        count = MQNIC_MAX_EQ;
 
-    interface->tx_queue_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_TX_QM_TYPE, MQNIC_RB_TX_QM_VER, 0);
+    interface->eq_res = mqnic_res_open(count, interface->regs + offset, stride);
 
-    if (!interface->tx_queue_rb)
+    if (!interface->eq_res)
+        goto fail;
+
+    interface->cq_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_CQM_TYPE, MQNIC_RB_CQM_VER, 0);
+
+    if (!interface->cq_rb)
     {
-        fprintf(stderr, "Error: TX queue block not found\n");
+        fprintf(stderr, "Error: CQ block not found\n");
         goto fail;
     }
 
-    interface->tx_queue_offset = mqnic_reg_read32(interface->tx_queue_rb->regs, MQNIC_RB_TX_QM_REG_OFFSET);
-    interface->tx_queue_count = mqnic_reg_read32(interface->tx_queue_rb->regs, MQNIC_RB_TX_QM_REG_COUNT);
-    interface->tx_queue_stride = mqnic_reg_read32(interface->tx_queue_rb->regs, MQNIC_RB_TX_QM_REG_STRIDE);
+    offset = mqnic_reg_read32(interface->cq_rb->regs, MQNIC_RB_CQM_REG_OFFSET);
+    count = mqnic_reg_read32(interface->cq_rb->regs, MQNIC_RB_CQM_REG_COUNT);
+    stride = mqnic_reg_read32(interface->cq_rb->regs, MQNIC_RB_CQM_REG_STRIDE);
 
-    if (interface->tx_queue_count > MQNIC_MAX_TX_RINGS)
-        interface->tx_queue_count = MQNIC_MAX_TX_RINGS;
+    if (count > MQNIC_MAX_CQ)
+        count = MQNIC_MAX_CQ;
 
-    interface->tx_cpl_queue_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_TX_CQM_TYPE, MQNIC_RB_TX_CQM_VER, 0);
+    interface->cq_res = mqnic_res_open(count, interface->regs + offset, stride);
 
-    if (!interface->tx_cpl_queue_rb)
+    if (!interface->cq_res)
+        goto fail;
+
+    interface->txq_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_TX_QM_TYPE, MQNIC_RB_TX_QM_VER, 0);
+
+    if (!interface->txq_rb)
     {
-        fprintf(stderr, "Error: TX completion queue block not found\n");
+        fprintf(stderr, "Error: TXQ block not found\n");
         goto fail;
     }
 
-    interface->tx_cpl_queue_offset = mqnic_reg_read32(interface->tx_cpl_queue_rb->regs, MQNIC_RB_TX_CQM_REG_OFFSET);
-    interface->tx_cpl_queue_count = mqnic_reg_read32(interface->tx_cpl_queue_rb->regs, MQNIC_RB_TX_CQM_REG_COUNT);
-    interface->tx_cpl_queue_stride = mqnic_reg_read32(interface->tx_cpl_queue_rb->regs, MQNIC_RB_TX_CQM_REG_STRIDE);
+    offset = mqnic_reg_read32(interface->txq_rb->regs, MQNIC_RB_TX_QM_REG_OFFSET);
+    count = mqnic_reg_read32(interface->txq_rb->regs, MQNIC_RB_TX_QM_REG_COUNT);
+    stride = mqnic_reg_read32(interface->txq_rb->regs, MQNIC_RB_TX_QM_REG_STRIDE);
 
-    if (interface->tx_cpl_queue_count > MQNIC_MAX_TX_CPL_RINGS)
-        interface->tx_cpl_queue_count = MQNIC_MAX_TX_CPL_RINGS;
+    if (count > MQNIC_MAX_TXQ)
+        count = MQNIC_MAX_TXQ;
 
-    interface->rx_queue_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_RX_QM_TYPE, MQNIC_RB_RX_QM_VER, 0);
+    interface->txq_res = mqnic_res_open(count, interface->regs + offset, stride);
 
-    if (!interface->rx_queue_rb)
+    if (!interface->txq_res)
+        goto fail;
+
+    interface->rxq_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_RX_QM_TYPE, MQNIC_RB_RX_QM_VER, 0);
+
+    if (!interface->rxq_rb)
     {
-        fprintf(stderr, "Error: RX queue block not found\n");
+        fprintf(stderr, "Error: RXQ block not found\n");
         goto fail;
     }
 
-    interface->rx_queue_offset = mqnic_reg_read32(interface->rx_queue_rb->regs, MQNIC_RB_RX_QM_REG_OFFSET);
-    interface->rx_queue_count = mqnic_reg_read32(interface->rx_queue_rb->regs, MQNIC_RB_RX_QM_REG_COUNT);
-    interface->rx_queue_stride = mqnic_reg_read32(interface->rx_queue_rb->regs, MQNIC_RB_RX_QM_REG_STRIDE);
+    offset = mqnic_reg_read32(interface->rxq_rb->regs, MQNIC_RB_RX_QM_REG_OFFSET);
+    count = mqnic_reg_read32(interface->rxq_rb->regs, MQNIC_RB_RX_QM_REG_COUNT);
+    stride = mqnic_reg_read32(interface->rxq_rb->regs, MQNIC_RB_RX_QM_REG_STRIDE);
 
-    if (interface->rx_queue_count > MQNIC_MAX_RX_RINGS)
-        interface->rx_queue_count = MQNIC_MAX_RX_RINGS;
+    if (count > MQNIC_MAX_RXQ)
+        count = MQNIC_MAX_RXQ;
 
-    interface->rx_cpl_queue_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_RX_CQM_TYPE, MQNIC_RB_RX_CQM_VER, 0);
+    interface->rxq_res = mqnic_res_open(count, interface->regs + offset, stride);
 
-    if (!interface->rx_cpl_queue_rb)
-    {
-        fprintf(stderr, "Error: RX completion queue block not found\n");
+    if (!interface->rxq_res)
         goto fail;
-    }
-
-    interface->rx_cpl_queue_offset = mqnic_reg_read32(interface->rx_cpl_queue_rb->regs, MQNIC_RB_RX_CQM_REG_OFFSET);
-    interface->rx_cpl_queue_count = mqnic_reg_read32(interface->rx_cpl_queue_rb->regs, MQNIC_RB_RX_CQM_REG_COUNT);
-    interface->rx_cpl_queue_stride = mqnic_reg_read32(interface->rx_cpl_queue_rb->regs, MQNIC_RB_RX_CQM_REG_STRIDE);
-
-    if (interface->rx_cpl_queue_count > MQNIC_MAX_RX_CPL_RINGS)
-        interface->rx_cpl_queue_count = MQNIC_MAX_RX_CPL_RINGS;
 
     interface->rx_queue_map_rb = mqnic_find_reg_block(interface->rb_list, MQNIC_RB_RX_QUEUE_MAP_TYPE, MQNIC_RB_RX_QUEUE_MAP_VER, 0);
 
@@ -161,6 +140,15 @@ struct mqnic_if *mqnic_if_open(struct mqnic *dev, int index, volatile uint8_t *r
     {
         fprintf(stderr, "Error: RX queue map block not found\n");
         goto fail;
+    }
+
+    val = mqnic_reg_read32(interface->rx_queue_map_rb->regs, MQNIC_RB_RX_QUEUE_MAP_REG_CFG);
+    interface->rx_queue_map_indir_table_size = 1 << ((val >> 8) & 0xff);
+
+    for (int k = 0; k < interface->port_count; k++)
+    {
+        interface->rx_queue_map_indir_table[k] = interface->regs + mqnic_reg_read32(interface->rx_queue_map_rb->regs, MQNIC_RB_RX_QUEUE_MAP_CH_OFFSET +
+            MQNIC_RB_RX_QUEUE_MAP_CH_STRIDE*k + MQNIC_RB_RX_QUEUE_MAP_CH_REG_OFFSET);
     }
 
     for (int k = 0; k < interface->port_count; k++)
@@ -225,6 +213,11 @@ void mqnic_if_close(struct mqnic_if *interface)
         interface->ports[k] = NULL;
     }
 
+    mqnic_res_close(interface->eq_res);
+    mqnic_res_close(interface->cq_res);
+    mqnic_res_close(interface->txq_res);
+    mqnic_res_close(interface->rxq_res);
+
     if (interface->rb_list)
         mqnic_free_reg_block_list(interface->rb_list);
 
@@ -241,12 +234,6 @@ uint32_t mqnic_interface_get_rx_mtu(struct mqnic_if *interface)
     return mqnic_reg_read32(interface->if_ctrl_rb->regs, MQNIC_RB_IF_CTRL_REG_RX_MTU);
 }
 
-uint32_t mqnic_interface_get_rx_queue_map_offset(struct mqnic_if *interface, int port)
-{
-    return mqnic_reg_read32(interface->rx_queue_map_rb->regs, MQNIC_RB_RX_QUEUE_MAP_CH_OFFSET +
-        MQNIC_RB_RX_QUEUE_MAP_CH_STRIDE*port + MQNIC_RB_RX_QUEUE_MAP_CH_REG_OFFSET);
-}
-
 uint32_t mqnic_interface_get_rx_queue_map_rss_mask(struct mqnic_if *interface, int port)
 {
     return mqnic_reg_read32(interface->rx_queue_map_rb->regs, MQNIC_RB_RX_QUEUE_MAP_CH_OFFSET +
@@ -257,4 +244,9 @@ uint32_t mqnic_interface_get_rx_queue_map_app_mask(struct mqnic_if *interface, i
 {
     return mqnic_reg_read32(interface->rx_queue_map_rb->regs, MQNIC_RB_RX_QUEUE_MAP_CH_OFFSET +
         MQNIC_RB_RX_QUEUE_MAP_CH_STRIDE*port + MQNIC_RB_RX_QUEUE_MAP_CH_REG_APP_MASK);
+}
+
+uint32_t mqnic_interface_get_rx_queue_map_indir_table(struct mqnic_if *interface, int port, int index)
+{
+    return mqnic_reg_read32(interface->rx_queue_map_indir_table[port], index*4);
 }

@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2021, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2021-2023 The Regents of the University of California
+ */
 
 // Language: Verilog 2001
 
@@ -97,7 +69,7 @@ parameter PTP_CLK_PERIOD_FNS = (PTP_CLK_PERIOD_NS_REM * {32'd1, {PTP_FNS_WIDTH{1
 parameter PTP_CLK_PERIOD_FNS_REM = (PTP_CLK_PERIOD_NS_REM * {32'd1, {PTP_FNS_WIDTH{1'b0}}}) - PTP_CLK_PERIOD_FNS*PTP_CLK_PERIOD_NS_DENOM;
 
 parameter PTP_PERIOD_NS_WIDTH = $clog2(PTP_CLK_PERIOD_NS+1) + 2;
-parameter PTP_OFFSET_NS_WIDTH = 32;
+parameter PTP_OFFSET_NS_WIDTH = 30;
 
 localparam RBB = RB_BASE_ADDR & {REG_ADDR_WIDTH{1'b1}};
 

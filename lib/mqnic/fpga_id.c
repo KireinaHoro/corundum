@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2020-2022, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2020-2023 The Regents of the University of California
+ */
 
 #include "fpga_id.h"
 
@@ -134,6 +106,7 @@ const struct fpga_id fpga_id_list[] =
     {FPGA_ID_XCVU47P,     FPGA_ID_MASK_NOVER, "XCVU47P"},
     {FPGA_ID_XCVU57P,     FPGA_ID_MASK_NOVER, "XCVU57P"},
     // Zynq UltraScale+
+    {FPGA_ID_XCZU1,       FPGA_ID_MASK_NOVER, "XCZU1"},
     {FPGA_ID_XCZU2,       FPGA_ID_MASK_NOVER, "XCZU2"},
     {FPGA_ID_XCZU3,       FPGA_ID_MASK_NOVER, "XCZU3"},
     {FPGA_ID_XCZU4,       FPGA_ID_MASK_NOVER, "XCZU4"},
@@ -156,11 +129,53 @@ const struct fpga_id fpga_id_list[] =
     {FPGA_ID_XCZU47,      FPGA_ID_MASK_NOVER, "XCZU47"},
     {FPGA_ID_XCZU48,      FPGA_ID_MASK_NOVER, "XCZU48"},
     {FPGA_ID_XCZU49,      FPGA_ID_MASK_NOVER, "XCZU49"},
-    // Alveo
+    {FPGA_ID_XCZU65,      FPGA_ID_MASK_NOVER, "XCZU65"},
+    {FPGA_ID_XCZU67,      FPGA_ID_MASK_NOVER, "XCZU67"},
+    // Kria SoM (Zynq UltraScale+)
+    {FPGA_ID_XCK26,       FPGA_ID_MASK_NOVER, "XCK26"},
+    // Alveo (Virtex UltraScale+)
     {FPGA_ID_XCU50,       FPGA_ID_MASK_NOVER, "XCU50"},
     {FPGA_ID_XCU200,      FPGA_ID_MASK_NOVER, "XCU200"},
     {FPGA_ID_XCU250,      FPGA_ID_MASK_NOVER, "XCU250"},
     {FPGA_ID_XCU280,      FPGA_ID_MASK_NOVER, "XCU280"},
+    // Versal AI Edge
+    {FPGA_ID_XCVE1752,    FPGA_ID_MASK_NOVER, "XCVE1752"},
+    {FPGA_ID_XCVE2002,    FPGA_ID_MASK_NOVER, "XCVE2002"},
+    {FPGA_ID_XCVE2102,    FPGA_ID_MASK_NOVER, "XCVE2102"},
+    {FPGA_ID_XCVE2202,    FPGA_ID_MASK_NOVER, "XCVE2202"},
+    {FPGA_ID_XCVE2302,    FPGA_ID_MASK_NOVER, "XCVE2302"},
+    {FPGA_ID_XCVE2602,    FPGA_ID_MASK_NOVER, "XCVE2602"},
+    {FPGA_ID_XCVE2802,    FPGA_ID_MASK_NOVER, "XCVE2802"},
+    // Versal AI Core
+    {FPGA_ID_XCVC1352,    FPGA_ID_MASK_NOVER, "XCVC1352"},
+    {FPGA_ID_XCVC1502,    FPGA_ID_MASK_NOVER, "XCVC1502"},
+    {FPGA_ID_XCVC1702,    FPGA_ID_MASK_NOVER, "XCVC1702"},
+    {FPGA_ID_XCVC1802,    FPGA_ID_MASK_NOVER, "XCVC1802"},
+    {FPGA_ID_XCVC1902,    FPGA_ID_MASK_NOVER, "XCVC1902"},
+    {FPGA_ID_XCVC2602,    FPGA_ID_MASK_NOVER, "XCVC2602"},
+    {FPGA_ID_XCVC2802,    FPGA_ID_MASK_NOVER, "XCVC2802"},
+    // Versal Prime
+    {FPGA_ID_XCVM1102,    FPGA_ID_MASK_NOVER, "XCVM1102"},
+    {FPGA_ID_XCVM1302,    FPGA_ID_MASK_NOVER, "XCVM1302"},
+    {FPGA_ID_XCVM1402,    FPGA_ID_MASK_NOVER, "XCVM1402"},
+    {FPGA_ID_XCVM1502,    FPGA_ID_MASK_NOVER, "XCVM1502"},
+    {FPGA_ID_XCVM1802,    FPGA_ID_MASK_NOVER, "XCVM1802"},
+    {FPGA_ID_XCVM2202,    FPGA_ID_MASK_NOVER, "XCVM2202"},
+    {FPGA_ID_XCVM2302,    FPGA_ID_MASK_NOVER, "XCVM2302"},
+    {FPGA_ID_XCVM2502,    FPGA_ID_MASK_NOVER, "XCVM2502"},
+    {FPGA_ID_XCVM2902,    FPGA_ID_MASK_NOVER, "XCVM2902"},
+    // Versal Premium
+    {FPGA_ID_XCVP1002,    FPGA_ID_MASK_NOVER, "XCVP1002"},
+    {FPGA_ID_XCVP1052,    FPGA_ID_MASK_NOVER, "XCVP1052"},
+    {FPGA_ID_XCVP1102,    FPGA_ID_MASK_NOVER, "XCVP1102"},
+    {FPGA_ID_XCVP1202,    FPGA_ID_MASK_NOVER, "XCVP1202"},
+    {FPGA_ID_XCVP1402,    FPGA_ID_MASK_NOVER, "XCVP1402"},
+    {FPGA_ID_XCVP1502,    FPGA_ID_MASK_NOVER, "XCVP1502"},
+    {FPGA_ID_XCVP1552,    FPGA_ID_MASK_NOVER, "XCVP1552"},
+    {FPGA_ID_XCVP1702,    FPGA_ID_MASK_NOVER, "XCVP1702"},
+    {FPGA_ID_XCVP1802,    FPGA_ID_MASK_NOVER, "XCVP1802"},
+    {FPGA_ID_XCVP2502,    FPGA_ID_MASK_NOVER, "XCVP2502"},
+    {FPGA_ID_XCVP2802,    FPGA_ID_MASK_NOVER, "XCVP2802"},
 
     // Intel
     // Stratix 10

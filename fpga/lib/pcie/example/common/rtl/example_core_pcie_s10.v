@@ -55,6 +55,10 @@ module example_core_pcie_s10 #
     parameter READ_OP_TABLE_SIZE = PCIE_TAG_COUNT,
     // In-flight transmit limit (read)
     parameter READ_TX_LIMIT = 2**TX_SEQ_NUM_WIDTH,
+    // Completion header flow control credit limit (read)
+    parameter READ_CPLH_FC_LIMIT = 770,
+    // Completion data flow control credit limit (read)
+    parameter READ_CPLD_FC_LIMIT = 2400,
     // Operation table size (write)
     parameter WRITE_OP_TABLE_SIZE = 2**TX_SEQ_NUM_WIDTH,
     // In-flight transmit limit (write)
@@ -183,11 +187,18 @@ wire                                          pcie_tx_msix_wr_req_tlp_eop;
 wire                                          pcie_tx_msix_wr_req_tlp_ready;
 
 wire ext_tag_enable;
+wire rcb_128b;
 wire [7:0] bus_num;
 wire [2:0] max_read_request_size;
 wire [2:0] max_payload_size;
 wire msix_enable;
 wire msix_mask;
+
+wire rx_cpl_stall;
+
+wire rx_st_ready_int;
+
+assign rx_st_ready = rx_st_ready_int & !rx_cpl_stall;
 
 pcie_s10_if #(
     .SEG_COUNT(SEG_COUNT),
@@ -217,7 +228,7 @@ pcie_s10_if_inst (
     .rx_st_sop(rx_st_sop),
     .rx_st_eop(rx_st_eop),
     .rx_st_valid(rx_st_valid),
-    .rx_st_ready(rx_st_ready),
+    .rx_st_ready(rx_st_ready_int),
     .rx_st_vf_active(rx_st_vf_active),
     .rx_st_func_num(rx_st_func_num),
     .rx_st_vf_num(rx_st_vf_num),
@@ -358,6 +369,7 @@ pcie_s10_if_inst (
      * Configuration outputs
      */
     .ext_tag_enable(ext_tag_enable),
+    .rcb_128b(rcb_128b),
     .bus_num(bus_num),
     .max_read_request_size(max_read_request_size),
     .max_payload_size(max_payload_size),
@@ -383,6 +395,8 @@ example_core_pcie #(
     .PCIE_TAG_COUNT(PCIE_TAG_COUNT),
     .READ_OP_TABLE_SIZE(READ_OP_TABLE_SIZE),
     .READ_TX_LIMIT(READ_TX_LIMIT),
+    .READ_CPLH_FC_LIMIT(READ_CPLH_FC_LIMIT),
+    .READ_CPLD_FC_LIMIT(READ_CPLD_FC_LIMIT),
     .WRITE_OP_TABLE_SIZE(WRITE_OP_TABLE_SIZE),
     .WRITE_TX_LIMIT(WRITE_TX_LIMIT),
     .TLP_FORCE_64_BIT_ADDR(0),
@@ -477,6 +491,7 @@ core_pcie_inst (
      */
     .bus_num(bus_num),
     .ext_tag_enable(ext_tag_enable),
+    .rcb_128b(rcb_128b),
     .max_read_request_size(max_read_request_size),
     .max_payload_size(max_payload_size),
     .msix_enable(msix_enable),
@@ -486,7 +501,12 @@ core_pcie_inst (
      * Status
      */
     .status_error_cor(),
-    .status_error_uncor()
+    .status_error_uncor(),
+
+    /*
+     * Control and status
+     */
+    .rx_cpl_stall(rx_cpl_stall)
 );
 
 endmodule

@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2019-2022, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2019-2023 The Regents of the University of California
+ */
 
 #ifndef MQNIC_H
 #define MQNIC_H
@@ -44,6 +16,12 @@ either expressed or implied, of The Regents of the University of California.
 #define mqnic_reg_write32(base, reg, val) (((volatile uint32_t *)(base))[(reg)/4]) = val
 
 struct mqnic;
+
+struct mqnic_res {
+    unsigned int count;
+    volatile uint8_t *base;
+    unsigned int stride;
+};
 
 struct mqnic_sched {
     struct mqnic *mqnic;
@@ -98,11 +76,10 @@ struct mqnic_if {
 
     struct mqnic_reg_block *rb_list;
     struct mqnic_reg_block *if_ctrl_rb;
-    struct mqnic_reg_block *event_queue_rb;
-    struct mqnic_reg_block *tx_queue_rb;
-    struct mqnic_reg_block *tx_cpl_queue_rb;
-    struct mqnic_reg_block *rx_queue_rb;
-    struct mqnic_reg_block *rx_cpl_queue_rb;
+    struct mqnic_reg_block *eq_rb;
+    struct mqnic_reg_block *cq_rb;
+    struct mqnic_reg_block *txq_rb;
+    struct mqnic_reg_block *rxq_rb;
     struct mqnic_reg_block *rx_queue_map_rb;
 
     uint32_t if_features;
@@ -110,22 +87,13 @@ struct mqnic_if {
     uint32_t max_tx_mtu;
     uint32_t max_rx_mtu;
 
-    uint32_t event_queue_offset;
-    uint32_t event_queue_count;
-    uint32_t event_queue_stride;
+    uint32_t rx_queue_map_indir_table_size;
+    volatile uint8_t *rx_queue_map_indir_table[MQNIC_MAX_PORTS];
 
-    uint32_t tx_queue_offset;
-    uint32_t tx_queue_count;
-    uint32_t tx_queue_stride;
-    uint32_t tx_cpl_queue_offset;
-    uint32_t tx_cpl_queue_count;
-    uint32_t tx_cpl_queue_stride;
-    uint32_t rx_queue_offset;
-    uint32_t rx_queue_count;
-    uint32_t rx_queue_stride;
-    uint32_t rx_cpl_queue_offset;
-    uint32_t rx_cpl_queue_count;
-    uint32_t rx_cpl_queue_stride;
+    struct mqnic_res *eq_res;
+    struct mqnic_res *cq_res;
+    struct mqnic_res *txq_res;
+    struct mqnic_res *rxq_res;
 
     uint32_t port_count;
     struct mqnic_port *ports[MQNIC_MAX_PORTS];
@@ -198,14 +166,20 @@ struct mqnic *mqnic_open(const char *dev_name);
 void mqnic_close(struct mqnic *dev);
 void mqnic_print_fw_id(struct mqnic *dev);
 
+// mqnic_res.c
+struct mqnic_res *mqnic_res_open(unsigned int count, volatile uint8_t *base, unsigned int stride);
+void mqnic_res_close(struct mqnic_res *res);
+unsigned int mqnic_res_get_count(struct mqnic_res *res);
+volatile uint8_t *mqnic_res_get_addr(struct mqnic_res *res, int index);
+
 // mqnic_if.c
 struct mqnic_if *mqnic_if_open(struct mqnic *dev, int index, volatile uint8_t *regs);
 void mqnic_if_close(struct mqnic_if *interface);
 uint32_t mqnic_interface_get_tx_mtu(struct mqnic_if *interface);
 uint32_t mqnic_interface_get_rx_mtu(struct mqnic_if *interface);
-uint32_t mqnic_interface_get_rx_queue_map_offset(struct mqnic_if *interface, int port);
 uint32_t mqnic_interface_get_rx_queue_map_rss_mask(struct mqnic_if *interface, int port);
 uint32_t mqnic_interface_get_rx_queue_map_app_mask(struct mqnic_if *interface, int port);
+uint32_t mqnic_interface_get_rx_queue_map_indir_table(struct mqnic_if *interface, int port, int index);
 
 // mqnic_port.c
 struct mqnic_port *mqnic_port_open(struct mqnic_if *interface, int index, struct mqnic_reg_block *port_rb);

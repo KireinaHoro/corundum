@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2019-2023 The Regents of the University of California
 
 PREFIX ?= /usr/local
 BINDIR = $(DESTDIR)$(PREFIX)/bin
@@ -59,6 +61,7 @@ clean:
 	rm -f $(BIN)
 	rm -f *.o
 	rm -f .*.d
+	$(MAKE) -C $(dir $(LIBMQNIC))/ $@
 
 -include $(wildcard .*.d)
 

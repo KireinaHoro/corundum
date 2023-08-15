@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2019-2023 The Regents of the University of California
 
 # FPGA settings
 FPGA_PART = xcu200-fsgd2104-2-e
@@ -12,6 +14,7 @@ SYN_FILES += rtl/sync_signal.v
 SYN_FILES += rtl/common/mqnic_core_pcie_us.v
 SYN_FILES += rtl/common/mqnic_core_pcie.v
 SYN_FILES += rtl/common/mqnic_core.v
+SYN_FILES += rtl/common/mqnic_dram_if.v
 SYN_FILES += rtl/common/mqnic_interface.v
 SYN_FILES += rtl/common/mqnic_interface_tx.v
 SYN_FILES += rtl/common/mqnic_interface_rx.v
@@ -32,7 +35,6 @@ SYN_FILES += rtl/common/cpl_write.v
 SYN_FILES += rtl/common/cpl_op_mux.v
 SYN_FILES += rtl/common/desc_fetch.v
 SYN_FILES += rtl/common/desc_op_mux.v
-SYN_FILES += rtl/common/event_mux.v
 SYN_FILES += rtl/common/queue_manager.v
 SYN_FILES += rtl/common/cpl_queue_manager.v
 SYN_FILES += rtl/common/tx_fifo.v
@@ -58,9 +60,14 @@ SYN_FILES += rtl/common/cmac_pad.v
 SYN_FILES += rtl/common/mac_ts_insert.v
 SYN_FILES += app/dma_bench/rtl/mqnic_app_block_dma_bench.v
 SYN_FILES += app/dma_bench/rtl/dma_bench.v
+SYN_FILES += app/dma_bench/rtl/dram_test_ch.v
 SYN_FILES += lib/eth/rtl/ptp_clock.v
 SYN_FILES += lib/eth/rtl/ptp_clock_cdc.v
 SYN_FILES += lib/eth/rtl/ptp_perout.v
+SYN_FILES += lib/eth/rtl/lfsr.v
+SYN_FILES += lib/axi/rtl/axi_vfifo_raw.v
+SYN_FILES += lib/axi/rtl/axi_vfifo_raw_rd.v
+SYN_FILES += lib/axi/rtl/axi_vfifo_raw_wr.v
 SYN_FILES += lib/axi/rtl/axil_cdc.v
 SYN_FILES += lib/axi/rtl/axil_cdc_rd.v
 SYN_FILES += lib/axi/rtl/axil_cdc_wr.v
@@ -120,6 +127,9 @@ XDC_FILES += placement.xdc
 XDC_FILES += cfgmclk.xdc
 XDC_FILES += boot.xdc
 XDC_FILES += lib/axi/syn/vivado/axil_cdc.tcl
+XDC_FILES += lib/axi/syn/vivado/axi_vfifo_raw.tcl
+XDC_FILES += lib/axi/syn/vivado/axi_vfifo_raw_wr.tcl
+XDC_FILES += lib/axi/syn/vivado/axi_vfifo_raw_rd.tcl
 XDC_FILES += lib/axis/syn/vivado/axis_async_fifo.tcl
 XDC_FILES += lib/axis/syn/vivado/sync_reset.tcl
 XDC_FILES += lib/eth/syn/vivado/ptp_clock_cdc.tcl
@@ -129,6 +139,7 @@ XDC_FILES += ../../../common/syn/vivado/mqnic_rb_clk_info.tcl
 XDC_FILES += ../../../common/syn/vivado/rb_drp.tcl
 XDC_FILES += ../../../common/syn/vivado/cmac_gty_wrapper.tcl
 XDC_FILES += ../../../common/syn/vivado/cmac_gty_ch_wrapper.tcl
+XDC_FILES += app/dma_bench/syn/vivado/dram_test_ch.tcl
 
 # IP
 IP_TCL_FILES = ip/pcie4_uscale_plus_0.tcl

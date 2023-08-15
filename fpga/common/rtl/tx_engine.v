@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2019, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2019-2023 The Regents of the University of California
+ */
 
 // Language: Verilog 2001
 
@@ -67,7 +39,7 @@ module tx_engine #
     // Queue element pointer width
     parameter QUEUE_PTR_WIDTH = 16,
     // Completion queue index width
-    parameter CPL_QUEUE_INDEX_WIDTH = 4,
+    parameter CQN_WIDTH = QUEUE_INDEX_WIDTH,
     // Descriptor table size (number of in-flight operations)
     parameter DESC_TABLE_SIZE = 8,
     // Width of descriptor table field for tracking outstanding DMA operations
@@ -138,7 +110,7 @@ module tx_engine #
      */
     input  wire [QUEUE_INDEX_WIDTH-1:0]     s_axis_desc_req_status_queue,
     input  wire [QUEUE_PTR_WIDTH-1:0]       s_axis_desc_req_status_ptr,
-    input  wire [CPL_QUEUE_INDEX_WIDTH-1:0] s_axis_desc_req_status_cpl,
+    input  wire [CQN_WIDTH-1:0]             s_axis_desc_req_status_cpl,
     input  wire [DESC_REQ_TAG_WIDTH-1:0]    s_axis_desc_req_status_tag,
     input  wire                             s_axis_desc_req_status_empty,
     input  wire                             s_axis_desc_req_status_error,
@@ -158,7 +130,7 @@ module tx_engine #
     /*
      * Completion request output
      */
-    output wire [QUEUE_INDEX_WIDTH-1:0]     m_axis_cpl_req_queue,
+    output wire [CQN_WIDTH-1:0]             m_axis_cpl_req_queue,
     output wire [CPL_REQ_TAG_WIDTH-1:0]     m_axis_cpl_req_tag,
     output wire [CPL_SIZE*8-1:0]            m_axis_cpl_req_data,
     output wire                             m_axis_cpl_req_valid,
@@ -287,7 +259,7 @@ reg m_axis_desc_req_valid_reg = 1'b0, m_axis_desc_req_valid_next;
 
 reg s_axis_desc_tready_reg = 1'b0, s_axis_desc_tready_next;
 
-reg [CPL_QUEUE_INDEX_WIDTH-1:0] m_axis_cpl_req_queue_reg = {CPL_QUEUE_INDEX_WIDTH{1'b0}}, m_axis_cpl_req_queue_next;
+reg [CQN_WIDTH-1:0] m_axis_cpl_req_queue_reg = {CQN_WIDTH{1'b0}}, m_axis_cpl_req_queue_next;
 reg [CPL_REQ_TAG_WIDTH-1:0] m_axis_cpl_req_tag_reg = {CPL_REQ_TAG_WIDTH{1'b0}}, m_axis_cpl_req_tag_next;
 reg [CPL_SIZE*8-1:0] m_axis_cpl_req_data_reg = {CPL_SIZE*8{1'b0}}, m_axis_cpl_req_data_next;
 reg m_axis_cpl_req_valid_reg = 1'b0, m_axis_cpl_req_valid_next;
@@ -341,7 +313,7 @@ reg [QUEUE_INDEX_WIDTH-1:0] desc_table_queue[DESC_TABLE_SIZE-1:0];
 (* ram_style = "distributed", ramstyle = "no_rw_check, mlab" *)
 reg [QUEUE_PTR_WIDTH-1:0] desc_table_queue_ptr[DESC_TABLE_SIZE-1:0];
 (* ram_style = "distributed", ramstyle = "no_rw_check, mlab" *)
-reg [CPL_QUEUE_INDEX_WIDTH-1:0] desc_table_cpl_queue[DESC_TABLE_SIZE-1:0];
+reg [CQN_WIDTH-1:0] desc_table_cpl_queue[DESC_TABLE_SIZE-1:0];
 (* ram_style = "distributed", ramstyle = "no_rw_check, mlab" *)
 reg [AXIS_TX_DEST_WIDTH-1:0] desc_table_dest[DESC_TABLE_SIZE-1:0];
 (* ram_style = "distributed", ramstyle = "no_rw_check, mlab" *)
@@ -370,7 +342,7 @@ reg [AXIS_TX_DEST_WIDTH-1:0] desc_table_start_dest;
 reg desc_table_start_en;
 reg [CL_DESC_TABLE_SIZE-1:0] desc_table_dequeue_ptr;
 reg [QUEUE_PTR_WIDTH-1:0] desc_table_dequeue_queue_ptr;
-reg [CPL_QUEUE_INDEX_WIDTH-1:0] desc_table_dequeue_cpl_queue;
+reg [CQN_WIDTH-1:0] desc_table_dequeue_cpl_queue;
 reg desc_table_dequeue_invalid;
 reg desc_table_dequeue_en;
 reg [CL_DESC_TABLE_SIZE-1:0] desc_table_desc_ctrl_ptr;

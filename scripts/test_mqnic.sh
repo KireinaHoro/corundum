@@ -147,7 +147,7 @@ trap cleanup EXIT
 
 # run tests
 
-nic_info=$($netns_cmd $mqnic_dump -d $netdev)
+nic_info=$($netns_cmd $mqnic_dump -d $netdev -v)
 
 if [ $? -ne "0" ]; then
     echo "Failed to communicate with device" >2
@@ -170,7 +170,7 @@ logdir=$base_logdir/$logname
 
 mkdir -p $logdir
 
-echo "$nic_info" > $logdir/mqnic_dump.log
+echo "$nic_info" > $logdir/mqnic_dump_pre.log
 
 {
 
@@ -451,3 +451,5 @@ echo
 echo "Done"
 
 } | tee $logdir/test.log 2>&1
+
+$netns_cmd $mqnic_dump -d $netdev -v > $logdir/mqnic_dump_post.log

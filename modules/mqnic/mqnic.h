@@ -1,36 +1,6 @@
-/* SPDX-License-Identifier: BSD-2-Clause-Views */
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
- * Copyright 2019-2021, The Regents of the University of California.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *    1. Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *
- *    2. Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * The views and conclusions contained in the software and documentation
- * are those of the authors and should not be interpreted as representing
- * official policies, either expressed or implied, of The Regents of the
- * University of California.
+ * Copyright (c) 2019-2023 The Regents of the University of California
  */
 
 #ifndef MQNIC_H
@@ -70,14 +40,23 @@
 // default interval to poll port TX/RX status, in ms
 #define MQNIC_LINK_STATUS_POLL_MS 1000
 
-extern unsigned int mqnic_num_ev_queue_entries;
-extern unsigned int mqnic_num_tx_queue_entries;
-extern unsigned int mqnic_num_rx_queue_entries;
+extern unsigned int mqnic_num_eq_entries;
+extern unsigned int mqnic_num_txq_entries;
+extern unsigned int mqnic_num_rxq_entries;
 
 extern unsigned int mqnic_link_status_poll;
 
 struct mqnic_dev;
 struct mqnic_if;
+
+struct mqnic_res {
+	unsigned int count;
+	u8 __iomem *base;
+	unsigned int stride;
+
+	spinlock_t lock;
+	unsigned long *bmap;
+};
 
 struct mqnic_reg_block {
 	u32 type;
@@ -243,15 +222,14 @@ struct mqnic_rx_info {
 
 struct mqnic_ring {
 	// written on enqueue (i.e. start_xmit)
-	u32 head_ptr;
+	u32 prod_ptr;
 	u64 bytes;
 	u64 packets;
 	u64 dropped_packets;
 	struct netdev_queue *tx_queue;
 
 	// written from completion
-	u32 tail_ptr ____cacheline_aligned_in_smp;
-	u32 clean_tail_ptr;
+	u32 cons_ptr ____cacheline_aligned_in_smp;
 	u64 ts_s;
 	u8 ts_valid;
 
@@ -282,19 +260,16 @@ struct mqnic_ring {
 	struct mqnic_if *interface;
 	struct mqnic_priv *priv;
 	int index;
-	struct mqnic_cq_ring *cq_ring;
-	int active;
+	struct mqnic_cq *cq;
+	int enabled;
 
-	u32 hw_ptr_mask;
 	u8 __iomem *hw_addr;
-	u8 __iomem *hw_head_ptr;
-	u8 __iomem *hw_tail_ptr;
 } ____cacheline_aligned_in_smp;
 
-struct mqnic_cq_ring {
-	u32 head_ptr;
+struct mqnic_cq {
+	u32 prod_ptr;
 
-	u32 tail_ptr;
+	u32 cons_ptr;
 
 	u32 size;
 	u32 size_mask;
@@ -307,24 +282,20 @@ struct mqnic_cq_ring {
 	struct device *dev;
 	struct mqnic_if *interface;
 	struct napi_struct napi;
-	int index;
-	struct mqnic_eq_ring *eq_ring;
+	int cqn;
+	struct mqnic_eq *eq;
 	struct mqnic_ring *src_ring;
-	int eq_index;
-	int active;
+	int enabled;
 
-	void (*handler)(struct mqnic_cq_ring *ring);
+	void (*handler)(struct mqnic_cq *cq);
 
-	u32 hw_ptr_mask;
 	u8 __iomem *hw_addr;
-	u8 __iomem *hw_head_ptr;
-	u8 __iomem *hw_tail_ptr;
 };
 
-struct mqnic_eq_ring {
-	u32 head_ptr;
+struct mqnic_eq {
+	u32 prod_ptr;
 
-	u32 tail_ptr;
+	u32 cons_ptr;
 
 	u32 size;
 	u32 size_mask;
@@ -336,19 +307,18 @@ struct mqnic_eq_ring {
 
 	struct device *dev;
 	struct mqnic_if *interface;
-	int index;
+	int eqn;
 	struct mqnic_irq *irq;
-	int irq_index;
-	int active;
+	int enabled;
 
 	struct notifier_block irq_nb;
 
-	void (*handler)(struct mqnic_eq_ring *ring);
+	void (*handler)(struct mqnic_eq *eq);
 
-	u32 hw_ptr_mask;
+	spinlock_t table_lock;
+	struct radix_tree_root cq_table;
+
 	u8 __iomem *hw_addr;
-	u8 __iomem *hw_head_ptr;
-	u8 __iomem *hw_tail_ptr;
 };
 
 struct mqnic_sched {
@@ -390,8 +360,6 @@ struct mqnic_sched_block {
 
 	int index;
 
-	u32 tx_queue_count;
-
 	u32 sched_count;
 	struct mqnic_sched *sched[MQNIC_MAX_PORTS];
 };
@@ -402,11 +370,10 @@ struct mqnic_if {
 
 	struct mqnic_reg_block *rb_list;
 	struct mqnic_reg_block *if_ctrl_rb;
-	struct mqnic_reg_block *event_queue_rb;
-	struct mqnic_reg_block *tx_queue_rb;
-	struct mqnic_reg_block *tx_cpl_queue_rb;
-	struct mqnic_reg_block *rx_queue_rb;
-	struct mqnic_reg_block *rx_cpl_queue_rb;
+	struct mqnic_reg_block *eq_rb;
+	struct mqnic_reg_block *cq_rb;
+	struct mqnic_reg_block *txq_rb;
+	struct mqnic_reg_block *rxq_rb;
 	struct mqnic_reg_block *rx_queue_map_rb;
 
 	int index;
@@ -420,30 +387,13 @@ struct mqnic_if {
 	u32 max_tx_mtu;
 	u32 max_rx_mtu;
 
-	u32 event_queue_offset;
-	u32 event_queue_count;
-	u32 event_queue_stride;
-	struct mqnic_eq_ring *event_ring[MQNIC_MAX_EVENT_RINGS];
+	struct mqnic_res *eq_res;
+	struct mqnic_res *cq_res;
+	struct mqnic_res *txq_res;
+	struct mqnic_res *rxq_res;
 
-	u32 tx_queue_offset;
-	u32 tx_queue_count;
-	u32 tx_queue_stride;
-	struct mqnic_ring *tx_ring[MQNIC_MAX_TX_RINGS];
-
-	u32 tx_cpl_queue_offset;
-	u32 tx_cpl_queue_count;
-	u32 tx_cpl_queue_stride;
-	struct mqnic_cq_ring *tx_cpl_ring[MQNIC_MAX_TX_CPL_RINGS];
-
-	u32 rx_queue_offset;
-	u32 rx_queue_count;
-	u32 rx_queue_stride;
-	struct mqnic_ring *rx_ring[MQNIC_MAX_RX_RINGS];
-
-	u32 rx_cpl_queue_offset;
-	u32 rx_cpl_queue_count;
-	u32 rx_cpl_queue_stride;
-	struct mqnic_cq_ring *rx_cpl_ring[MQNIC_MAX_RX_CPL_RINGS];
+	u32 eq_count;
+	struct mqnic_eq *eq[MQNIC_MAX_EQ];
 
 	u32 port_count;
 	struct mqnic_port *port[MQNIC_MAX_PORTS];
@@ -452,6 +402,9 @@ struct mqnic_if {
 	struct mqnic_sched_block *sched_block[MQNIC_MAX_PORTS];
 
 	u32 max_desc_block_size;
+
+	u32 rx_queue_map_indir_table_size;
+	u8 __iomem *rx_queue_map_indir_table[MQNIC_MAX_PORTS];
 
 	resource_size_t hw_regs_size;
 	u8 __iomem *hw_addr;
@@ -480,25 +433,25 @@ struct mqnic_priv {
 	unsigned int link_status;
 	struct timer_list link_status_timer;
 
-	u32 event_queue_count;
-	struct mqnic_eq_ring *event_ring[MQNIC_MAX_EVENT_RINGS];
+	u32 txq_count;
+	u32 rxq_count;
 
-	u32 tx_queue_count;
-	struct mqnic_ring *tx_ring[MQNIC_MAX_TX_RINGS];
+	u32 tx_ring_size;
+	u32 rx_ring_size;
 
-	u32 tx_cpl_queue_count;
-	struct mqnic_cq_ring *tx_cpl_ring[MQNIC_MAX_TX_CPL_RINGS];
+	struct rw_semaphore txq_table_sem;
+	struct radix_tree_root txq_table;
 
-	u32 rx_queue_count;
-	struct mqnic_ring *rx_ring[MQNIC_MAX_RX_RINGS];
-
-	u32 rx_cpl_queue_count;
-	struct mqnic_cq_ring *rx_cpl_ring[MQNIC_MAX_RX_CPL_RINGS];
+	struct rw_semaphore rxq_table_sem;
+	struct radix_tree_root rxq_table;
 
 	u32 sched_block_count;
 	struct mqnic_sched_block *sched_block[MQNIC_MAX_PORTS];
 
 	u32 max_desc_block_size;
+
+	u32 rx_queue_map_indir_table_size;
+	u32 *rx_queue_map_indir_table;
 
 	struct hwtstamp_config hwts_config;
 
@@ -506,6 +459,14 @@ struct mqnic_priv {
 };
 
 // mqnic_main.c
+
+// mqnic_res.c
+struct mqnic_res *mqnic_create_res(unsigned int count, u8 __iomem *base, unsigned int stride);
+void mqnic_destroy_res(struct mqnic_res *res);
+int mqnic_res_alloc(struct mqnic_res *res);
+void mqnic_res_free(struct mqnic_res *res, int index);
+unsigned int mqnic_res_get_count(struct mqnic_res *res);
+u8 __iomem *mqnic_res_get_addr(struct mqnic_res *res, int index);
 
 // mqnic_reg_block.c
 struct mqnic_reg_block *mqnic_enumerate_reg_block_list(u8 __iomem *base, size_t offset, size_t size);
@@ -521,44 +482,45 @@ int mqnic_irq_init_platform(struct mqnic_dev *mdev);
 extern const struct file_operations mqnic_fops;
 
 // mqnic_if.c
-int mqnic_create_interface(struct mqnic_dev *mdev, struct mqnic_if **interface_ptr,
-		int index, u8 __iomem *hw_addr);
-void mqnic_destroy_interface(struct mqnic_if **interface_ptr);
+struct mqnic_if *mqnic_create_interface(struct mqnic_dev *mdev, int index, u8 __iomem *hw_addr);
+void mqnic_destroy_interface(struct mqnic_if *interface);
 u32 mqnic_interface_get_tx_mtu(struct mqnic_if *interface);
 void mqnic_interface_set_tx_mtu(struct mqnic_if *interface, u32 mtu);
 u32 mqnic_interface_get_rx_mtu(struct mqnic_if *interface);
 void mqnic_interface_set_rx_mtu(struct mqnic_if *interface, u32 mtu);
-u32 mqnic_interface_get_rx_queue_map_offset(struct mqnic_if *interface, int port);
-void mqnic_interface_set_rx_queue_map_offset(struct mqnic_if *interface, int port, u32 val);
 u32 mqnic_interface_get_rx_queue_map_rss_mask(struct mqnic_if *interface, int port);
 void mqnic_interface_set_rx_queue_map_rss_mask(struct mqnic_if *interface, int port, u32 val);
 u32 mqnic_interface_get_rx_queue_map_app_mask(struct mqnic_if *interface, int port);
 void mqnic_interface_set_rx_queue_map_app_mask(struct mqnic_if *interface, int port, u32 val);
+u32 mqnic_interface_get_rx_queue_map_indir_table(struct mqnic_if *interface, int port, int index);
+void mqnic_interface_set_rx_queue_map_indir_table(struct mqnic_if *interface, int port, int index, u32 val);
 
 // mqnic_port.c
-int mqnic_create_port(struct mqnic_if *interface, struct mqnic_port **port_ptr,
-		int index, struct mqnic_reg_block *port_rb);
-void mqnic_destroy_port(struct mqnic_port **port_ptr);
+struct mqnic_port *mqnic_create_port(struct mqnic_if *interface, int index,
+		struct mqnic_reg_block *port_rb);
+void mqnic_destroy_port(struct mqnic_port *port);
 u32 mqnic_port_get_tx_status(struct mqnic_port *port);
 u32 mqnic_port_get_rx_status(struct mqnic_port *port);
 
 // mqnic_netdev.c
+int mqnic_start_port(struct net_device *ndev);
+void mqnic_stop_port(struct net_device *ndev);
+int mqnic_update_indir_table(struct net_device *ndev);
 void mqnic_update_stats(struct net_device *ndev);
-int mqnic_create_netdev(struct mqnic_if *interface, struct net_device **ndev_ptr,
-		int index, int dev_port);
-void mqnic_destroy_netdev(struct net_device **ndev_ptr);
+struct net_device *mqnic_create_netdev(struct mqnic_if *interface, int index, int dev_port);
+void mqnic_destroy_netdev(struct net_device *ndev);
 
 // mqnic_sched_block.c
-int mqnic_create_sched_block(struct mqnic_if *interface, struct mqnic_sched_block **block_ptr,
+struct mqnic_sched_block *mqnic_create_sched_block(struct mqnic_if *interface,
 		int index, struct mqnic_reg_block *rb);
-void mqnic_destroy_sched_block(struct mqnic_sched_block **block_ptr);
+void mqnic_destroy_sched_block(struct mqnic_sched_block *block);
 int mqnic_activate_sched_block(struct mqnic_sched_block *block);
 void mqnic_deactivate_sched_block(struct mqnic_sched_block *block);
 
 // mqnic_scheduler.c
-int mqnic_create_scheduler(struct mqnic_sched_block *block, struct mqnic_sched **sched_ptr,
+struct mqnic_sched *mqnic_create_scheduler(struct mqnic_sched_block *block,
 		int index, struct mqnic_reg_block *rb);
-void mqnic_destroy_scheduler(struct mqnic_sched **sched_ptr);
+void mqnic_destroy_scheduler(struct mqnic_sched *sched);
 int mqnic_scheduler_enable(struct mqnic_sched *sched);
 void mqnic_scheduler_disable(struct mqnic_sched *sched);
 
@@ -596,73 +558,63 @@ void mqnic_stats_init(struct mqnic_dev *mdev);
 u64 mqnic_stats_read(struct mqnic_dev *mdev, int index);
 
 // mqnic_eq.c
-int mqnic_create_eq_ring(struct mqnic_if *interface, struct mqnic_eq_ring **ring_ptr,
-		int index, u8 __iomem *hw_addr);
-void mqnic_destroy_eq_ring(struct mqnic_eq_ring **ring_ptr);
-int mqnic_alloc_eq_ring(struct mqnic_eq_ring *ring, int size, int stride);
-void mqnic_free_eq_ring(struct mqnic_eq_ring *ring);
-int mqnic_activate_eq_ring(struct mqnic_eq_ring *ring, struct mqnic_irq *irq);
-void mqnic_deactivate_eq_ring(struct mqnic_eq_ring *ring);
-bool mqnic_is_eq_ring_empty(const struct mqnic_eq_ring *ring);
-bool mqnic_is_eq_ring_full(const struct mqnic_eq_ring *ring);
-void mqnic_eq_read_head_ptr(struct mqnic_eq_ring *ring);
-void mqnic_eq_write_tail_ptr(struct mqnic_eq_ring *ring);
-void mqnic_arm_eq(struct mqnic_eq_ring *ring);
-void mqnic_process_eq(struct mqnic_eq_ring *eq_ring);
+struct mqnic_eq *mqnic_create_eq(struct mqnic_if *interface);
+void mqnic_destroy_eq(struct mqnic_eq *eq);
+int mqnic_open_eq(struct mqnic_eq *eq, struct mqnic_irq *irq, int size);
+void mqnic_close_eq(struct mqnic_eq *eq);
+int mqnic_eq_attach_cq(struct mqnic_eq *eq, struct mqnic_cq *cq);
+void mqnic_eq_detach_cq(struct mqnic_eq *eq, struct mqnic_cq *cq);
+void mqnic_eq_read_prod_ptr(struct mqnic_eq *eq);
+void mqnic_eq_write_cons_ptr(struct mqnic_eq *eq);
+void mqnic_arm_eq(struct mqnic_eq *eq);
+void mqnic_process_eq(struct mqnic_eq *eq);
 
 // mqnic_cq.c
-int mqnic_create_cq_ring(struct mqnic_if *interface, struct mqnic_cq_ring **ring_ptr,
-		int index, u8 __iomem *hw_addr);
-void mqnic_destroy_cq_ring(struct mqnic_cq_ring **ring_ptr);
-int mqnic_alloc_cq_ring(struct mqnic_cq_ring *ring, int size, int stride);
-void mqnic_free_cq_ring(struct mqnic_cq_ring *ring);
-int mqnic_activate_cq_ring(struct mqnic_cq_ring *ring, struct mqnic_eq_ring *eq_ring);
-void mqnic_deactivate_cq_ring(struct mqnic_cq_ring *ring);
-bool mqnic_is_cq_ring_empty(const struct mqnic_cq_ring *ring);
-bool mqnic_is_cq_ring_full(const struct mqnic_cq_ring *ring);
-void mqnic_cq_read_head_ptr(struct mqnic_cq_ring *ring);
-void mqnic_cq_write_tail_ptr(struct mqnic_cq_ring *ring);
-void mqnic_arm_cq(struct mqnic_cq_ring *ring);
+struct mqnic_cq *mqnic_create_cq(struct mqnic_if *interface);
+void mqnic_destroy_cq(struct mqnic_cq *cq);
+int mqnic_open_cq(struct mqnic_cq *cq, struct mqnic_eq *eq, int size);
+void mqnic_close_cq(struct mqnic_cq *cq);
+void mqnic_cq_read_prod_ptr(struct mqnic_cq *cq);
+void mqnic_cq_write_cons_ptr(struct mqnic_cq *cq);
+void mqnic_arm_cq(struct mqnic_cq *cq);
 
 // mqnic_tx.c
-int mqnic_create_tx_ring(struct mqnic_if *interface, struct mqnic_ring **ring_ptr,
-		int index, u8 __iomem *hw_addr);
-void mqnic_destroy_tx_ring(struct mqnic_ring **ring_ptr);
-int mqnic_alloc_tx_ring(struct mqnic_ring *ring, int size, int stride);
-void mqnic_free_tx_ring(struct mqnic_ring *ring);
-int mqnic_activate_tx_ring(struct mqnic_ring *ring, struct mqnic_priv *priv,
-		struct mqnic_cq_ring *cq_ring);
-void mqnic_deactivate_tx_ring(struct mqnic_ring *ring);
+struct mqnic_ring *mqnic_create_tx_ring(struct mqnic_if *interface);
+void mqnic_destroy_tx_ring(struct mqnic_ring *ring);
+int mqnic_open_tx_ring(struct mqnic_ring *ring, struct mqnic_priv *priv,
+		struct mqnic_cq *cq, int size, int desc_block_size);
+void mqnic_close_tx_ring(struct mqnic_ring *ring);
+int mqnic_enable_tx_ring(struct mqnic_ring *ring);
+void mqnic_disable_tx_ring(struct mqnic_ring *ring);
 bool mqnic_is_tx_ring_empty(const struct mqnic_ring *ring);
 bool mqnic_is_tx_ring_full(const struct mqnic_ring *ring);
-void mqnic_tx_read_tail_ptr(struct mqnic_ring *ring);
-void mqnic_tx_write_head_ptr(struct mqnic_ring *ring);
+void mqnic_tx_read_cons_ptr(struct mqnic_ring *ring);
+void mqnic_tx_write_prod_ptr(struct mqnic_ring *ring);
 void mqnic_free_tx_desc(struct mqnic_ring *ring, int index, int napi_budget);
 int mqnic_free_tx_buf(struct mqnic_ring *ring);
-int mqnic_process_tx_cq(struct mqnic_cq_ring *cq_ring, int napi_budget);
-void mqnic_tx_irq(struct mqnic_cq_ring *cq);
+int mqnic_process_tx_cq(struct mqnic_cq *cq, int napi_budget);
+void mqnic_tx_irq(struct mqnic_cq *cq);
 int mqnic_poll_tx_cq(struct napi_struct *napi, int budget);
 netdev_tx_t mqnic_start_xmit(struct sk_buff *skb, struct net_device *dev);
 
 // mqnic_rx.c
-int mqnic_create_rx_ring(struct mqnic_if *interface, struct mqnic_ring **ring_ptr,
-		int index, u8 __iomem *hw_addr);
-void mqnic_destroy_rx_ring(struct mqnic_ring **ring_ptr);
-int mqnic_alloc_rx_ring(struct mqnic_ring *ring, int size, int stride);
-void mqnic_free_rx_ring(struct mqnic_ring *ring);
-int mqnic_activate_rx_ring(struct mqnic_ring *ring, struct mqnic_priv *priv,
-		struct mqnic_cq_ring *cq_ring);
-void mqnic_deactivate_rx_ring(struct mqnic_ring *ring);
+struct mqnic_ring *mqnic_create_rx_ring(struct mqnic_if *interface);
+void mqnic_destroy_rx_ring(struct mqnic_ring *ring);
+int mqnic_open_rx_ring(struct mqnic_ring *ring, struct mqnic_priv *priv,
+		struct mqnic_cq *cq, int size, int desc_block_size);
+void mqnic_close_rx_ring(struct mqnic_ring *ring);
+int mqnic_enable_rx_ring(struct mqnic_ring *ring);
+void mqnic_disable_rx_ring(struct mqnic_ring *ring);
 bool mqnic_is_rx_ring_empty(const struct mqnic_ring *ring);
 bool mqnic_is_rx_ring_full(const struct mqnic_ring *ring);
-void mqnic_rx_read_tail_ptr(struct mqnic_ring *ring);
-void mqnic_rx_write_head_ptr(struct mqnic_ring *ring);
+void mqnic_rx_read_cons_ptr(struct mqnic_ring *ring);
+void mqnic_rx_write_prod_ptr(struct mqnic_ring *ring);
 void mqnic_free_rx_desc(struct mqnic_ring *ring, int index);
 int mqnic_free_rx_buf(struct mqnic_ring *ring);
 int mqnic_prepare_rx_desc(struct mqnic_ring *ring, int index);
-void mqnic_refill_rx_buffers(struct mqnic_ring *ring);
-int mqnic_process_rx_cq(struct mqnic_cq_ring *cq_ring, int napi_budget);
-void mqnic_rx_irq(struct mqnic_cq_ring *cq);
+int mqnic_refill_rx_buffers(struct mqnic_ring *ring);
+int mqnic_process_rx_cq(struct mqnic_cq *cq, int napi_budget);
+void mqnic_rx_irq(struct mqnic_cq *cq);
 int mqnic_poll_rx_cq(struct napi_struct *napi, int budget);
 
 // mqnic_ethtool.c

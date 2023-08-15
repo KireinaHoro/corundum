@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2022-2023 The Regents of the University of California
 
 # FPGA settings
 FPGA_TOP = fpga
@@ -34,7 +36,6 @@ SYN_FILES += rtl/common/cpl_write.v
 SYN_FILES += rtl/common/cpl_op_mux.v
 SYN_FILES += rtl/common/desc_fetch.v
 SYN_FILES += rtl/common/desc_op_mux.v
-SYN_FILES += rtl/common/event_mux.v
 SYN_FILES += rtl/common/queue_manager.v
 SYN_FILES += rtl/common/cpl_queue_manager.v
 SYN_FILES += rtl/common/tx_fifo.v
@@ -78,7 +79,10 @@ SYN_FILES += lib/axis/rtl/axis_arb_mux.v
 SYN_FILES += lib/axis/rtl/axis_async_fifo.v
 SYN_FILES += lib/axis/rtl/axis_async_fifo_adapter.v
 SYN_FILES += lib/axis/rtl/axis_demux.v
-SYN_FILES += lib/axis/rtl/axis_fifo.v
+# Workaround for Quartus MLAB RAM read enable bug
+# https://www.intel.com/content/www/us/en/support/programmable/articles/000093130.html
+SYN_FILES += rtl/axis_fifo.v
+# SYN_FILES += lib/axis/rtl/axis_fifo.v
 SYN_FILES += lib/axis/rtl/axis_fifo_adapter.v
 SYN_FILES += lib/axis/rtl/axis_pipeline_fifo.v
 SYN_FILES += lib/axis/rtl/axis_register.v

@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2021-2022, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2021-2023 The Regents of the University of California
+ */
 
 // Language: Verilog 2001
 
@@ -80,22 +52,20 @@ module mqnic_core #
     parameter EVENT_QUEUE_OP_TABLE_SIZE = 32,
     parameter TX_QUEUE_OP_TABLE_SIZE = 32,
     parameter RX_QUEUE_OP_TABLE_SIZE = 32,
-    parameter TX_CPL_QUEUE_OP_TABLE_SIZE = TX_QUEUE_OP_TABLE_SIZE,
-    parameter RX_CPL_QUEUE_OP_TABLE_SIZE = RX_QUEUE_OP_TABLE_SIZE,
-    parameter EVENT_QUEUE_INDEX_WIDTH = 5,
+    parameter CQ_OP_TABLE_SIZE = 32,
+    parameter EQN_WIDTH = 5,
     parameter TX_QUEUE_INDEX_WIDTH = 13,
     parameter RX_QUEUE_INDEX_WIDTH = 8,
-    parameter TX_CPL_QUEUE_INDEX_WIDTH = TX_QUEUE_INDEX_WIDTH,
-    parameter RX_CPL_QUEUE_INDEX_WIDTH = RX_QUEUE_INDEX_WIDTH,
-    parameter EVENT_QUEUE_PIPELINE = 3,
+    parameter CQN_WIDTH = (TX_QUEUE_INDEX_WIDTH > RX_QUEUE_INDEX_WIDTH ? TX_QUEUE_INDEX_WIDTH : RX_QUEUE_INDEX_WIDTH) + 1,
+    parameter EQ_PIPELINE = 3,
     parameter TX_QUEUE_PIPELINE = 3+(TX_QUEUE_INDEX_WIDTH > 12 ? TX_QUEUE_INDEX_WIDTH-12 : 0),
     parameter RX_QUEUE_PIPELINE = 3+(RX_QUEUE_INDEX_WIDTH > 12 ? RX_QUEUE_INDEX_WIDTH-12 : 0),
-    parameter TX_CPL_QUEUE_PIPELINE = TX_QUEUE_PIPELINE,
-    parameter RX_CPL_QUEUE_PIPELINE = RX_QUEUE_PIPELINE,
+    parameter CQ_PIPELINE = 3+(CQN_WIDTH > 12 ? CQN_WIDTH-12 : 0),
 
     // TX and RX engine configuration
     parameter TX_DESC_TABLE_SIZE = 32,
     parameter RX_DESC_TABLE_SIZE = 32,
+    parameter RX_INDIR_TBL_ADDR_WIDTH = RX_QUEUE_INDEX_WIDTH > 8 ? 8 : RX_QUEUE_INDEX_WIDTH,
 
     // Scheduler configuration
     parameter TX_SCHEDULER_OP_TABLE_SIZE = TX_DESC_TABLE_SIZE,
@@ -189,7 +159,7 @@ module mqnic_core #
     parameter RAM_PIPELINE = 2,
 
     // Interrupt configuration
-    parameter IRQ_INDEX_WIDTH = EVENT_QUEUE_INDEX_WIDTH,
+    parameter IRQ_INDEX_WIDTH = EQN_WIDTH,
     parameter MSIX_ENABLE = 0,
     parameter AXIL_MSIX_ADDR_WIDTH = 16,
 
@@ -590,7 +560,7 @@ parameter IF_DMA_TAG_WIDTH = DMA_TAG_WIDTH-$clog2(IF_COUNT_INT)-1;
 
 parameter AXIS_TX_ID_WIDTH = TX_QUEUE_INDEX_WIDTH;
 parameter AXIS_TX_DEST_WIDTH = 4;
-parameter AXIS_RX_DEST_WIDTH = RX_QUEUE_INDEX_WIDTH;
+parameter AXIS_RX_DEST_WIDTH = RX_QUEUE_INDEX_WIDTH+1;
 
 parameter AXIS_SYNC_KEEP_WIDTH = AXIS_SYNC_DATA_WIDTH/(AXIS_DATA_WIDTH/AXIS_KEEP_WIDTH);
 
@@ -599,7 +569,7 @@ parameter AXIS_IF_KEEP_WIDTH = AXIS_IF_DATA_WIDTH/(AXIS_DATA_WIDTH/AXIS_KEEP_WID
 parameter AXIS_IF_TX_ID_WIDTH = AXIS_TX_ID_WIDTH;
 parameter AXIS_IF_RX_ID_WIDTH = PORTS_PER_IF > 1 ? $clog2(PORTS_PER_IF) : 1;
 parameter AXIS_IF_TX_DEST_WIDTH = $clog2(PORTS_PER_IF)+AXIS_TX_DEST_WIDTH;
-parameter AXIS_IF_RX_DEST_WIDTH = RX_QUEUE_INDEX_WIDTH;
+parameter AXIS_IF_RX_DEST_WIDTH = AXIS_RX_DEST_WIDTH;
 parameter AXIS_IF_TX_USER_WIDTH = AXIS_TX_USER_WIDTH;
 parameter AXIS_IF_RX_USER_WIDTH = AXIS_RX_USER_WIDTH;
 
@@ -607,6 +577,8 @@ localparam CLK_CYCLES_PER_US = (1000*CLK_PERIOD_NS_DENOM)/CLK_PERIOD_NS_NUM;
 
 localparam PHC_RB_BASE_ADDR = 32'h100;
 localparam CLK_RB_BASE_ADDR = PHC_RB_BASE_ADDR + 32'h100;
+
+genvar m, n;
 
 // check configuration
 initial begin
@@ -882,7 +854,7 @@ mqnic_ptp_inst (
     .ptp_perout_pulse(ptp_perout_pulse)
 );
 
-localparam CLK_CNT = PORT_COUNT*2;
+localparam CLK_CNT = PORT_COUNT*2 + (DDR_ENABLE ? DDR_CH : 0) + (HBM_ENABLE ? HBM_CH : 0);
 
 wire [CLK_CNT-1:0] all_clocks;
 
@@ -891,7 +863,7 @@ mqnic_rb_clk_info #(
     .CLK_PERIOD_NS_DENOM(CLK_PERIOD_NS_DENOM),
     .REF_CLK_PERIOD_NS_NUM(PTP_CLK_PERIOD_NS_NUM),
     .REF_CLK_PERIOD_NS_DENOM(PTP_CLK_PERIOD_NS_DENOM),
-    .CH_CNT(PORT_COUNT*2),
+    .CH_CNT(CLK_CNT),
     .REG_ADDR_WIDTH(AXIL_CTRL_ADDR_WIDTH),
     .REG_DATA_WIDTH(AXIL_CTRL_DATA_WIDTH),
     .REG_STRB_WIDTH(AXIL_CTRL_STRB_WIDTH),
@@ -921,7 +893,6 @@ mqnic_rb_clk_info_inst (
      * Clock inputs
      */
     .ref_clk(ptp_clk),
-    .ref_rst(ptp_rst),
 
     .ch_clk(all_clocks)
 );
@@ -2426,6 +2397,481 @@ end
 
 endgenerate
 
+// RAM infrastructure
+wire [DDR_CH-1:0]                            app_ddr_clk;
+wire [DDR_CH-1:0]                            app_ddr_rst;
+
+wire [DDR_CH*AXI_DDR_ID_WIDTH-1:0]           app_m_axi_ddr_awid;
+wire [DDR_CH*AXI_DDR_ADDR_WIDTH-1:0]         app_m_axi_ddr_awaddr;
+wire [DDR_CH*8-1:0]                          app_m_axi_ddr_awlen;
+wire [DDR_CH*3-1:0]                          app_m_axi_ddr_awsize;
+wire [DDR_CH*2-1:0]                          app_m_axi_ddr_awburst;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_awlock;
+wire [DDR_CH*4-1:0]                          app_m_axi_ddr_awcache;
+wire [DDR_CH*3-1:0]                          app_m_axi_ddr_awprot;
+wire [DDR_CH*4-1:0]                          app_m_axi_ddr_awqos;
+wire [DDR_CH*AXI_DDR_AWUSER_WIDTH-1:0]       app_m_axi_ddr_awuser;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_awvalid;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_awready;
+wire [DDR_CH*AXI_DDR_DATA_WIDTH-1:0]         app_m_axi_ddr_wdata;
+wire [DDR_CH*AXI_DDR_STRB_WIDTH-1:0]         app_m_axi_ddr_wstrb;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_wlast;
+wire [DDR_CH*AXI_DDR_WUSER_WIDTH-1:0]        app_m_axi_ddr_wuser;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_wvalid;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_wready;
+wire [DDR_CH*AXI_DDR_ID_WIDTH-1:0]           app_m_axi_ddr_bid;
+wire [DDR_CH*2-1:0]                          app_m_axi_ddr_bresp;
+wire [DDR_CH*AXI_DDR_BUSER_WIDTH-1:0]        app_m_axi_ddr_buser;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_bvalid;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_bready;
+wire [DDR_CH*AXI_DDR_ID_WIDTH-1:0]           app_m_axi_ddr_arid;
+wire [DDR_CH*AXI_DDR_ADDR_WIDTH-1:0]         app_m_axi_ddr_araddr;
+wire [DDR_CH*8-1:0]                          app_m_axi_ddr_arlen;
+wire [DDR_CH*3-1:0]                          app_m_axi_ddr_arsize;
+wire [DDR_CH*2-1:0]                          app_m_axi_ddr_arburst;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_arlock;
+wire [DDR_CH*4-1:0]                          app_m_axi_ddr_arcache;
+wire [DDR_CH*3-1:0]                          app_m_axi_ddr_arprot;
+wire [DDR_CH*4-1:0]                          app_m_axi_ddr_arqos;
+wire [DDR_CH*AXI_DDR_ARUSER_WIDTH-1:0]       app_m_axi_ddr_aruser;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_arvalid;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_arready;
+wire [DDR_CH*AXI_DDR_ID_WIDTH-1:0]           app_m_axi_ddr_rid;
+wire [DDR_CH*AXI_DDR_DATA_WIDTH-1:0]         app_m_axi_ddr_rdata;
+wire [DDR_CH*2-1:0]                          app_m_axi_ddr_rresp;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_rlast;
+wire [DDR_CH*AXI_DDR_RUSER_WIDTH-1:0]        app_m_axi_ddr_ruser;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_rvalid;
+wire [DDR_CH-1:0]                            app_m_axi_ddr_rready;
+
+wire [DDR_CH-1:0]                            app_ddr_status;
+
+wire [HBM_CH-1:0]                            app_hbm_clk;
+wire [HBM_CH-1:0]                            app_hbm_rst;
+
+wire [HBM_CH*AXI_HBM_ID_WIDTH-1:0]           app_m_axi_hbm_awid;
+wire [HBM_CH*AXI_HBM_ADDR_WIDTH-1:0]         app_m_axi_hbm_awaddr;
+wire [HBM_CH*8-1:0]                          app_m_axi_hbm_awlen;
+wire [HBM_CH*3-1:0]                          app_m_axi_hbm_awsize;
+wire [HBM_CH*2-1:0]                          app_m_axi_hbm_awburst;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_awlock;
+wire [HBM_CH*4-1:0]                          app_m_axi_hbm_awcache;
+wire [HBM_CH*3-1:0]                          app_m_axi_hbm_awprot;
+wire [HBM_CH*4-1:0]                          app_m_axi_hbm_awqos;
+wire [HBM_CH*AXI_HBM_AWUSER_WIDTH-1:0]       app_m_axi_hbm_awuser;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_awvalid;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_awready;
+wire [HBM_CH*AXI_HBM_DATA_WIDTH-1:0]         app_m_axi_hbm_wdata;
+wire [HBM_CH*AXI_HBM_STRB_WIDTH-1:0]         app_m_axi_hbm_wstrb;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_wlast;
+wire [HBM_CH*AXI_HBM_WUSER_WIDTH-1:0]        app_m_axi_hbm_wuser;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_wvalid;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_wready;
+wire [HBM_CH*AXI_HBM_ID_WIDTH-1:0]           app_m_axi_hbm_bid;
+wire [HBM_CH*2-1:0]                          app_m_axi_hbm_bresp;
+wire [HBM_CH*AXI_HBM_BUSER_WIDTH-1:0]        app_m_axi_hbm_buser;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_bvalid;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_bready;
+wire [HBM_CH*AXI_HBM_ID_WIDTH-1:0]           app_m_axi_hbm_arid;
+wire [HBM_CH*AXI_HBM_ADDR_WIDTH-1:0]         app_m_axi_hbm_araddr;
+wire [HBM_CH*8-1:0]                          app_m_axi_hbm_arlen;
+wire [HBM_CH*3-1:0]                          app_m_axi_hbm_arsize;
+wire [HBM_CH*2-1:0]                          app_m_axi_hbm_arburst;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_arlock;
+wire [HBM_CH*4-1:0]                          app_m_axi_hbm_arcache;
+wire [HBM_CH*3-1:0]                          app_m_axi_hbm_arprot;
+wire [HBM_CH*4-1:0]                          app_m_axi_hbm_arqos;
+wire [HBM_CH*AXI_HBM_ARUSER_WIDTH-1:0]       app_m_axi_hbm_aruser;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_arvalid;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_arready;
+wire [HBM_CH*AXI_HBM_ID_WIDTH-1:0]           app_m_axi_hbm_rid;
+wire [HBM_CH*AXI_HBM_DATA_WIDTH-1:0]         app_m_axi_hbm_rdata;
+wire [HBM_CH*2-1:0]                          app_m_axi_hbm_rresp;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_rlast;
+wire [HBM_CH*AXI_HBM_RUSER_WIDTH-1:0]        app_m_axi_hbm_ruser;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_rvalid;
+wire [HBM_CH-1:0]                            app_m_axi_hbm_rready;
+
+wire [HBM_CH-1:0]                            app_hbm_status;
+
+generate
+
+if (DDR_ENABLE) begin : ddr
+
+    mqnic_dram_if #(
+        // RAM configuration
+        .CH(DDR_CH),
+        .GROUP_SIZE(DDR_GROUP_SIZE),
+        .AXI_DATA_WIDTH(AXI_DDR_DATA_WIDTH),
+        .AXI_ADDR_WIDTH(AXI_DDR_ADDR_WIDTH),
+        .AXI_STRB_WIDTH(AXI_DDR_STRB_WIDTH),
+        .AXI_ID_WIDTH(AXI_DDR_ID_WIDTH),
+        .AXI_AWUSER_ENABLE(AXI_DDR_AWUSER_ENABLE),
+        .AXI_AWUSER_WIDTH(AXI_DDR_AWUSER_WIDTH),
+        .AXI_WUSER_ENABLE(AXI_DDR_WUSER_ENABLE),
+        .AXI_WUSER_WIDTH(AXI_DDR_WUSER_WIDTH),
+        .AXI_BUSER_ENABLE(AXI_DDR_BUSER_ENABLE),
+        .AXI_BUSER_WIDTH(AXI_DDR_BUSER_WIDTH),
+        .AXI_ARUSER_ENABLE(AXI_DDR_ARUSER_ENABLE),
+        .AXI_ARUSER_WIDTH(AXI_DDR_ARUSER_WIDTH),
+        .AXI_RUSER_ENABLE(AXI_DDR_RUSER_ENABLE),
+        .AXI_RUSER_WIDTH(AXI_DDR_RUSER_WIDTH),
+        .AXI_MAX_BURST_LEN(AXI_DDR_MAX_BURST_LEN),
+        .AXI_NARROW_BURST(AXI_DDR_NARROW_BURST),
+        .AXI_FIXED_BURST(AXI_DDR_FIXED_BURST),
+        .AXI_WRAP_BURST(AXI_DDR_WRAP_BURST)
+    )
+    dram_if_inst (
+        .clk(clk),
+        .rst(rst),
+
+        /*
+         * AXI to DRAM
+         */
+        .m_axi_clk(ddr_clk),
+        .m_axi_rst(ddr_rst),
+
+        .m_axi_awid(m_axi_ddr_awid),
+        .m_axi_awaddr(m_axi_ddr_awaddr),
+        .m_axi_awlen(m_axi_ddr_awlen),
+        .m_axi_awsize(m_axi_ddr_awsize),
+        .m_axi_awburst(m_axi_ddr_awburst),
+        .m_axi_awlock(m_axi_ddr_awlock),
+        .m_axi_awcache(m_axi_ddr_awcache),
+        .m_axi_awprot(m_axi_ddr_awprot),
+        .m_axi_awqos(m_axi_ddr_awqos),
+        .m_axi_awuser(m_axi_ddr_awuser),
+        .m_axi_awvalid(m_axi_ddr_awvalid),
+        .m_axi_awready(m_axi_ddr_awready),
+        .m_axi_wdata(m_axi_ddr_wdata),
+        .m_axi_wstrb(m_axi_ddr_wstrb),
+        .m_axi_wlast(m_axi_ddr_wlast),
+        .m_axi_wuser(m_axi_ddr_wuser),
+        .m_axi_wvalid(m_axi_ddr_wvalid),
+        .m_axi_wready(m_axi_ddr_wready),
+        .m_axi_bid(m_axi_ddr_bid),
+        .m_axi_bresp(m_axi_ddr_bresp),
+        .m_axi_buser(m_axi_ddr_buser),
+        .m_axi_bvalid(m_axi_ddr_bvalid),
+        .m_axi_bready(m_axi_ddr_bready),
+        .m_axi_arid(m_axi_ddr_arid),
+        .m_axi_araddr(m_axi_ddr_araddr),
+        .m_axi_arlen(m_axi_ddr_arlen),
+        .m_axi_arsize(m_axi_ddr_arsize),
+        .m_axi_arburst(m_axi_ddr_arburst),
+        .m_axi_arlock(m_axi_ddr_arlock),
+        .m_axi_arcache(m_axi_ddr_arcache),
+        .m_axi_arprot(m_axi_ddr_arprot),
+        .m_axi_arqos(m_axi_ddr_arqos),
+        .m_axi_aruser(m_axi_ddr_aruser),
+        .m_axi_arvalid(m_axi_ddr_arvalid),
+        .m_axi_arready(m_axi_ddr_arready),
+        .m_axi_rid(m_axi_ddr_rid),
+        .m_axi_rdata(m_axi_ddr_rdata),
+        .m_axi_rresp(m_axi_ddr_rresp),
+        .m_axi_rlast(m_axi_ddr_rlast),
+        .m_axi_ruser(m_axi_ddr_ruser),
+        .m_axi_rvalid(m_axi_ddr_rvalid),
+        .m_axi_rready(m_axi_ddr_rready),
+
+        .status_in(ddr_status),
+
+        /*
+         * AXI to application
+         */
+        .s_axi_app_clk(app_ddr_clk),
+        .s_axi_app_rst(app_ddr_rst),
+
+        .s_axi_app_awid(app_m_axi_ddr_awid),
+        .s_axi_app_awaddr(app_m_axi_ddr_awaddr),
+        .s_axi_app_awlen(app_m_axi_ddr_awlen),
+        .s_axi_app_awsize(app_m_axi_ddr_awsize),
+        .s_axi_app_awburst(app_m_axi_ddr_awburst),
+        .s_axi_app_awlock(app_m_axi_ddr_awlock),
+        .s_axi_app_awcache(app_m_axi_ddr_awcache),
+        .s_axi_app_awprot(app_m_axi_ddr_awprot),
+        .s_axi_app_awqos(app_m_axi_ddr_awqos),
+        .s_axi_app_awuser(app_m_axi_ddr_awuser),
+        .s_axi_app_awvalid(app_m_axi_ddr_awvalid),
+        .s_axi_app_awready(app_m_axi_ddr_awready),
+        .s_axi_app_wdata(app_m_axi_ddr_wdata),
+        .s_axi_app_wstrb(app_m_axi_ddr_wstrb),
+        .s_axi_app_wlast(app_m_axi_ddr_wlast),
+        .s_axi_app_wuser(app_m_axi_ddr_wuser),
+        .s_axi_app_wvalid(app_m_axi_ddr_wvalid),
+        .s_axi_app_wready(app_m_axi_ddr_wready),
+        .s_axi_app_bid(app_m_axi_ddr_bid),
+        .s_axi_app_bresp(app_m_axi_ddr_bresp),
+        .s_axi_app_buser(app_m_axi_ddr_buser),
+        .s_axi_app_bvalid(app_m_axi_ddr_bvalid),
+        .s_axi_app_bready(app_m_axi_ddr_bready),
+        .s_axi_app_arid(app_m_axi_ddr_arid),
+        .s_axi_app_araddr(app_m_axi_ddr_araddr),
+        .s_axi_app_arlen(app_m_axi_ddr_arlen),
+        .s_axi_app_arsize(app_m_axi_ddr_arsize),
+        .s_axi_app_arburst(app_m_axi_ddr_arburst),
+        .s_axi_app_arlock(app_m_axi_ddr_arlock),
+        .s_axi_app_arcache(app_m_axi_ddr_arcache),
+        .s_axi_app_arprot(app_m_axi_ddr_arprot),
+        .s_axi_app_arqos(app_m_axi_ddr_arqos),
+        .s_axi_app_aruser(app_m_axi_ddr_aruser),
+        .s_axi_app_arvalid(app_m_axi_ddr_arvalid),
+        .s_axi_app_arready(app_m_axi_ddr_arready),
+        .s_axi_app_rid(app_m_axi_ddr_rid),
+        .s_axi_app_rdata(app_m_axi_ddr_rdata),
+        .s_axi_app_rresp(app_m_axi_ddr_rresp),
+        .s_axi_app_rlast(app_m_axi_ddr_rlast),
+        .s_axi_app_ruser(app_m_axi_ddr_ruser),
+        .s_axi_app_rvalid(app_m_axi_ddr_rvalid),
+        .s_axi_app_rready(app_m_axi_ddr_rready),
+
+        .app_status(app_ddr_status)
+    );
+
+    assign all_clocks[PORT_COUNT*2 +: DDR_CH] = ddr_clk;
+
+end else begin
+
+    assign m_axi_ddr_awid = 0;
+    assign m_axi_ddr_awaddr = 0;
+    assign m_axi_ddr_awlen = 0;
+    assign m_axi_ddr_awsize = 0;
+    assign m_axi_ddr_awburst = 0;
+    assign m_axi_ddr_awlock = 0;
+    assign m_axi_ddr_awcache = 0;
+    assign m_axi_ddr_awprot = 0;
+    assign m_axi_ddr_awqos = 0;
+    assign m_axi_ddr_awuser = 0;
+    assign m_axi_ddr_awvalid = 0;
+    assign m_axi_ddr_wdata = 0;
+    assign m_axi_ddr_wstrb = 0;
+    assign m_axi_ddr_wlast = 0;
+    assign m_axi_ddr_wuser = 0;
+    assign m_axi_ddr_wvalid = 0;
+    assign m_axi_ddr_bready = 0;
+    assign m_axi_ddr_arid = 0;
+    assign m_axi_ddr_araddr = 0;
+    assign m_axi_ddr_arlen = 0;
+    assign m_axi_ddr_arsize = 0;
+    assign m_axi_ddr_arburst = 0;
+    assign m_axi_ddr_arlock = 0;
+    assign m_axi_ddr_arcache = 0;
+    assign m_axi_ddr_arprot = 0;
+    assign m_axi_ddr_arqos = 0;
+    assign m_axi_ddr_aruser = 0;
+    assign m_axi_ddr_arvalid = 0;
+    assign m_axi_ddr_rready = 0;
+
+    assign app_ddr_clk = 0;
+    assign app_ddr_rst = 0;
+
+    assign app_m_axi_ddr_awready = 0;
+    assign app_m_axi_ddr_wready = 0;
+    assign app_m_axi_ddr_bid = 0;
+    assign app_m_axi_ddr_bresp = 0;
+    assign app_m_axi_ddr_buser = 0;
+    assign app_m_axi_ddr_bvalid = 0;
+    assign app_m_axi_ddr_arready = 0;
+    assign app_m_axi_ddr_rid = 0;
+    assign app_m_axi_ddr_rdata = 0;
+    assign app_m_axi_ddr_rresp = 0;
+    assign app_m_axi_ddr_rlast = 0;
+    assign app_m_axi_ddr_ruser = 0;
+    assign app_m_axi_ddr_rvalid = 0;
+
+    assign app_ddr_status = 0;
+
+end
+
+if (HBM_ENABLE) begin : hbm
+
+    mqnic_dram_if #(
+        // RAM configuration
+        .CH(HBM_CH),
+        .GROUP_SIZE(HBM_GROUP_SIZE),
+        .AXI_DATA_WIDTH(AXI_HBM_DATA_WIDTH),
+        .AXI_ADDR_WIDTH(AXI_HBM_ADDR_WIDTH),
+        .AXI_STRB_WIDTH(AXI_HBM_STRB_WIDTH),
+        .AXI_ID_WIDTH(AXI_HBM_ID_WIDTH),
+        .AXI_AWUSER_ENABLE(AXI_HBM_AWUSER_ENABLE),
+        .AXI_AWUSER_WIDTH(AXI_HBM_AWUSER_WIDTH),
+        .AXI_WUSER_ENABLE(AXI_HBM_WUSER_ENABLE),
+        .AXI_WUSER_WIDTH(AXI_HBM_WUSER_WIDTH),
+        .AXI_BUSER_ENABLE(AXI_HBM_BUSER_ENABLE),
+        .AXI_BUSER_WIDTH(AXI_HBM_BUSER_WIDTH),
+        .AXI_ARUSER_ENABLE(AXI_HBM_ARUSER_ENABLE),
+        .AXI_ARUSER_WIDTH(AXI_HBM_ARUSER_WIDTH),
+        .AXI_RUSER_ENABLE(AXI_HBM_RUSER_ENABLE),
+        .AXI_RUSER_WIDTH(AXI_HBM_RUSER_WIDTH),
+        .AXI_MAX_BURST_LEN(AXI_HBM_MAX_BURST_LEN),
+        .AXI_NARROW_BURST(AXI_HBM_NARROW_BURST),
+        .AXI_FIXED_BURST(AXI_HBM_FIXED_BURST),
+        .AXI_WRAP_BURST(AXI_HBM_WRAP_BURST)
+    )
+    dram_if_inst (
+        .clk(clk),
+        .rst(rst),
+
+        /*
+         * AXI to DRAM
+         */
+        .m_axi_clk(hbm_clk),
+        .m_axi_rst(hbm_rst),
+
+        .m_axi_awid(m_axi_hbm_awid),
+        .m_axi_awaddr(m_axi_hbm_awaddr),
+        .m_axi_awlen(m_axi_hbm_awlen),
+        .m_axi_awsize(m_axi_hbm_awsize),
+        .m_axi_awburst(m_axi_hbm_awburst),
+        .m_axi_awlock(m_axi_hbm_awlock),
+        .m_axi_awcache(m_axi_hbm_awcache),
+        .m_axi_awprot(m_axi_hbm_awprot),
+        .m_axi_awqos(m_axi_hbm_awqos),
+        .m_axi_awuser(m_axi_hbm_awuser),
+        .m_axi_awvalid(m_axi_hbm_awvalid),
+        .m_axi_awready(m_axi_hbm_awready),
+        .m_axi_wdata(m_axi_hbm_wdata),
+        .m_axi_wstrb(m_axi_hbm_wstrb),
+        .m_axi_wlast(m_axi_hbm_wlast),
+        .m_axi_wuser(m_axi_hbm_wuser),
+        .m_axi_wvalid(m_axi_hbm_wvalid),
+        .m_axi_wready(m_axi_hbm_wready),
+        .m_axi_bid(m_axi_hbm_bid),
+        .m_axi_bresp(m_axi_hbm_bresp),
+        .m_axi_buser(m_axi_hbm_buser),
+        .m_axi_bvalid(m_axi_hbm_bvalid),
+        .m_axi_bready(m_axi_hbm_bready),
+        .m_axi_arid(m_axi_hbm_arid),
+        .m_axi_araddr(m_axi_hbm_araddr),
+        .m_axi_arlen(m_axi_hbm_arlen),
+        .m_axi_arsize(m_axi_hbm_arsize),
+        .m_axi_arburst(m_axi_hbm_arburst),
+        .m_axi_arlock(m_axi_hbm_arlock),
+        .m_axi_arcache(m_axi_hbm_arcache),
+        .m_axi_arprot(m_axi_hbm_arprot),
+        .m_axi_arqos(m_axi_hbm_arqos),
+        .m_axi_aruser(m_axi_hbm_aruser),
+        .m_axi_arvalid(m_axi_hbm_arvalid),
+        .m_axi_arready(m_axi_hbm_arready),
+        .m_axi_rid(m_axi_hbm_rid),
+        .m_axi_rdata(m_axi_hbm_rdata),
+        .m_axi_rresp(m_axi_hbm_rresp),
+        .m_axi_rlast(m_axi_hbm_rlast),
+        .m_axi_ruser(m_axi_hbm_ruser),
+        .m_axi_rvalid(m_axi_hbm_rvalid),
+        .m_axi_rready(m_axi_hbm_rready),
+
+        .status_in(hbm_status),
+
+        /*
+         * AXI to application
+         */
+        .s_axi_app_clk(app_hbm_clk),
+        .s_axi_app_rst(app_hbm_rst),
+
+        .s_axi_app_awid(app_m_axi_hbm_awid),
+        .s_axi_app_awaddr(app_m_axi_hbm_awaddr),
+        .s_axi_app_awlen(app_m_axi_hbm_awlen),
+        .s_axi_app_awsize(app_m_axi_hbm_awsize),
+        .s_axi_app_awburst(app_m_axi_hbm_awburst),
+        .s_axi_app_awlock(app_m_axi_hbm_awlock),
+        .s_axi_app_awcache(app_m_axi_hbm_awcache),
+        .s_axi_app_awprot(app_m_axi_hbm_awprot),
+        .s_axi_app_awqos(app_m_axi_hbm_awqos),
+        .s_axi_app_awuser(app_m_axi_hbm_awuser),
+        .s_axi_app_awvalid(app_m_axi_hbm_awvalid),
+        .s_axi_app_awready(app_m_axi_hbm_awready),
+        .s_axi_app_wdata(app_m_axi_hbm_wdata),
+        .s_axi_app_wstrb(app_m_axi_hbm_wstrb),
+        .s_axi_app_wlast(app_m_axi_hbm_wlast),
+        .s_axi_app_wuser(app_m_axi_hbm_wuser),
+        .s_axi_app_wvalid(app_m_axi_hbm_wvalid),
+        .s_axi_app_wready(app_m_axi_hbm_wready),
+        .s_axi_app_bid(app_m_axi_hbm_bid),
+        .s_axi_app_bresp(app_m_axi_hbm_bresp),
+        .s_axi_app_buser(app_m_axi_hbm_buser),
+        .s_axi_app_bvalid(app_m_axi_hbm_bvalid),
+        .s_axi_app_bready(app_m_axi_hbm_bready),
+        .s_axi_app_arid(app_m_axi_hbm_arid),
+        .s_axi_app_araddr(app_m_axi_hbm_araddr),
+        .s_axi_app_arlen(app_m_axi_hbm_arlen),
+        .s_axi_app_arsize(app_m_axi_hbm_arsize),
+        .s_axi_app_arburst(app_m_axi_hbm_arburst),
+        .s_axi_app_arlock(app_m_axi_hbm_arlock),
+        .s_axi_app_arcache(app_m_axi_hbm_arcache),
+        .s_axi_app_arprot(app_m_axi_hbm_arprot),
+        .s_axi_app_arqos(app_m_axi_hbm_arqos),
+        .s_axi_app_aruser(app_m_axi_hbm_aruser),
+        .s_axi_app_arvalid(app_m_axi_hbm_arvalid),
+        .s_axi_app_arready(app_m_axi_hbm_arready),
+        .s_axi_app_rid(app_m_axi_hbm_rid),
+        .s_axi_app_rdata(app_m_axi_hbm_rdata),
+        .s_axi_app_rresp(app_m_axi_hbm_rresp),
+        .s_axi_app_rlast(app_m_axi_hbm_rlast),
+        .s_axi_app_ruser(app_m_axi_hbm_ruser),
+        .s_axi_app_rvalid(app_m_axi_hbm_rvalid),
+        .s_axi_app_rready(app_m_axi_hbm_rready),
+
+        .app_status(app_hbm_status)
+    );
+
+    assign all_clocks[PORT_COUNT*2 + (DDR_ENABLE ? DDR_CH : 0) +: HBM_CH] = hbm_clk;
+
+end else begin
+
+    assign m_axi_hbm_awid = 0;
+    assign m_axi_hbm_awaddr = 0;
+    assign m_axi_hbm_awlen = 0;
+    assign m_axi_hbm_awsize = 0;
+    assign m_axi_hbm_awburst = 0;
+    assign m_axi_hbm_awlock = 0;
+    assign m_axi_hbm_awcache = 0;
+    assign m_axi_hbm_awprot = 0;
+    assign m_axi_hbm_awqos = 0;
+    assign m_axi_hbm_awuser = 0;
+    assign m_axi_hbm_awvalid = 0;
+    assign m_axi_hbm_wdata = 0;
+    assign m_axi_hbm_wstrb = 0;
+    assign m_axi_hbm_wlast = 0;
+    assign m_axi_hbm_wuser = 0;
+    assign m_axi_hbm_wvalid = 0;
+    assign m_axi_hbm_bready = 0;
+    assign m_axi_hbm_arid = 0;
+    assign m_axi_hbm_araddr = 0;
+    assign m_axi_hbm_arlen = 0;
+    assign m_axi_hbm_arsize = 0;
+    assign m_axi_hbm_arburst = 0;
+    assign m_axi_hbm_arlock = 0;
+    assign m_axi_hbm_arcache = 0;
+    assign m_axi_hbm_arprot = 0;
+    assign m_axi_hbm_arqos = 0;
+    assign m_axi_hbm_aruser = 0;
+    assign m_axi_hbm_arvalid = 0;
+    assign m_axi_hbm_rready = 0;
+
+    assign app_hbm_clk = 0;
+    assign app_hbm_rst = 0;
+
+    assign app_m_axi_hbm_awready = 0;
+    assign app_m_axi_hbm_wready = 0;
+    assign app_m_axi_hbm_bid = 0;
+    assign app_m_axi_hbm_bresp = 0;
+    assign app_m_axi_hbm_buser = 0;
+    assign app_m_axi_hbm_bvalid = 0;
+    assign app_m_axi_hbm_arready = 0;
+    assign app_m_axi_hbm_rid = 0;
+    assign app_m_axi_hbm_rdata = 0;
+    assign app_m_axi_hbm_rresp = 0;
+    assign app_m_axi_hbm_rlast = 0;
+    assign app_m_axi_hbm_ruser = 0;
+    assign app_m_axi_hbm_rvalid = 0;
+
+    assign app_hbm_status = 0;
+
+end
+
+endgenerate
+
 // streaming connections to application
 wire [PORT_COUNT-1:0]                        app_direct_tx_clk;
 wire [PORT_COUNT-1:0]                        app_direct_tx_rst;
@@ -2556,7 +3002,6 @@ wire [IF_COUNT*AXIS_IF_RX_DEST_WIDTH-1:0]    app_m_axis_if_rx_tdest;
 wire [IF_COUNT*AXIS_IF_RX_USER_WIDTH-1:0]    app_m_axis_if_rx_tuser;
 
 generate
-    genvar m, n;
 
     for (n = 0; n < IF_COUNT; n = n + 1) begin : iface
 
@@ -2578,18 +3023,15 @@ generate
             .EVENT_QUEUE_OP_TABLE_SIZE(EVENT_QUEUE_OP_TABLE_SIZE),
             .TX_QUEUE_OP_TABLE_SIZE(TX_QUEUE_OP_TABLE_SIZE),
             .RX_QUEUE_OP_TABLE_SIZE(RX_QUEUE_OP_TABLE_SIZE),
-            .TX_CPL_QUEUE_OP_TABLE_SIZE(TX_CPL_QUEUE_OP_TABLE_SIZE),
-            .RX_CPL_QUEUE_OP_TABLE_SIZE(RX_CPL_QUEUE_OP_TABLE_SIZE),
-            .EVENT_QUEUE_INDEX_WIDTH(EVENT_QUEUE_INDEX_WIDTH),
+            .CQ_OP_TABLE_SIZE(CQ_OP_TABLE_SIZE),
+            .EQN_WIDTH(EQN_WIDTH),
             .TX_QUEUE_INDEX_WIDTH(TX_QUEUE_INDEX_WIDTH),
             .RX_QUEUE_INDEX_WIDTH(RX_QUEUE_INDEX_WIDTH),
-            .TX_CPL_QUEUE_INDEX_WIDTH(TX_CPL_QUEUE_INDEX_WIDTH),
-            .RX_CPL_QUEUE_INDEX_WIDTH(RX_CPL_QUEUE_INDEX_WIDTH),
-            .EVENT_QUEUE_PIPELINE(EVENT_QUEUE_PIPELINE),
+            .CQN_WIDTH(CQN_WIDTH),
+            .EQ_PIPELINE(EQ_PIPELINE),
             .TX_QUEUE_PIPELINE(TX_QUEUE_PIPELINE),
             .RX_QUEUE_PIPELINE(RX_QUEUE_PIPELINE),
-            .TX_CPL_QUEUE_PIPELINE(TX_CPL_QUEUE_PIPELINE),
-            .RX_CPL_QUEUE_PIPELINE(RX_CPL_QUEUE_PIPELINE),
+            .CQ_PIPELINE(CQ_PIPELINE),
             .QUEUE_PTR_WIDTH(16),
             .LOG_QUEUE_SIZE_WIDTH(4),
             .LOG_BLOCK_SIZE_WIDTH(2),
@@ -2603,6 +3045,7 @@ generate
             // TX and RX engine configuration
             .TX_DESC_TABLE_SIZE(TX_DESC_TABLE_SIZE),
             .RX_DESC_TABLE_SIZE(RX_DESC_TABLE_SIZE),
+            .RX_INDIR_TBL_ADDR_WIDTH(RX_INDIR_TBL_ADDR_WIDTH),
 
             // Scheduler configuration
             .TX_SCHEDULER_OP_TABLE_SIZE(TX_SCHEDULER_OP_TABLE_SIZE),
@@ -3578,102 +4021,102 @@ if (APP_ENABLE) begin : app
         /*
          * DDR
          */
-        .ddr_clk(ddr_clk),
-        .ddr_rst(ddr_rst),
+        .ddr_clk(app_ddr_clk),
+        .ddr_rst(app_ddr_rst),
 
-        .m_axi_ddr_awid(m_axi_ddr_awid),
-        .m_axi_ddr_awaddr(m_axi_ddr_awaddr),
-        .m_axi_ddr_awlen(m_axi_ddr_awlen),
-        .m_axi_ddr_awsize(m_axi_ddr_awsize),
-        .m_axi_ddr_awburst(m_axi_ddr_awburst),
-        .m_axi_ddr_awlock(m_axi_ddr_awlock),
-        .m_axi_ddr_awcache(m_axi_ddr_awcache),
-        .m_axi_ddr_awprot(m_axi_ddr_awprot),
-        .m_axi_ddr_awqos(m_axi_ddr_awqos),
-        .m_axi_ddr_awuser(m_axi_ddr_awuser),
-        .m_axi_ddr_awvalid(m_axi_ddr_awvalid),
-        .m_axi_ddr_awready(m_axi_ddr_awready),
-        .m_axi_ddr_wdata(m_axi_ddr_wdata),
-        .m_axi_ddr_wstrb(m_axi_ddr_wstrb),
-        .m_axi_ddr_wlast(m_axi_ddr_wlast),
-        .m_axi_ddr_wuser(m_axi_ddr_wuser),
-        .m_axi_ddr_wvalid(m_axi_ddr_wvalid),
-        .m_axi_ddr_wready(m_axi_ddr_wready),
-        .m_axi_ddr_bid(m_axi_ddr_bid),
-        .m_axi_ddr_bresp(m_axi_ddr_bresp),
-        .m_axi_ddr_buser(m_axi_ddr_buser),
-        .m_axi_ddr_bvalid(m_axi_ddr_bvalid),
-        .m_axi_ddr_bready(m_axi_ddr_bready),
-        .m_axi_ddr_arid(m_axi_ddr_arid),
-        .m_axi_ddr_araddr(m_axi_ddr_araddr),
-        .m_axi_ddr_arlen(m_axi_ddr_arlen),
-        .m_axi_ddr_arsize(m_axi_ddr_arsize),
-        .m_axi_ddr_arburst(m_axi_ddr_arburst),
-        .m_axi_ddr_arlock(m_axi_ddr_arlock),
-        .m_axi_ddr_arcache(m_axi_ddr_arcache),
-        .m_axi_ddr_arprot(m_axi_ddr_arprot),
-        .m_axi_ddr_arqos(m_axi_ddr_arqos),
-        .m_axi_ddr_aruser(m_axi_ddr_aruser),
-        .m_axi_ddr_arvalid(m_axi_ddr_arvalid),
-        .m_axi_ddr_arready(m_axi_ddr_arready),
-        .m_axi_ddr_rid(m_axi_ddr_rid),
-        .m_axi_ddr_rdata(m_axi_ddr_rdata),
-        .m_axi_ddr_rresp(m_axi_ddr_rresp),
-        .m_axi_ddr_rlast(m_axi_ddr_rlast),
-        .m_axi_ddr_ruser(m_axi_ddr_ruser),
-        .m_axi_ddr_rvalid(m_axi_ddr_rvalid),
-        .m_axi_ddr_rready(m_axi_ddr_rready),
+        .m_axi_ddr_awid(app_m_axi_ddr_awid),
+        .m_axi_ddr_awaddr(app_m_axi_ddr_awaddr),
+        .m_axi_ddr_awlen(app_m_axi_ddr_awlen),
+        .m_axi_ddr_awsize(app_m_axi_ddr_awsize),
+        .m_axi_ddr_awburst(app_m_axi_ddr_awburst),
+        .m_axi_ddr_awlock(app_m_axi_ddr_awlock),
+        .m_axi_ddr_awcache(app_m_axi_ddr_awcache),
+        .m_axi_ddr_awprot(app_m_axi_ddr_awprot),
+        .m_axi_ddr_awqos(app_m_axi_ddr_awqos),
+        .m_axi_ddr_awuser(app_m_axi_ddr_awuser),
+        .m_axi_ddr_awvalid(app_m_axi_ddr_awvalid),
+        .m_axi_ddr_awready(app_m_axi_ddr_awready),
+        .m_axi_ddr_wdata(app_m_axi_ddr_wdata),
+        .m_axi_ddr_wstrb(app_m_axi_ddr_wstrb),
+        .m_axi_ddr_wlast(app_m_axi_ddr_wlast),
+        .m_axi_ddr_wuser(app_m_axi_ddr_wuser),
+        .m_axi_ddr_wvalid(app_m_axi_ddr_wvalid),
+        .m_axi_ddr_wready(app_m_axi_ddr_wready),
+        .m_axi_ddr_bid(app_m_axi_ddr_bid),
+        .m_axi_ddr_bresp(app_m_axi_ddr_bresp),
+        .m_axi_ddr_buser(app_m_axi_ddr_buser),
+        .m_axi_ddr_bvalid(app_m_axi_ddr_bvalid),
+        .m_axi_ddr_bready(app_m_axi_ddr_bready),
+        .m_axi_ddr_arid(app_m_axi_ddr_arid),
+        .m_axi_ddr_araddr(app_m_axi_ddr_araddr),
+        .m_axi_ddr_arlen(app_m_axi_ddr_arlen),
+        .m_axi_ddr_arsize(app_m_axi_ddr_arsize),
+        .m_axi_ddr_arburst(app_m_axi_ddr_arburst),
+        .m_axi_ddr_arlock(app_m_axi_ddr_arlock),
+        .m_axi_ddr_arcache(app_m_axi_ddr_arcache),
+        .m_axi_ddr_arprot(app_m_axi_ddr_arprot),
+        .m_axi_ddr_arqos(app_m_axi_ddr_arqos),
+        .m_axi_ddr_aruser(app_m_axi_ddr_aruser),
+        .m_axi_ddr_arvalid(app_m_axi_ddr_arvalid),
+        .m_axi_ddr_arready(app_m_axi_ddr_arready),
+        .m_axi_ddr_rid(app_m_axi_ddr_rid),
+        .m_axi_ddr_rdata(app_m_axi_ddr_rdata),
+        .m_axi_ddr_rresp(app_m_axi_ddr_rresp),
+        .m_axi_ddr_rlast(app_m_axi_ddr_rlast),
+        .m_axi_ddr_ruser(app_m_axi_ddr_ruser),
+        .m_axi_ddr_rvalid(app_m_axi_ddr_rvalid),
+        .m_axi_ddr_rready(app_m_axi_ddr_rready),
 
         .ddr_status(ddr_status),
 
         /*
          * HBM
          */
-        .hbm_clk(hbm_clk),
-        .hbm_rst(hbm_rst),
+        .hbm_clk(app_hbm_clk),
+        .hbm_rst(app_hbm_rst),
 
-        .m_axi_hbm_awid(m_axi_hbm_awid),
-        .m_axi_hbm_awaddr(m_axi_hbm_awaddr),
-        .m_axi_hbm_awlen(m_axi_hbm_awlen),
-        .m_axi_hbm_awsize(m_axi_hbm_awsize),
-        .m_axi_hbm_awburst(m_axi_hbm_awburst),
-        .m_axi_hbm_awlock(m_axi_hbm_awlock),
-        .m_axi_hbm_awcache(m_axi_hbm_awcache),
-        .m_axi_hbm_awprot(m_axi_hbm_awprot),
-        .m_axi_hbm_awqos(m_axi_hbm_awqos),
-        .m_axi_hbm_awuser(m_axi_hbm_awuser),
-        .m_axi_hbm_awvalid(m_axi_hbm_awvalid),
-        .m_axi_hbm_awready(m_axi_hbm_awready),
-        .m_axi_hbm_wdata(m_axi_hbm_wdata),
-        .m_axi_hbm_wstrb(m_axi_hbm_wstrb),
-        .m_axi_hbm_wlast(m_axi_hbm_wlast),
-        .m_axi_hbm_wuser(m_axi_hbm_wuser),
-        .m_axi_hbm_wvalid(m_axi_hbm_wvalid),
-        .m_axi_hbm_wready(m_axi_hbm_wready),
-        .m_axi_hbm_bid(m_axi_hbm_bid),
-        .m_axi_hbm_bresp(m_axi_hbm_bresp),
-        .m_axi_hbm_buser(m_axi_hbm_buser),
-        .m_axi_hbm_bvalid(m_axi_hbm_bvalid),
-        .m_axi_hbm_bready(m_axi_hbm_bready),
-        .m_axi_hbm_arid(m_axi_hbm_arid),
-        .m_axi_hbm_araddr(m_axi_hbm_araddr),
-        .m_axi_hbm_arlen(m_axi_hbm_arlen),
-        .m_axi_hbm_arsize(m_axi_hbm_arsize),
-        .m_axi_hbm_arburst(m_axi_hbm_arburst),
-        .m_axi_hbm_arlock(m_axi_hbm_arlock),
-        .m_axi_hbm_arcache(m_axi_hbm_arcache),
-        .m_axi_hbm_arprot(m_axi_hbm_arprot),
-        .m_axi_hbm_arqos(m_axi_hbm_arqos),
-        .m_axi_hbm_aruser(m_axi_hbm_aruser),
-        .m_axi_hbm_arvalid(m_axi_hbm_arvalid),
-        .m_axi_hbm_arready(m_axi_hbm_arready),
-        .m_axi_hbm_rid(m_axi_hbm_rid),
-        .m_axi_hbm_rdata(m_axi_hbm_rdata),
-        .m_axi_hbm_rresp(m_axi_hbm_rresp),
-        .m_axi_hbm_rlast(m_axi_hbm_rlast),
-        .m_axi_hbm_ruser(m_axi_hbm_ruser),
-        .m_axi_hbm_rvalid(m_axi_hbm_rvalid),
-        .m_axi_hbm_rready(m_axi_hbm_rready),
+        .m_axi_hbm_awid(app_m_axi_hbm_awid),
+        .m_axi_hbm_awaddr(app_m_axi_hbm_awaddr),
+        .m_axi_hbm_awlen(app_m_axi_hbm_awlen),
+        .m_axi_hbm_awsize(app_m_axi_hbm_awsize),
+        .m_axi_hbm_awburst(app_m_axi_hbm_awburst),
+        .m_axi_hbm_awlock(app_m_axi_hbm_awlock),
+        .m_axi_hbm_awcache(app_m_axi_hbm_awcache),
+        .m_axi_hbm_awprot(app_m_axi_hbm_awprot),
+        .m_axi_hbm_awqos(app_m_axi_hbm_awqos),
+        .m_axi_hbm_awuser(app_m_axi_hbm_awuser),
+        .m_axi_hbm_awvalid(app_m_axi_hbm_awvalid),
+        .m_axi_hbm_awready(app_m_axi_hbm_awready),
+        .m_axi_hbm_wdata(app_m_axi_hbm_wdata),
+        .m_axi_hbm_wstrb(app_m_axi_hbm_wstrb),
+        .m_axi_hbm_wlast(app_m_axi_hbm_wlast),
+        .m_axi_hbm_wuser(app_m_axi_hbm_wuser),
+        .m_axi_hbm_wvalid(app_m_axi_hbm_wvalid),
+        .m_axi_hbm_wready(app_m_axi_hbm_wready),
+        .m_axi_hbm_bid(app_m_axi_hbm_bid),
+        .m_axi_hbm_bresp(app_m_axi_hbm_bresp),
+        .m_axi_hbm_buser(app_m_axi_hbm_buser),
+        .m_axi_hbm_bvalid(app_m_axi_hbm_bvalid),
+        .m_axi_hbm_bready(app_m_axi_hbm_bready),
+        .m_axi_hbm_arid(app_m_axi_hbm_arid),
+        .m_axi_hbm_araddr(app_m_axi_hbm_araddr),
+        .m_axi_hbm_arlen(app_m_axi_hbm_arlen),
+        .m_axi_hbm_arsize(app_m_axi_hbm_arsize),
+        .m_axi_hbm_arburst(app_m_axi_hbm_arburst),
+        .m_axi_hbm_arlock(app_m_axi_hbm_arlock),
+        .m_axi_hbm_arcache(app_m_axi_hbm_arcache),
+        .m_axi_hbm_arprot(app_m_axi_hbm_arprot),
+        .m_axi_hbm_arqos(app_m_axi_hbm_arqos),
+        .m_axi_hbm_aruser(app_m_axi_hbm_aruser),
+        .m_axi_hbm_arvalid(app_m_axi_hbm_arvalid),
+        .m_axi_hbm_arready(app_m_axi_hbm_arready),
+        .m_axi_hbm_rid(app_m_axi_hbm_rid),
+        .m_axi_hbm_rdata(app_m_axi_hbm_rdata),
+        .m_axi_hbm_rresp(app_m_axi_hbm_rresp),
+        .m_axi_hbm_rlast(app_m_axi_hbm_rlast),
+        .m_axi_hbm_ruser(app_m_axi_hbm_ruser),
+        .m_axi_hbm_rvalid(app_m_axi_hbm_rvalid),
+        .m_axi_hbm_rready(app_m_axi_hbm_rready),
 
         .hbm_status(hbm_status),
 
@@ -3837,65 +4280,65 @@ end else begin
     assign app_m_axis_if_rx_tdest = 0;
     assign app_m_axis_if_rx_tuser = 0;
 
-    assign m_axi_ddr_awid = 0;
-    assign m_axi_ddr_awaddr = 0;
-    assign m_axi_ddr_awlen = 0;
-    assign m_axi_ddr_awsize = 0;
-    assign m_axi_ddr_awburst = 0;
-    assign m_axi_ddr_awlock = 0;
-    assign m_axi_ddr_awcache = 0;
-    assign m_axi_ddr_awprot = 0;
-    assign m_axi_ddr_awqos = 0;
-    assign m_axi_ddr_awuser = 0;
-    assign m_axi_ddr_awvalid = 0;
-    assign m_axi_ddr_wdata = 0;
-    assign m_axi_ddr_wstrb = 0;
-    assign m_axi_ddr_wlast = 0;
-    assign m_axi_ddr_wuser = 0;
-    assign m_axi_ddr_wvalid = 0;
-    assign m_axi_ddr_bready = 0;
-    assign m_axi_ddr_arid = 0;
-    assign m_axi_ddr_araddr = 0;
-    assign m_axi_ddr_arlen = 0;
-    assign m_axi_ddr_arsize = 0;
-    assign m_axi_ddr_arburst = 0;
-    assign m_axi_ddr_arlock = 0;
-    assign m_axi_ddr_arcache = 0;
-    assign m_axi_ddr_arprot = 0;
-    assign m_axi_ddr_arqos = 0;
-    assign m_axi_ddr_aruser = 0;
-    assign m_axi_ddr_arvalid = 0;
-    assign m_axi_ddr_rready = 0;
+    assign app_m_axi_ddr_awid = 0;
+    assign app_m_axi_ddr_awaddr = 0;
+    assign app_m_axi_ddr_awlen = 0;
+    assign app_m_axi_ddr_awsize = 0;
+    assign app_m_axi_ddr_awburst = 0;
+    assign app_m_axi_ddr_awlock = 0;
+    assign app_m_axi_ddr_awcache = 0;
+    assign app_m_axi_ddr_awprot = 0;
+    assign app_m_axi_ddr_awqos = 0;
+    assign app_m_axi_ddr_awuser = 0;
+    assign app_m_axi_ddr_awvalid = 0;
+    assign app_m_axi_ddr_wdata = 0;
+    assign app_m_axi_ddr_wstrb = 0;
+    assign app_m_axi_ddr_wlast = 0;
+    assign app_m_axi_ddr_wuser = 0;
+    assign app_m_axi_ddr_wvalid = 0;
+    assign app_m_axi_ddr_bready = 0;
+    assign app_m_axi_ddr_arid = 0;
+    assign app_m_axi_ddr_araddr = 0;
+    assign app_m_axi_ddr_arlen = 0;
+    assign app_m_axi_ddr_arsize = 0;
+    assign app_m_axi_ddr_arburst = 0;
+    assign app_m_axi_ddr_arlock = 0;
+    assign app_m_axi_ddr_arcache = 0;
+    assign app_m_axi_ddr_arprot = 0;
+    assign app_m_axi_ddr_arqos = 0;
+    assign app_m_axi_ddr_aruser = 0;
+    assign app_m_axi_ddr_arvalid = 0;
+    assign app_m_axi_ddr_rready = 0;
 
-    assign m_axi_hbm_awid = 0;
-    assign m_axi_hbm_awaddr = 0;
-    assign m_axi_hbm_awlen = 0;
-    assign m_axi_hbm_awsize = 0;
-    assign m_axi_hbm_awburst = 0;
-    assign m_axi_hbm_awlock = 0;
-    assign m_axi_hbm_awcache = 0;
-    assign m_axi_hbm_awprot = 0;
-    assign m_axi_hbm_awqos = 0;
-    assign m_axi_hbm_awuser = 0;
-    assign m_axi_hbm_awvalid = 0;
-    assign m_axi_hbm_wdata = 0;
-    assign m_axi_hbm_wstrb = 0;
-    assign m_axi_hbm_wlast = 0;
-    assign m_axi_hbm_wuser = 0;
-    assign m_axi_hbm_wvalid = 0;
-    assign m_axi_hbm_bready = 0;
-    assign m_axi_hbm_arid = 0;
-    assign m_axi_hbm_araddr = 0;
-    assign m_axi_hbm_arlen = 0;
-    assign m_axi_hbm_arsize = 0;
-    assign m_axi_hbm_arburst = 0;
-    assign m_axi_hbm_arlock = 0;
-    assign m_axi_hbm_arcache = 0;
-    assign m_axi_hbm_arprot = 0;
-    assign m_axi_hbm_arqos = 0;
-    assign m_axi_hbm_aruser = 0;
-    assign m_axi_hbm_arvalid = 0;
-    assign m_axi_hbm_rready = 0;
+    assign app_m_axi_hbm_awid = 0;
+    assign app_m_axi_hbm_awaddr = 0;
+    assign app_m_axi_hbm_awlen = 0;
+    assign app_m_axi_hbm_awsize = 0;
+    assign app_m_axi_hbm_awburst = 0;
+    assign app_m_axi_hbm_awlock = 0;
+    assign app_m_axi_hbm_awcache = 0;
+    assign app_m_axi_hbm_awprot = 0;
+    assign app_m_axi_hbm_awqos = 0;
+    assign app_m_axi_hbm_awuser = 0;
+    assign app_m_axi_hbm_awvalid = 0;
+    assign app_m_axi_hbm_wdata = 0;
+    assign app_m_axi_hbm_wstrb = 0;
+    assign app_m_axi_hbm_wlast = 0;
+    assign app_m_axi_hbm_wuser = 0;
+    assign app_m_axi_hbm_wvalid = 0;
+    assign app_m_axi_hbm_bready = 0;
+    assign app_m_axi_hbm_arid = 0;
+    assign app_m_axi_hbm_araddr = 0;
+    assign app_m_axi_hbm_arlen = 0;
+    assign app_m_axi_hbm_arsize = 0;
+    assign app_m_axi_hbm_arburst = 0;
+    assign app_m_axi_hbm_arlock = 0;
+    assign app_m_axi_hbm_arcache = 0;
+    assign app_m_axi_hbm_arprot = 0;
+    assign app_m_axi_hbm_arqos = 0;
+    assign app_m_axi_hbm_aruser = 0;
+    assign app_m_axi_hbm_arvalid = 0;
+    assign app_m_axi_hbm_rready = 0;
 
     assign axis_app_stat_tdata = 0;
     assign axis_app_stat_tid = 0;

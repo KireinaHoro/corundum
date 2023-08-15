@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2021, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2021-2023 The Regents of the University of California
+ */
 
 // Language: Verilog 2001
 
@@ -80,22 +52,20 @@ module mqnic_core_pcie_s10 #
     parameter EVENT_QUEUE_OP_TABLE_SIZE = 32,
     parameter TX_QUEUE_OP_TABLE_SIZE = 32,
     parameter RX_QUEUE_OP_TABLE_SIZE = 32,
-    parameter TX_CPL_QUEUE_OP_TABLE_SIZE = TX_QUEUE_OP_TABLE_SIZE,
-    parameter RX_CPL_QUEUE_OP_TABLE_SIZE = RX_QUEUE_OP_TABLE_SIZE,
-    parameter EVENT_QUEUE_INDEX_WIDTH = 5,
+    parameter CQ_OP_TABLE_SIZE = 32,
+    parameter EQN_WIDTH = 5,
     parameter TX_QUEUE_INDEX_WIDTH = 13,
     parameter RX_QUEUE_INDEX_WIDTH = 8,
-    parameter TX_CPL_QUEUE_INDEX_WIDTH = TX_QUEUE_INDEX_WIDTH,
-    parameter RX_CPL_QUEUE_INDEX_WIDTH = RX_QUEUE_INDEX_WIDTH,
-    parameter EVENT_QUEUE_PIPELINE = 3,
+    parameter CQN_WIDTH = (TX_QUEUE_INDEX_WIDTH > RX_QUEUE_INDEX_WIDTH ? TX_QUEUE_INDEX_WIDTH : RX_QUEUE_INDEX_WIDTH) + 1,
+    parameter EQ_PIPELINE = 3,
     parameter TX_QUEUE_PIPELINE = 3+(TX_QUEUE_INDEX_WIDTH > 12 ? TX_QUEUE_INDEX_WIDTH-12 : 0),
     parameter RX_QUEUE_PIPELINE = 3+(RX_QUEUE_INDEX_WIDTH > 12 ? RX_QUEUE_INDEX_WIDTH-12 : 0),
-    parameter TX_CPL_QUEUE_PIPELINE = TX_QUEUE_PIPELINE,
-    parameter RX_CPL_QUEUE_PIPELINE = RX_QUEUE_PIPELINE,
+    parameter CQ_PIPELINE = 3+(CQN_WIDTH > 12 ? CQN_WIDTH-12 : 0),
 
     // TX and RX engine configuration
     parameter TX_DESC_TABLE_SIZE = 32,
     parameter RX_DESC_TABLE_SIZE = 32,
+    parameter RX_INDIR_TBL_ADDR_WIDTH = RX_QUEUE_INDEX_WIDTH > 8 ? 8 : RX_QUEUE_INDEX_WIDTH,
 
     // Scheduler configuration
     parameter TX_SCHEDULER_OP_TABLE_SIZE = TX_DESC_TABLE_SIZE,
@@ -194,11 +164,13 @@ module mqnic_core_pcie_s10 #
     parameter PCIE_TAG_COUNT = 256,
     parameter PCIE_DMA_READ_OP_TABLE_SIZE = PCIE_TAG_COUNT,
     parameter PCIE_DMA_READ_TX_LIMIT = 2**TX_SEQ_NUM_WIDTH,
+    parameter PCIE_DMA_READ_CPLH_FC_LIMIT = 770,
+    parameter PCIE_DMA_READ_CPLD_FC_LIMIT = 2400,
     parameter PCIE_DMA_WRITE_OP_TABLE_SIZE = 2**TX_SEQ_NUM_WIDTH,
     parameter PCIE_DMA_WRITE_TX_LIMIT = 2**TX_SEQ_NUM_WIDTH,
 
     // Interrupt configuration
-    parameter IRQ_INDEX_WIDTH = EVENT_QUEUE_INDEX_WIDTH,
+    parameter IRQ_INDEX_WIDTH = EQN_WIDTH,
 
     // AXI lite interface configuration (control)
     parameter AXIL_CTRL_DATA_WIDTH = 32,
@@ -569,6 +541,7 @@ wire                                          pcie_tx_msix_wr_req_tlp_eop;
 wire                                          pcie_tx_msix_wr_req_tlp_ready;
 
 wire [F_COUNT-1:0] ext_tag_enable;
+wire [F_COUNT-1:0] rcb_128b;
 wire [7:0] bus_num;
 wire [F_COUNT*3-1:0] max_read_request_size;
 wire [F_COUNT*3-1:0] max_payload_size;
@@ -744,6 +717,7 @@ pcie_s10_if_inst (
      * Configuration outputs
      */
     .ext_tag_enable(ext_tag_enable),
+    .rcb_128b(rcb_128b),
     .bus_num(bus_num),
     .max_read_request_size(max_read_request_size),
     .max_payload_size(max_payload_size),
@@ -795,22 +769,20 @@ mqnic_core_pcie #(
     .EVENT_QUEUE_OP_TABLE_SIZE(EVENT_QUEUE_OP_TABLE_SIZE),
     .TX_QUEUE_OP_TABLE_SIZE(TX_QUEUE_OP_TABLE_SIZE),
     .RX_QUEUE_OP_TABLE_SIZE(RX_QUEUE_OP_TABLE_SIZE),
-    .TX_CPL_QUEUE_OP_TABLE_SIZE(TX_CPL_QUEUE_OP_TABLE_SIZE),
-    .RX_CPL_QUEUE_OP_TABLE_SIZE(RX_CPL_QUEUE_OP_TABLE_SIZE),
-    .EVENT_QUEUE_INDEX_WIDTH(EVENT_QUEUE_INDEX_WIDTH),
+    .CQ_OP_TABLE_SIZE(CQ_OP_TABLE_SIZE),
+    .EQN_WIDTH(EQN_WIDTH),
     .TX_QUEUE_INDEX_WIDTH(TX_QUEUE_INDEX_WIDTH),
     .RX_QUEUE_INDEX_WIDTH(RX_QUEUE_INDEX_WIDTH),
-    .TX_CPL_QUEUE_INDEX_WIDTH(TX_CPL_QUEUE_INDEX_WIDTH),
-    .RX_CPL_QUEUE_INDEX_WIDTH(RX_CPL_QUEUE_INDEX_WIDTH),
-    .EVENT_QUEUE_PIPELINE(EVENT_QUEUE_PIPELINE),
+    .CQN_WIDTH(CQN_WIDTH),
+    .EQ_PIPELINE(EQ_PIPELINE),
     .TX_QUEUE_PIPELINE(TX_QUEUE_PIPELINE),
     .RX_QUEUE_PIPELINE(RX_QUEUE_PIPELINE),
-    .TX_CPL_QUEUE_PIPELINE(TX_CPL_QUEUE_PIPELINE),
-    .RX_CPL_QUEUE_PIPELINE(RX_CPL_QUEUE_PIPELINE),
+    .CQ_PIPELINE(CQ_PIPELINE),
 
     // TX and RX engine configuration
     .TX_DESC_TABLE_SIZE(TX_DESC_TABLE_SIZE),
     .RX_DESC_TABLE_SIZE(RX_DESC_TABLE_SIZE),
+    .RX_INDIR_TBL_ADDR_WIDTH(RX_INDIR_TBL_ADDR_WIDTH),
 
     // Scheduler configuration
     .TX_SCHEDULER_OP_TABLE_SIZE(TX_SCHEDULER_OP_TABLE_SIZE),
@@ -908,6 +880,8 @@ mqnic_core_pcie #(
     .PCIE_TAG_COUNT(PCIE_TAG_COUNT),
     .PCIE_DMA_READ_OP_TABLE_SIZE(PCIE_DMA_READ_OP_TABLE_SIZE),
     .PCIE_DMA_READ_TX_LIMIT(PCIE_DMA_READ_TX_LIMIT),
+    .PCIE_DMA_READ_CPLH_FC_LIMIT(PCIE_DMA_READ_CPLH_FC_LIMIT),
+    .PCIE_DMA_READ_CPLD_FC_LIMIT(PCIE_DMA_READ_CPLD_FC_LIMIT),
     .PCIE_DMA_WRITE_OP_TABLE_SIZE(PCIE_DMA_WRITE_OP_TABLE_SIZE),
     .PCIE_DMA_WRITE_TX_LIMIT(PCIE_DMA_WRITE_TX_LIMIT),
     .TLP_FORCE_64_BIT_ADDR(0),
@@ -1040,6 +1014,7 @@ core_pcie_inst (
      */
     .bus_num(bus_num),
     .ext_tag_enable(ext_tag_enable),
+    .rcb_128b(rcb_128b),
     .max_read_request_size(max_read_request_size),
     .max_payload_size(max_payload_size),
     .msix_enable(msix_enable),

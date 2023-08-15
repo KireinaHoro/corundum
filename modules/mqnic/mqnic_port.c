@@ -1,42 +1,12 @@
 // SPDX-License-Identifier: BSD-2-Clause-Views
 /*
- * Copyright 2019-2021, The Regents of the University of California.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *    1. Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *
- *    2. Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * The views and conclusions contained in the software and documentation
- * are those of the authors and should not be interpreted as representing
- * official policies, either expressed or implied, of The Regents of the
- * University of California.
+ * Copyright (c) 2019-2023 The Regents of the University of California
  */
 
 #include "mqnic.h"
 
-int mqnic_create_port(struct mqnic_if *interface, struct mqnic_port **port_ptr,
-		int index, struct mqnic_reg_block *port_rb)
+struct mqnic_port *mqnic_create_port(struct mqnic_if *interface, int index,
+		struct mqnic_reg_block *port_rb)
 {
 	struct device *dev = interface->dev;
 	struct mqnic_port *port;
@@ -46,9 +16,7 @@ int mqnic_create_port(struct mqnic_if *interface, struct mqnic_port **port_ptr,
 
 	port = kzalloc(sizeof(*port), GFP_KERNEL);
 	if (!port)
-		return -ENOMEM;
-
-	*port_ptr = port;
+		return ERR_PTR(-ENOMEM);
 
 	port->dev = dev;
 	port->interface = interface;
@@ -87,21 +55,18 @@ int mqnic_create_port(struct mqnic_if *interface, struct mqnic_port **port_ptr,
 	dev_info(dev, "Port TX status: 0x%08x", mqnic_port_get_tx_status(port));
 	dev_info(dev, "Port RX status: 0x%08x", mqnic_port_get_rx_status(port));
 
-	return 0;
+	return port;
 
 fail:
-	mqnic_destroy_port(port_ptr);
-	return ret;
+	mqnic_destroy_port(port);
+	return ERR_PTR(ret);
 }
 
-void mqnic_destroy_port(struct mqnic_port **port_ptr)
+void mqnic_destroy_port(struct mqnic_port *port)
 {
-	struct mqnic_port *port = *port_ptr;
-
 	if (port->rb_list)
 		mqnic_free_reg_block_list(port->rb_list);
 
-	*port_ptr = NULL;
 	kfree(port);
 }
 

@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2020-2022, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2020-2023 The Regents of the University of California
+ */
 
 #ifndef FPGA_ID_H
 #define FPGA_ID_H
@@ -134,6 +106,7 @@ either expressed or implied, of The Regents of the University of California.
 #define FPGA_ID_XCVU47P     0x4B7B093
 #define FPGA_ID_XCVU57P     0x4B61093
 // Zynq UltraScale+
+#define FPGA_ID_XCZU1       0x4688093
 #define FPGA_ID_XCZU2       0x4711093
 #define FPGA_ID_XCZU3       0x4710093
 #define FPGA_ID_XCZU4       0x4721093
@@ -156,11 +129,53 @@ either expressed or implied, of The Regents of the University of California.
 #define FPGA_ID_XCZU47      0x47FF093
 #define FPGA_ID_XCZU48      0x47FB093
 #define FPGA_ID_XCZU49      0x47FE093
-// Alveo
+#define FPGA_ID_XCZU65      0x46D1093
+#define FPGA_ID_XCZU67      0x46D0093
+// Kria SoM (Zynq UltraScale+)
+#define FPGA_ID_XCK26       0x4A49093
+// Alveo (Virtex UltraScale+)
 #define FPGA_ID_XCU50       0x4B77093
 #define FPGA_ID_XCU200      0x4B37093
 #define FPGA_ID_XCU250      0x4B57093
 #define FPGA_ID_XCU280      0x4B7D093
+// Versal AI Edge
+#define FPGA_ID_XCVE1752    0x4C9A093
+#define FPGA_ID_XCVE2002    0x4CC1093
+#define FPGA_ID_XCVE2102    0x4CC0093
+#define FPGA_ID_XCVE2202    0x4CC9093
+#define FPGA_ID_XCVE2302    0x4CC8093
+#define FPGA_ID_XCVE2602    0x4CD3093
+#define FPGA_ID_XCVE2802    0x4CD1093
+// Versal AI Core
+#define FPGA_ID_XCVC1352    0x4C93093
+#define FPGA_ID_XCVC1502    0x4C9B093
+#define FPGA_ID_XCVC1702    0x4C98093
+#define FPGA_ID_XCVC1802    0x4CA9093
+#define FPGA_ID_XCVC1902    0x4CA8093
+#define FPGA_ID_XCVC2602    0x4CD2093
+#define FPGA_ID_XCVC2802    0x4CD0093
+// Versal Prime
+#define FPGA_ID_XCVM1102    0x4CCA093
+#define FPGA_ID_XCVM1302    0x4C09093
+#define FPGA_ID_XCVM1402    0x4C08093
+#define FPGA_ID_XCVM1502    0x4C99093
+#define FPGA_ID_XCVM1802    0x4CAA093
+#define FPGA_ID_XCVM2202    0x4CD4093
+#define FPGA_ID_XCVM2302    0x4C24093
+#define FPGA_ID_XCVM2502    0x4D01093
+#define FPGA_ID_XCVM2902    0x4C23093
+// Versal Premium
+#define FPGA_ID_XCVP1002    0x4C1B093
+#define FPGA_ID_XCVP1052    0x4C18093
+#define FPGA_ID_XCVP1102    0x4C22093
+#define FPGA_ID_XCVP1202    0x4D00093
+#define FPGA_ID_XCVP1402    0x4C20093
+#define FPGA_ID_XCVP1502    0x4D08093
+#define FPGA_ID_XCVP1552    0x4D34093
+#define FPGA_ID_XCVP1702    0x4D10093
+#define FPGA_ID_XCVP1802    0x4D14093
+#define FPGA_ID_XCVP2502    0x4D1C093
+#define FPGA_ID_XCVP2802    0x4D20093
 
 // Intel
 // Stratix 10

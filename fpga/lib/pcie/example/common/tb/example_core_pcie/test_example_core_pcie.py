@@ -121,6 +121,7 @@ class TB(object):
             cfg_max_payload=dut.max_payload_size,
             cfg_max_read_req=dut.max_read_request_size,
             cfg_ext_tag_enable=dut.ext_tag_enable,
+            cfg_rcb=dut.rcb_128b,
         )
 
         self.dev.log.setLevel(logging.DEBUG)
@@ -223,6 +224,8 @@ async def run_test(dut):
     await Timer(2000, 'ns')
 
     # read status
+    status = await dev_pf0_bar0.read_dword(0x000000)
+    tb.log.info("DMA Status: 0x%x", status)
     val = await dev_pf0_bar0.read_dword(0x000118)
     tb.log.info("Status: 0x%x", val)
     assert val == 0x800000AA
@@ -237,6 +240,8 @@ async def run_test(dut):
     await Timer(2000, 'ns')
 
     # read status
+    status = await dev_pf0_bar0.read_dword(0x000000)
+    tb.log.info("DMA Status: 0x%x", status)
     val = await dev_pf0_bar0.read_dword(0x000218)
     tb.log.info("Status: 0x%x", val)
     assert val == 0x80000055
@@ -257,6 +262,8 @@ async def run_test(dut):
     await Timer(2000, 'ns')
 
     # read status
+    status = await dev_pf0_bar0.read_dword(0x000000)
+    tb.log.info("DMA Status: 0x%x", status)
     val = await dev_pf0_bar0.read_dword(0x000218)
     tb.log.info("Status: 0x%x", val)
     assert val == 0x800000AA
@@ -320,10 +327,14 @@ async def run_test(dut):
     await dev_pf0_bar0.write_dword(0x001000, 1)
 
     for k in range(10):
-        cnt = await dev_pf0_bar0.read_dword(0x001018)
         await Timer(1000, 'ns')
-        if cnt == 0:
+        run = await dev_pf0_bar0.read_dword(0x001000)
+        if run == 0:
             break
+
+    # read status
+    status = await dev_pf0_bar0.read_dword(0x000000)
+    tb.log.info("DMA Status: 0x%x", status)
 
     # configure operation (write)
     # DMA base address
@@ -362,10 +373,16 @@ async def run_test(dut):
     await dev_pf0_bar0.write_dword(0x001100, 1)
 
     for k in range(10):
-        cnt = await dev_pf0_bar0.read_dword(0x001118)
         await Timer(1000, 'ns')
-        if cnt == 0:
+        run = await dev_pf0_bar0.read_dword(0x001100)
+        if run == 0:
             break
+
+    # read status
+    status = await dev_pf0_bar0.read_dword(0x000000)
+    tb.log.info("DMA Status: 0x%x", status)
+
+    assert status & 0x300 == 0
 
     tb.log.info("%s", mem.hexdump_str(dest_offset, region_len))
 
@@ -422,6 +439,8 @@ def test_example_core_pcie(request, pcie_data_width):
     parameters['IMM_WIDTH'] = 32
     parameters['READ_OP_TABLE_SIZE'] = parameters['PCIE_TAG_COUNT']
     parameters['READ_TX_LIMIT'] = 2**parameters['TX_SEQ_NUM_WIDTH']
+    parameters['READ_CPLH_FC_LIMIT'] = 0
+    parameters['READ_CPLD_FC_LIMIT'] = parameters['READ_CPLH_FC_LIMIT']*4
     parameters['WRITE_OP_TABLE_SIZE'] = 2**parameters['TX_SEQ_NUM_WIDTH']
     parameters['WRITE_TX_LIMIT'] = 2**parameters['TX_SEQ_NUM_WIDTH']
     parameters['TLP_FORCE_64_BIT_ADDR'] = 0

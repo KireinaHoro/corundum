@@ -1,31 +1,5 @@
-# Copyright 2021, The Regents of the University of California.
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-#    1. Redistributions of source code must retain the above copyright notice,
-#       this list of conditions and the following disclaimer.
-#
-#    2. Redistributions in binary form must reproduce the above copyright notice,
-#       this list of conditions and the following disclaimer in the documentation
-#       and/or other materials provided with the distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-# IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-# OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-# IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-# OF SUCH DAMAGE.
-#
-# The views and conclusions contained in the software and documentation are those
-# of the authors and should not be interpreted as representing official policies,
-# either expressed or implied, of The Regents of the University of California.
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2021-2023 The Regents of the University of California
 
 set params [dict create]
 
@@ -101,22 +75,20 @@ dict set params PTP_PEROUT_COUNT "1"
 dict set params EVENT_QUEUE_OP_TABLE_SIZE "32"
 dict set params TX_QUEUE_OP_TABLE_SIZE "32"
 dict set params RX_QUEUE_OP_TABLE_SIZE "32"
-dict set params TX_CPL_QUEUE_OP_TABLE_SIZE [dict get $params TX_QUEUE_OP_TABLE_SIZE]
-dict set params RX_CPL_QUEUE_OP_TABLE_SIZE [dict get $params RX_QUEUE_OP_TABLE_SIZE]
-dict set params EVENT_QUEUE_INDEX_WIDTH "6"
+dict set params CQ_OP_TABLE_SIZE "32"
+dict set params EQN_WIDTH "6"
 dict set params TX_QUEUE_INDEX_WIDTH "13"
 dict set params RX_QUEUE_INDEX_WIDTH "8"
-dict set params TX_CPL_QUEUE_INDEX_WIDTH [dict get $params TX_QUEUE_INDEX_WIDTH]
-dict set params RX_CPL_QUEUE_INDEX_WIDTH [dict get $params RX_QUEUE_INDEX_WIDTH]
-dict set params EVENT_QUEUE_PIPELINE "3"
-dict set params TX_QUEUE_PIPELINE [expr 3+([dict get $params TX_QUEUE_INDEX_WIDTH] > 12 ? [dict get $params TX_QUEUE_INDEX_WIDTH]-12 : 0)]
-dict set params RX_QUEUE_PIPELINE [expr 3+([dict get $params RX_QUEUE_INDEX_WIDTH] > 12 ? [dict get $params RX_QUEUE_INDEX_WIDTH]-12 : 0)]
-dict set params TX_CPL_QUEUE_PIPELINE [dict get $params TX_QUEUE_PIPELINE]
-dict set params RX_CPL_QUEUE_PIPELINE [dict get $params RX_QUEUE_PIPELINE]
+dict set params CQN_WIDTH [expr max([dict get $params TX_QUEUE_INDEX_WIDTH], [dict get $params RX_QUEUE_INDEX_WIDTH]) + 1]
+dict set params EQ_PIPELINE "3"
+dict set params TX_QUEUE_PIPELINE [expr 3 + max([dict get $params TX_QUEUE_INDEX_WIDTH] - 12, 0)]
+dict set params RX_QUEUE_PIPELINE [expr 3 + max([dict get $params RX_QUEUE_INDEX_WIDTH] - 12, 0)]
+dict set params CQ_PIPELINE [expr 3 + max([dict get $params CQN_WIDTH] - 12, 0)]
 
 # TX and RX engine configuration
 dict set params TX_DESC_TABLE_SIZE "32"
 dict set params RX_DESC_TABLE_SIZE "32"
+dict set params RX_INDIR_TBL_ADDR_WIDTH [expr min([dict get $params RX_QUEUE_INDEX_WIDTH], 8)]
 
 # Scheduler configuration
 dict set params TX_SCHEDULER_OP_TABLE_SIZE [dict get $params TX_DESC_TABLE_SIZE]
@@ -139,9 +111,8 @@ dict set params RX_RAM_SIZE "131072"
 # RAM configuration
 dict set params HBM_CH "32"
 dict set params HBM_ENABLE "0"
-dict set params HBM_GROUP_SIZE "32"
-dict set params AXI_HBM_ADDR_WIDTH "33"
-dict set params AXI_HBM_MAX_BURST_LEN "256"
+dict set params HBM_GROUP_SIZE [dict get $params HBM_CH]
+dict set params AXI_HBM_MAX_BURST_LEN "16"
 
 # Application block configuration
 dict set params APP_ID "32'h00000000"
@@ -162,7 +133,7 @@ dict set params RAM_ADDR_WIDTH [expr int(ceil(log(max([dict get $params TX_RAM_S
 dict set params RAM_PIPELINE "2"
 
 # Interrupt configuration
-dict set params IRQ_INDEX_WIDTH [dict get $params EVENT_QUEUE_INDEX_WIDTH]
+dict set params IRQ_INDEX_WIDTH [dict get $params EQN_WIDTH]
 
 # AXI lite interface configuration (control)
 dict set params AXIL_CTRL_DATA_WIDTH "32"
@@ -185,6 +156,24 @@ dict set params STAT_DMA_ENABLE "1"
 dict set params STAT_PCIE_ENABLE "1"
 dict set params STAT_INC_WIDTH "24"
 dict set params STAT_ID_WIDTH "12"
+
+# HBM settings
+if {[dict get $params HBM_ENABLE]} {
+    set hbm [get_ips hbm_0]
+
+    # switch configuration
+    if {[dict get $params HBM_GROUP_SIZE] == 1} {
+        set_property CONFIG.USER_SWITCH_ENABLE_00 "FALSE" $hbm
+        set_property CONFIG.USER_SWITCH_ENABLE_01 "FALSE" $hbm
+        dict set params HBM_GROUP_SIZE "1"
+        dict set params AXI_HBM_ADDR_WIDTH "28"
+    } else {
+        set_property CONFIG.USER_SWITCH_ENABLE_00 "TRUE" $hbm
+        set_property CONFIG.USER_SWITCH_ENABLE_01 "TRUE" $hbm
+        dict set params HBM_GROUP_SIZE [dict get $params HBM_CH]
+        dict set params AXI_HBM_ADDR_WIDTH "33"
+    }
+}
 
 # PCIe IP core settings
 set pcie [get_ips pcie4c_uscale_plus_0]

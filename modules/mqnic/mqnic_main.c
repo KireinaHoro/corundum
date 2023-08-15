@@ -1,42 +1,13 @@
 // SPDX-License-Identifier: BSD-2-Clause-Views
 /*
- * Copyright 2019-2021, The Regents of the University of California.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *    1. Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *
- *    2. Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * The views and conclusions contained in the software and documentation
- * are those of the authors and should not be interpreted as representing
- * official policies, either expressed or implied, of The Regents of the
- * University of California.
+ * Copyright (c) 2019-2023 The Regents of the University of California
  */
 
 #include "mqnic.h"
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/delay.h>
+#include <linux/reset.h>
 #include <linux/rtc.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
@@ -48,16 +19,16 @@ MODULE_AUTHOR("Alex Forencich");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_VERSION(DRIVER_VERSION);
 
-unsigned int mqnic_num_ev_queue_entries = 1024;
-unsigned int mqnic_num_tx_queue_entries = 1024;
-unsigned int mqnic_num_rx_queue_entries = 1024;
+unsigned int mqnic_num_eq_entries = 1024;
+unsigned int mqnic_num_txq_entries = 1024;
+unsigned int mqnic_num_rxq_entries = 1024;
 
-module_param_named(num_ev_queue_entries, mqnic_num_ev_queue_entries, uint, 0444);
-MODULE_PARM_DESC(num_ev_queue_entries, "number of entries to allocate per event queue (default: 1024)");
-module_param_named(num_tx_queue_entries, mqnic_num_tx_queue_entries, uint, 0444);
-MODULE_PARM_DESC(num_tx_queue_entries, "number of entries to allocate per transmit queue (default: 1024)");
-module_param_named(num_rx_queue_entries, mqnic_num_rx_queue_entries, uint, 0444);
-MODULE_PARM_DESC(num_rx_queue_entries, "number of entries to allocate per receive queue (default: 1024)");
+module_param_named(num_eq_entries, mqnic_num_eq_entries, uint, 0444);
+MODULE_PARM_DESC(num_eq_entries, "number of entries to allocate per event queue (default: 1024)");
+module_param_named(num_txq_entries, mqnic_num_txq_entries, uint, 0444);
+MODULE_PARM_DESC(num_txq_entries, "number of entries to allocate per transmit queue (default: 1024)");
+module_param_named(num_rxq_entries, mqnic_num_rxq_entries, uint, 0444);
+MODULE_PARM_DESC(num_rxq_entries, "number of entries to allocate per receive queue (default: 1024)");
 
 unsigned int mqnic_link_status_poll = MQNIC_LINK_STATUS_POLL_MS;
 
@@ -397,12 +368,14 @@ static int mqnic_common_probe(struct mqnic_dev *mqnic)
 	mqnic->if_count = min_t(u32, mqnic->if_count, MQNIC_MAX_IF);
 
 	for (k = 0; k < mqnic->if_count; k++) {
+		struct mqnic_if *interface;
 		dev_info(dev, "Creating interface %d", k);
-		ret = mqnic_create_interface(mqnic, &mqnic->interface[k], k, mqnic->hw_addr + k * mqnic->if_stride);
-		if (ret) {
+		interface = mqnic_create_interface(mqnic, k, mqnic->hw_addr + k * mqnic->if_stride);
+		if (IS_ERR_OR_NULL(interface)) {
 			dev_err(dev, "Failed to create interface: %d", ret);
 			goto fail_create_if;
 		}
+		mqnic->interface[k] = interface;
 		mqnic->dev_port_max = mqnic->interface[k]->dev_port_max;
 	}
 
@@ -497,9 +470,12 @@ static void mqnic_common_remove(struct mqnic_dev *mqnic)
 	if (mqnic->misc_dev.this_device)
 		misc_deregister(&mqnic->misc_dev);
 
-	for (k = 0; k < ARRAY_SIZE(mqnic->interface); k++)
-		if (mqnic->interface[k])
-			mqnic_destroy_interface(&mqnic->interface[k]);
+	for (k = 0; k < ARRAY_SIZE(mqnic->interface); k++) {
+		if (mqnic->interface[k]) {
+			mqnic_destroy_interface(mqnic->interface[k]);
+			mqnic->interface[k] = NULL;
+		}
+	}
 
 	mqnic_unregister_phc(mqnic);
 	if (mqnic->pfdev) {
@@ -533,16 +509,20 @@ static int mqnic_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent
 	if (pdev->pcie_cap) {
 		u16 devctl;
 		u32 lnkcap;
+		u16 lnkctl;
 		u16 lnksta;
 
 		pci_read_config_word(pdev, pdev->pcie_cap + PCI_EXP_DEVCTL, &devctl);
 		pci_read_config_dword(pdev, pdev->pcie_cap + PCI_EXP_LNKCAP, &lnkcap);
+		pci_read_config_word(pdev, pdev->pcie_cap + PCI_EXP_LNKCTL, &lnkctl);
 		pci_read_config_word(pdev, pdev->pcie_cap + PCI_EXP_LNKSTA, &lnksta);
 
 		dev_info(dev, " Max payload size: %d bytes",
 				128 << ((devctl & PCI_EXP_DEVCTL_PAYLOAD) >> 5));
 		dev_info(dev, " Max read request size: %d bytes",
 				128 << ((devctl & PCI_EXP_DEVCTL_READRQ) >> 12));
+		dev_info(dev, " Read completion boundary: %d bytes",
+				lnkctl & PCI_EXP_LNKCTL_RCB ? 128 : 64);
 		dev_info(dev, " Link capability: gen %d x%d",
 				lnkcap & PCI_EXP_LNKCAP_SLS, (lnkcap & PCI_EXP_LNKCAP_MLW) >> 4);
 		dev_info(dev, " Link status: gen %d x%d",
@@ -742,6 +722,7 @@ static int mqnic_platform_probe(struct platform_device *pdev)
 	struct mqnic_dev *mqnic;
 	struct device *dev = &pdev->dev;
 	struct resource *res;
+	struct reset_control *rst;
 
 	dev_info(dev, DRIVER_NAME " platform probe");
 
@@ -764,6 +745,17 @@ static int mqnic_platform_probe(struct platform_device *pdev)
 	ret = mqnic_common_setdma(mqnic);
 	if (ret)
 		goto fail;
+
+	// Reset device
+	rst = devm_reset_control_get(dev, NULL);
+	if (IS_ERR(rst)) {
+		dev_warn(dev, "Cannot control device reset");
+	} else {
+		dev_info(dev, "Resetting device");
+		reset_control_assert(rst);
+		udelay(2);
+		reset_control_deassert(rst);
+	}
 
 	// Reserve and map regions
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);

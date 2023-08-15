@@ -1,35 +1,5 @@
-"""
-
-Copyright 2021, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-"""
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2021-2023 The Regents of the University of California
 
 import logging
 import os
@@ -48,6 +18,7 @@ from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, FallingEdge, Timer
 
 from cocotbext.axi import AxiStreamBus
+from cocotbext.axi import AxiSlave, AxiBus, SparseMemoryRegion
 from cocotbext.eth import EthMac
 from cocotbext.pcie.core import RootComplex
 from cocotbext.pcie.xilinx.us import UltraScalePlusPcieDevice
@@ -197,7 +168,7 @@ class TB(object):
             # cfg_rx_pm_state
             # cfg_tx_pm_state
             # cfg_ltssm_state
-            # cfg_rcb_status
+            cfg_rcb_status=dut.cfg_rcb_status,
             # cfg_obff_enable
             # cfg_pl_status_change
             # cfg_tph_requester_enable
@@ -302,10 +273,12 @@ class TB(object):
         if hasattr(dut.core_pcie_inst, 'pcie_app_ctrl'):
             self.dev.functions[0].configure_bar(2, 2**len(dut.core_pcie_inst.axil_app_ctrl_araddr), ext=True, prefetch=True)
 
+        core_inst = dut.core_pcie_inst.core_inst
+
         # Ethernet
         self.port_mac = []
 
-        eth_int_if_width = len(dut.core_pcie_inst.core_inst.m_axis_tx_tdata) / len(dut.core_pcie_inst.core_inst.m_axis_tx_tvalid)
+        eth_int_if_width = len(core_inst.m_axis_tx_tdata) / len(core_inst.m_axis_tx_tvalid)
         eth_clock_period = 6.4
         eth_speed = 10e9
 
@@ -322,7 +295,7 @@ class TB(object):
             eth_clock_period = 3.102
             eth_speed = 100e9
 
-        for iface in dut.core_pcie_inst.core_inst.iface:
+        for iface in core_inst.iface:
             for k in range(len(iface.port)):
                 cocotb.start_soon(Clock(iface.port[k].port_rx_clk, eth_clock_period, units="ns").start())
                 cocotb.start_soon(Clock(iface.port[k].port_tx_clk, eth_clock_period, units="ns").start())
@@ -347,8 +320,40 @@ class TB(object):
 
                 self.port_mac.append(mac)
 
-        dut.eth_tx_status.setimmediatevalue(2**len(dut.core_pcie_inst.core_inst.m_axis_tx_tvalid)-1)
-        dut.eth_rx_status.setimmediatevalue(2**len(dut.core_pcie_inst.core_inst.m_axis_tx_tvalid)-1)
+        dut.eth_tx_status.setimmediatevalue(2**len(core_inst.m_axis_tx_tvalid)-1)
+        dut.eth_rx_status.setimmediatevalue(2**len(core_inst.m_axis_tx_tvalid)-1)
+
+        # DDR
+        self.ddr_group_size = core_inst.DDR_GROUP_SIZE.value
+        self.ddr_ram = []
+        self.ddr_axi_if = []
+        if hasattr(core_inst, 'ddr'):
+            ram = None
+            for i, ch in enumerate(core_inst.ddr.dram_if_inst.ch):
+                cocotb.start_soon(Clock(ch.ch_clk, 3.332, units="ns").start())
+                ch.ch_rst.setimmediatevalue(0)
+                ch.ch_status.setimmediatevalue(1)
+
+                if i % self.ddr_group_size == 0:
+                    ram = SparseMemoryRegion()
+                    self.ddr_ram.append(ram)
+                self.ddr_axi_if.append(AxiSlave(AxiBus.from_prefix(ch, "axi_ch"), ch.ch_clk, ch.ch_rst, target=ram))
+
+        # HBM
+        self.hbm_group_size = core_inst.HBM_GROUP_SIZE.value
+        self.hbm_ram = []
+        self.hbm_axi_if = []
+        if hasattr(core_inst, 'hbm'):
+            ram = None
+            for i, ch in enumerate(core_inst.hbm.dram_if_inst.ch):
+                cocotb.start_soon(Clock(ch.ch_clk, 2.222, units="ns").start())
+                ch.ch_rst.setimmediatevalue(0)
+                ch.ch_status.setimmediatevalue(1)
+
+                if i % self.hbm_group_size == 0:
+                    ram = SparseMemoryRegion()
+                    self.hbm_ram.append(ram)
+                self.hbm_axi_if.append(AxiSlave(AxiBus.from_prefix(ch, "axi_ch"), ch.ch_clk, ch.ch_rst, target=ram))
 
         dut.ctrl_reg_wr_wait.setimmediatevalue(0)
         dut.ctrl_reg_wr_ack.setimmediatevalue(0)
@@ -375,6 +380,9 @@ class TB(object):
 
         self.dut.ptp_rst.setimmediatevalue(0)
 
+        for ram in self.ddr_axi_if + self.ddr_axi_if:
+            ram.write_if.reset.setimmediatevalue(0)
+
         await RisingEdge(self.dut.clk)
         await RisingEdge(self.dut.clk)
 
@@ -383,6 +391,9 @@ class TB(object):
             mac.tx.reset.setimmediatevalue(1)
 
         self.dut.ptp_rst.setimmediatevalue(1)
+
+        for ram in self.ddr_axi_if + self.ddr_axi_if:
+            ram.write_if.reset.setimmediatevalue(1)
 
         await FallingEdge(self.dut.rst)
         await Timer(100, 'ns')
@@ -395,6 +406,9 @@ class TB(object):
             mac.tx.reset.setimmediatevalue(0)
 
         self.dut.ptp_rst.setimmediatevalue(0)
+
+        for ram in self.ddr_axi_if + self.ddr_axi_if:
+            ram.write_if.reset.setimmediatevalue(0)
 
         await self.rc.enumerate()
 
@@ -424,7 +438,7 @@ async def run_test_nic(dut):
     tb.log.info("Enable queues")
     for interface in tb.driver.interfaces:
         await interface.sched_blocks[0].schedulers[0].rb.write_dword(mqnic.MQNIC_RB_SCHED_RR_REG_CTRL, 0x00000001)
-        for k in range(interface.tx_queue_count):
+        for k in range(len(interface.txq)):
             await interface.sched_blocks[0].schedulers[0].hw_regs.write_dword(4*k, 0x00000003)
 
     # wait for all writes to complete
@@ -446,7 +460,8 @@ async def run_test_nic(dut):
         pkt = await interface.recv()
 
         tb.log.info("Packet: %s", pkt)
-        assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+        if interface.if_feature_rx_csum:
+            assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
 
     tb.log.info("RX and TX checksum tests")
 
@@ -456,10 +471,13 @@ async def run_test_nic(dut):
     udp = UDP(sport=1, dport=2)
     test_pkt = eth / ip / udp / payload
 
-    test_pkt2 = test_pkt.copy()
-    test_pkt2[UDP].chksum = scapy.utils.checksum(bytes(test_pkt2[UDP]))
+    if tb.driver.interfaces[0].if_feature_tx_csum:
+        test_pkt2 = test_pkt.copy()
+        test_pkt2[UDP].chksum = scapy.utils.checksum(bytes(test_pkt2[UDP]))
 
-    await tb.driver.interfaces[0].start_xmit(test_pkt2.build(), 0, 34, 6)
+        await tb.driver.interfaces[0].start_xmit(test_pkt2.build(), 0, 34, 6)
+    else:
+        await tb.driver.interfaces[0].start_xmit(test_pkt.build(), 0)
 
     pkt = await tb.port_mac[0].tx.recv()
     tb.log.info("Packet: %s", pkt)
@@ -469,7 +487,8 @@ async def run_test_nic(dut):
     pkt = await tb.driver.interfaces[0].recv()
 
     tb.log.info("Packet: %s", pkt)
-    assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+    if tb.driver.interfaces[0].if_feature_rx_csum:
+        assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
     assert Ether(pkt.data).build() == test_pkt.build()
 
     tb.log.info("Queue mapping offset test")
@@ -479,53 +498,62 @@ async def run_test_nic(dut):
     tb.loopback_enable = True
 
     for k in range(4):
-        await tb.driver.interfaces[0].set_rx_queue_map_offset(0, k)
+        await tb.driver.interfaces[0].set_rx_queue_map_indir_table(0, 0, k)
 
         await tb.driver.interfaces[0].start_xmit(data, 0)
 
         pkt = await tb.driver.interfaces[0].recv()
 
         tb.log.info("Packet: %s", pkt)
-        assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+        if tb.driver.interfaces[0].if_feature_rx_csum:
+            assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
         assert pkt.queue == k
 
     tb.loopback_enable = False
 
-    await tb.driver.interfaces[0].set_rx_queue_map_offset(0, 0)
+    await tb.driver.interfaces[0].set_rx_queue_map_indir_table(0, 0, 0)
 
-    tb.log.info("Queue mapping RSS mask test")
+    if tb.driver.interfaces[0].if_feature_rss:
+        tb.log.info("Queue mapping RSS mask test")
 
-    await tb.driver.interfaces[0].set_rx_queue_map_rss_mask(0, 0x00000003)
+        await tb.driver.interfaces[0].set_rx_queue_map_rss_mask(0, 0x00000003)
 
-    tb.loopback_enable = True
+        for k in range(4):
+            await tb.driver.interfaces[0].set_rx_queue_map_indir_table(0, k, k)
 
-    queues = set()
+        tb.loopback_enable = True
 
-    for k in range(64):
-        payload = bytes([x % 256 for x in range(256)])
-        eth = Ether(src='5A:51:52:53:54:55', dst='DA:D1:D2:D3:D4:D5')
-        ip = IP(src='192.168.1.100', dst='192.168.1.101')
-        udp = UDP(sport=1, dport=k+0)
-        test_pkt = eth / ip / udp / payload
+        queues = set()
 
-        test_pkt2 = test_pkt.copy()
-        test_pkt2[UDP].chksum = scapy.utils.checksum(bytes(test_pkt2[UDP]))
+        for k in range(64):
+            payload = bytes([x % 256 for x in range(256)])
+            eth = Ether(src='5A:51:52:53:54:55', dst='DA:D1:D2:D3:D4:D5')
+            ip = IP(src='192.168.1.100', dst='192.168.1.101')
+            udp = UDP(sport=1, dport=k+0)
+            test_pkt = eth / ip / udp / payload
 
-        await tb.driver.interfaces[0].start_xmit(test_pkt2.build(), 0, 34, 6)
+            if tb.driver.interfaces[0].if_feature_tx_csum:
+                test_pkt2 = test_pkt.copy()
+                test_pkt2[UDP].chksum = scapy.utils.checksum(bytes(test_pkt2[UDP]))
 
-    for k in range(64):
-        pkt = await tb.driver.interfaces[0].recv()
+                await tb.driver.interfaces[0].start_xmit(test_pkt2.build(), 0, 34, 6)
+            else:
+                await tb.driver.interfaces[0].start_xmit(test_pkt.build(), 0)
 
-        tb.log.info("Packet: %s", pkt)
-        assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+        for k in range(64):
+            pkt = await tb.driver.interfaces[0].recv()
 
-        queues.add(pkt.queue)
+            tb.log.info("Packet: %s", pkt)
+            if tb.driver.interfaces[0].if_feature_rx_csum:
+                assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
 
-    assert len(queues) == 4
+            queues.add(pkt.queue)
 
-    tb.loopback_enable = False
+        assert len(queues) == 4
 
-    await tb.driver.interfaces[0].set_rx_queue_map_rss_mask(0, 0)
+        tb.loopback_enable = False
+
+        await tb.driver.interfaces[0].set_rx_queue_map_rss_mask(0, 0)
 
     tb.log.info("Multiple small packets")
 
@@ -543,7 +571,8 @@ async def run_test_nic(dut):
 
         tb.log.info("Packet: %s", pkt)
         assert pkt.data == pkts[k]
-        assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+        if tb.driver.interfaces[0].if_feature_rx_csum:
+            assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
 
     tb.loopback_enable = False
 
@@ -556,13 +585,14 @@ async def run_test_nic(dut):
     tb.loopback_enable = True
 
     for k in range(len(pkts)):
-        await tb.driver.interfaces[0].start_xmit(pkts[k], k % tb.driver.interfaces[0].tx_queue_count)
+        await tb.driver.interfaces[0].start_xmit(pkts[k], k % len(tb.driver.interfaces[0].txq))
 
     for k in range(count):
         pkt = await tb.driver.interfaces[0].recv()
 
         tb.log.info("Packet: %s", pkt)
-        assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+        if tb.driver.interfaces[0].if_feature_rx_csum:
+            assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
 
     tb.loopback_enable = False
 
@@ -582,7 +612,8 @@ async def run_test_nic(dut):
 
         tb.log.info("Packet: %s", pkt)
         assert pkt.data == pkts[k]
-        assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+        if tb.driver.interfaces[0].if_feature_rx_csum:
+            assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
 
     tb.loopback_enable = False
 
@@ -602,7 +633,8 @@ async def run_test_nic(dut):
 
         tb.log.info("Packet: %s", pkt)
         assert pkt.data == pkts[k]
-        assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+        if tb.driver.interfaces[0].if_feature_rx_csum:
+            assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
 
     tb.loopback_enable = False
 
@@ -623,7 +655,8 @@ async def run_test_nic(dut):
 
             tb.log.info("Packet: %s", pkt)
             assert pkt.data == pkts[k]
-            assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+            if tb.driver.interfaces[0].if_feature_rx_csum:
+                assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
 
         tb.loopback_enable = False
 
@@ -632,8 +665,8 @@ async def run_test_nic(dut):
 
         for block in tb.driver.interfaces[0].sched_blocks:
             await block.schedulers[0].rb.write_dword(mqnic.MQNIC_RB_SCHED_RR_REG_CTRL, 0x00000001)
-            await tb.driver.interfaces[0].set_rx_queue_map_offset(block.index, block.index)
-            for k in range(block.interface.tx_queue_count):
+            await tb.driver.interfaces[0].set_rx_queue_map_indir_table(block.index, 0, block.index)
+            for k in range(len(block.interface.txq)):
                 if k % len(tb.driver.interfaces[0].sched_blocks) == block.index:
                     await block.schedulers[0].hw_regs.write_dword(4*k, 0x00000003)
                 else:
@@ -655,7 +688,8 @@ async def run_test_nic(dut):
 
             tb.log.info("Packet: %s", pkt)
             # assert pkt.data == pkts[k]
-            assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
+            if tb.driver.interfaces[0].if_feature_rx_csum:
+                assert pkt.rx_checksum == ~scapy.utils.checksum(bytes(pkt.data[14:])) & 0xffff
 
             queues.add(pkt.queue)
 
@@ -665,7 +699,7 @@ async def run_test_nic(dut):
 
         for block in tb.driver.interfaces[0].sched_blocks[1:]:
             await block.schedulers[0].rb.write_dword(mqnic.MQNIC_RB_SCHED_RR_REG_CTRL, 0x00000000)
-            await tb.driver.interfaces[0].set_rx_queue_map_offset(block.index, 0)
+            await tb.driver.interfaces[0].set_rx_queue_map_indir_table(block.index, 0, 0)
 
     await Timer(1000, 'ns')
 
@@ -695,7 +729,7 @@ async def run_test_nic(dut):
 
     # enable queues with global enable off
     await tb.driver.interfaces[0].sched_blocks[0].schedulers[0].rb.write_dword(mqnic.MQNIC_RB_SCHED_RR_REG_CTRL, 0x00000001)
-    for k in range(tb.driver.interfaces[0].tx_queue_count):
+    for k in range(len(tb.driver.interfaces[0].txq)):
         await tb.driver.interfaces[0].sched_blocks[0].schedulers[0].hw_regs.write_dword(4*k, 0x00000001)
 
     # configure slots
@@ -765,8 +799,9 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
 
     verilog_sources = [
         os.path.join(rtl_dir, f"{dut}.v"),
-        os.path.join(rtl_dir, "mqnic_core.v"),
         os.path.join(rtl_dir, "mqnic_core_pcie.v"),
+        os.path.join(rtl_dir, "mqnic_core.v"),
+        os.path.join(rtl_dir, "mqnic_dram_if.v"),
         os.path.join(rtl_dir, "mqnic_interface.v"),
         os.path.join(rtl_dir, "mqnic_interface_tx.v"),
         os.path.join(rtl_dir, "mqnic_interface_rx.v"),
@@ -786,7 +821,6 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
         os.path.join(rtl_dir, "cpl_op_mux.v"),
         os.path.join(rtl_dir, "desc_fetch.v"),
         os.path.join(rtl_dir, "desc_op_mux.v"),
-        os.path.join(rtl_dir, "event_mux.v"),
         os.path.join(rtl_dir, "queue_manager.v"),
         os.path.join(rtl_dir, "cpl_queue_manager.v"),
         os.path.join(rtl_dir, "tx_fifo.v"),
@@ -886,22 +920,20 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
     parameters['EVENT_QUEUE_OP_TABLE_SIZE'] = 32
     parameters['TX_QUEUE_OP_TABLE_SIZE'] = 32
     parameters['RX_QUEUE_OP_TABLE_SIZE'] = 32
-    parameters['TX_CPL_QUEUE_OP_TABLE_SIZE'] = parameters['TX_QUEUE_OP_TABLE_SIZE']
-    parameters['RX_CPL_QUEUE_OP_TABLE_SIZE'] = parameters['RX_QUEUE_OP_TABLE_SIZE']
-    parameters['EVENT_QUEUE_INDEX_WIDTH'] = 6
+    parameters['CQ_OP_TABLE_SIZE'] = 32
+    parameters['EQN_WIDTH'] = 6
     parameters['TX_QUEUE_INDEX_WIDTH'] = 8
     parameters['RX_QUEUE_INDEX_WIDTH'] = 8
-    parameters['TX_CPL_QUEUE_INDEX_WIDTH'] = parameters['TX_QUEUE_INDEX_WIDTH']
-    parameters['RX_CPL_QUEUE_INDEX_WIDTH'] = parameters['RX_QUEUE_INDEX_WIDTH']
-    parameters['EVENT_QUEUE_PIPELINE'] = 3
+    parameters['CQN_WIDTH'] = max(parameters['TX_QUEUE_INDEX_WIDTH'], parameters['RX_QUEUE_INDEX_WIDTH']) + 1
+    parameters['EQ_PIPELINE'] = 3
     parameters['TX_QUEUE_PIPELINE'] = 3 + max(parameters['TX_QUEUE_INDEX_WIDTH']-12, 0)
     parameters['RX_QUEUE_PIPELINE'] = 3 + max(parameters['RX_QUEUE_INDEX_WIDTH']-12, 0)
-    parameters['TX_CPL_QUEUE_PIPELINE'] = parameters['TX_QUEUE_PIPELINE']
-    parameters['RX_CPL_QUEUE_PIPELINE'] = parameters['RX_QUEUE_PIPELINE']
+    parameters['CQ_PIPELINE'] = 3 + max(parameters['CQN_WIDTH']-12, 0)
 
     # TX and RX engine configuration
     parameters['TX_DESC_TABLE_SIZE'] = 32
     parameters['RX_DESC_TABLE_SIZE'] = 32
+    parameters['RX_INDIR_TBL_ADDR_WIDTH'] = min(parameters['RX_QUEUE_INDEX_WIDTH'], 8)
 
     # Scheduler configuration
     parameters['TX_SCHEDULER_OP_TABLE_SIZE'] = parameters['TX_DESC_TABLE_SIZE']
@@ -922,6 +954,22 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
     parameters['MAX_RX_SIZE'] = 9214
     parameters['TX_RAM_SIZE'] = 131072
     parameters['RX_RAM_SIZE'] = 131072
+
+    # RAM configuration
+    parameters['DDR_CH'] = 1
+    parameters['DDR_ENABLE'] = 0
+    parameters['DDR_GROUP_SIZE'] = 1
+    parameters['AXI_DDR_DATA_WIDTH'] = 256
+    parameters['AXI_DDR_ADDR_WIDTH'] = 32
+    parameters['AXI_DDR_ID_WIDTH'] = 8
+    parameters['AXI_DDR_MAX_BURST_LEN'] = 256
+    parameters['HBM_CH'] = 1
+    parameters['HBM_ENABLE'] = 0
+    parameters['HBM_GROUP_SIZE'] = parameters['HBM_CH']
+    parameters['AXI_HBM_DATA_WIDTH'] = 256
+    parameters['AXI_HBM_ADDR_WIDTH'] = 32
+    parameters['AXI_HBM_ID_WIDTH'] = 6
+    parameters['AXI_HBM_MAX_BURST_LEN'] = 16
 
     # Application block configuration
     parameters['APP_ID'] = 0x00000000
@@ -947,7 +995,7 @@ def test_mqnic_core_pcie_us(request, if_count, ports_per_if, axis_pcie_data_widt
     parameters['VF_COUNT'] = 0
 
     # Interrupt configuration
-    parameters['IRQ_INDEX_WIDTH'] = parameters['EVENT_QUEUE_INDEX_WIDTH']
+    parameters['IRQ_INDEX_WIDTH'] = parameters['EQN_WIDTH']
 
     # AXI lite interface configuration (control)
     parameters['AXIL_CTRL_DATA_WIDTH'] = 32

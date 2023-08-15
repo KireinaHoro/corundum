@@ -33,22 +33,17 @@ VERILOG_SOURCES += ../../rtl/$(DUT).v
 VERILOG_SOURCES += ../../rtl/lfsr.v
 
 # module parameters
-export PARAM_DATA_WIDTH ?= 32
-export PARAM_KEEP_WIDTH ?= $(shell expr $(PARAM_DATA_WIDTH) / 8 )
-export PARAM_CTRL_WIDTH ?= $(shell expr $(PARAM_DATA_WIDTH) / 8 )
-export PARAM_PTP_TS_ENABLE ?= 1
-export PARAM_PTP_TS_WIDTH ?= 96
-export PARAM_USER_WIDTH ?= $(if $(filter-out 1,$(PARAM_PTP_TS_ENABLE)),1,$(shell expr $(PARAM_PTP_TS_WIDTH) + 1 ))
+export PARAM_DATA_WIDTH := 32
+export PARAM_KEEP_WIDTH := $(shell expr $(PARAM_DATA_WIDTH) / 8 )
+export PARAM_CTRL_WIDTH := $(shell expr $(PARAM_DATA_WIDTH) / 8 )
+export PARAM_PTP_TS_ENABLE := 1
+export PARAM_PTP_TS_WIDTH := 96
+export PARAM_USER_WIDTH := $(if $(filter-out 1,$(PARAM_PTP_TS_ENABLE)),1,$(shell expr $(PARAM_PTP_TS_WIDTH) + 1 ))
 
 ifeq ($(SIM), icarus)
 	PLUSARGS += -fst
 
-	COMPILE_ARGS += -P $(TOPLEVEL).DATA_WIDTH=$(PARAM_DATA_WIDTH)
-	COMPILE_ARGS += -P $(TOPLEVEL).KEEP_WIDTH=$(PARAM_KEEP_WIDTH)
-	COMPILE_ARGS += -P $(TOPLEVEL).CTRL_WIDTH=$(PARAM_CTRL_WIDTH)
-	COMPILE_ARGS += -P $(TOPLEVEL).PTP_TS_ENABLE=$(PARAM_PTP_TS_ENABLE)
-	COMPILE_ARGS += -P $(TOPLEVEL).PTP_TS_WIDTH=$(PARAM_PTP_TS_WIDTH)
-	COMPILE_ARGS += -P $(TOPLEVEL).USER_WIDTH=$(PARAM_USER_WIDTH)
+	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
 		VERILOG_SOURCES += iverilog_dump.v
@@ -57,12 +52,7 @@ ifeq ($(SIM), icarus)
 else ifeq ($(SIM), verilator)
 	COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH
 
-	COMPILE_ARGS += -GDATA_WIDTH=$(PARAM_DATA_WIDTH)
-	COMPILE_ARGS += -GKEEP_WIDTH=$(PARAM_KEEP_WIDTH)
-	COMPILE_ARGS += -GCTRL_WIDTH=$(PARAM_CTRL_WIDTH)
-	COMPILE_ARGS += -GPTP_TS_ENABLE=$(PARAM_PTP_TS_ENABLE)
-	COMPILE_ARGS += -GPTP_TS_WIDTH=$(PARAM_PTP_TS_WIDTH)
-	COMPILE_ARGS += -GUSER_WIDTH=$(PARAM_USER_WIDTH)
+	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-G$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
 		COMPILE_ARGS += --trace-fst

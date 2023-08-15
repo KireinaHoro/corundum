@@ -1,36 +1,6 @@
 #!/usr/bin/env python
-"""
-
-Copyright 2020, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-"""
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2020 The Regents of the University of California
 
 import logging
 import os
@@ -53,7 +23,7 @@ EnqueueReqBus, EnqueueReqTransaction, EnqueueReqSource, EnqueueReqSink, EnqueueR
 )
 
 EnqueueRespBus, EnqueueRespTransaction, EnqueueRespSource, EnqueueRespSink, EnqueueRespMonitor = define_stream("EnqueueResp",
-    signals=["queue", "ptr", "addr", "event", "tag", "op_tag", "full", "error", "valid"],
+    signals=["queue", "ptr", "phase", "addr", "event", "tag", "op_tag", "full", "error", "valid"],
     optional_signals=["ready"]
 )
 
@@ -106,6 +76,27 @@ class TB(object):
         await RisingEdge(self.dut.clk)
 
 
+MQNIC_CQ_BASE_ADDR_VF_REG  = 0x00
+MQNIC_CQ_CTRL_STATUS_REG   = 0x08
+MQNIC_CQ_PTR_REG           = 0x0C
+MQNIC_CQ_PROD_PTR_REG      = 0x0C
+MQNIC_CQ_CONS_PTR_REG      = 0x0E
+
+MQNIC_CQ_ENABLE_MASK  = 0x00010000
+MQNIC_CQ_ARM_MASK     = 0x00020000
+MQNIC_CQ_ACTIVE_MASK  = 0x00080000
+MQNIC_CQ_PTR_MASK     = 0xFFFF
+
+MQNIC_CQ_CMD_SET_VF_ID         = 0x80010000
+MQNIC_CQ_CMD_SET_SIZE          = 0x80020000
+MQNIC_CQ_CMD_SET_EQN           = 0xC0000000
+MQNIC_CQ_CMD_SET_PROD_PTR      = 0x80800000
+MQNIC_CQ_CMD_SET_CONS_PTR      = 0x80900000
+MQNIC_CQ_CMD_SET_CONS_PTR_ARM  = 0x80910000
+MQNIC_CQ_CMD_SET_ENABLE        = 0x40000100
+MQNIC_CQ_CMD_SET_ARM           = 0x40000200
+
+
 async def run_test(dut):
 
     OP_TABLE_SIZE = int(os.getenv("PARAM_OP_TABLE_SIZE"))
@@ -118,22 +109,23 @@ async def run_test(dut):
 
     tb.log.info("Test read and write queue configuration registers")
 
-    await tb.axil_master.write_qword(0*32+0,  0x8877665544332211)  # address
-    await tb.axil_master.write_dword(0*32+8,  0x00000004)  # active, log size
-    await tb.axil_master.write_dword(0*32+12, 0x80000001)  # armed, continuous, event
-    await tb.axil_master.write_dword(0*32+16, 0x00000000)  # head pointer
-    await tb.axil_master.write_dword(0*32+24, 0x00000000)  # tail pointer
-    await tb.axil_master.write_dword(0*32+8,  0x80000004)  # active, log size
+    await tb.axil_master.write_dword(0*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_ENABLE | 0)
+    await tb.axil_master.write_qword(0*16+MQNIC_CQ_BASE_ADDR_VF_REG, 0x8877665544332000)
+    await tb.axil_master.write_dword(0*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_VF_ID | 0)
+    await tb.axil_master.write_dword(0*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_SIZE | 4)
+    await tb.axil_master.write_dword(0*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_EQN | 1)
+    await tb.axil_master.write_dword(0*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_PROD_PTR | 0)
+    await tb.axil_master.write_dword(0*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_CONS_PTR_ARM | 0)
+    await tb.axil_master.write_dword(0*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_ENABLE | 1)
 
-    assert await tb.axil_master.read_qword(0*32+0) == 0x8877665544332211
-    assert await tb.axil_master.read_dword(0*32+8) == 0x80000004
-    assert await tb.axil_master.read_dword(0*32+12) == 0x80000001
+    assert await tb.axil_master.read_qword(0*16+MQNIC_CQ_BASE_ADDR_VF_REG) == 0x8877665544332000
+    assert await tb.axil_master.read_dword(0*16+MQNIC_CQ_CTRL_STATUS_REG) == (4 << 28) | MQNIC_CQ_ENABLE_MASK | MQNIC_CQ_ARM_MASK | 1
 
     tb.log.info("Test enqueue and dequeue")
 
-    # read head pointer
-    head_ptr = await tb.axil_master.read_dword(0*32+16)  # head pointer
-    tb.log.info("Head pointer: %d", head_ptr)
+    # read producer pointer
+    prod_ptr = (await tb.axil_master.read_dword(0*16+MQNIC_CQ_PTR_REG)) >> 16
+    tb.log.info("Producer pointer: %d", prod_ptr)
 
     # enqueue request
     await tb.enqueue_req_source.send(EnqueueReqTransaction(queue=0, tag=1))
@@ -143,8 +135,9 @@ async def run_test(dut):
     tb.log.info("Enqueue response: %s", resp)
 
     assert resp.queue == 0
-    assert resp.ptr == head_ptr
-    assert resp.addr == 0x8877665544332211
+    assert resp.ptr == prod_ptr
+    assert resp.phase == ~(resp.ptr >> 4) & 1
+    assert resp.addr == 0x8877665544332000
     assert resp.event == 1
     assert resp.tag == 1
     assert not resp.full
@@ -162,33 +155,34 @@ async def run_test(dut):
     assert event.event == 1
     assert event.event_source == 0
 
-    # read head pointer
-    new_head_ptr = await tb.axil_master.read_dword(0*32+16)  # head pointer
-    tb.log.info("Head pointer: %d", new_head_ptr)
+    # read producer pointer
+    new_prod_ptr = (await tb.axil_master.read_dword(0*16+MQNIC_CQ_PTR_REG)) & MQNIC_CQ_PTR_MASK
+    tb.log.info("Producer pointer: %d", new_prod_ptr)
 
-    assert new_head_ptr - head_ptr == 1
+    assert new_prod_ptr - prod_ptr == 1
 
-    # increment tail pointer
-    tail_ptr = await tb.axil_master.read_dword(0*32+24)  # tail pointer
-    tail_ptr += 1
-    tb.log.info("Tail pointer: %d", tail_ptr)
-    await tb.axil_master.write_dword(0*32+24, tail_ptr)  # head pointer
+    # increment consumer pointer
+    cons_ptr = (await tb.axil_master.read_dword(0*16+MQNIC_CQ_PTR_REG)) >> 16
+    cons_ptr += 1
+    tb.log.info("Consumer pointer: %d", cons_ptr)
+    await tb.axil_master.write_dword(0*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_CONS_PTR | cons_ptr)
 
     tb.log.info("Test multiple enqueue and dequeue")
 
     for k in range(4):
-        await tb.axil_master.write_dword(k*32+8,  0x00000004)  # active, log size
-        await tb.axil_master.write_qword(k*32+0,  0x5555555555000000 + 0x10000*k)  # address
-        await tb.axil_master.write_dword(k*32+8,  0x00000004)  # active, log size
-        await tb.axil_master.write_dword(k*32+12, 0xC0000000 + k)  # armed, continuous, event
-        await tb.axil_master.write_dword(k*32+16, 0x0000fff0)  # head pointer
-        await tb.axil_master.write_dword(k*32+24, 0x0000fff0)  # tail pointer
-        await tb.axil_master.write_dword(k*32+8,  0x80000004)  # active, log size
+        await tb.axil_master.write_dword(k*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_ENABLE | 0)
+        await tb.axil_master.write_qword(k*16+MQNIC_CQ_BASE_ADDR_VF_REG, 0x5555555555000000 + 0x10000*k)
+        await tb.axil_master.write_dword(k*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_VF_ID | 0)
+        await tb.axil_master.write_dword(k*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_SIZE | 4)
+        await tb.axil_master.write_dword(k*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_EQN | k)
+        await tb.axil_master.write_dword(k*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_PROD_PTR | 0xfff0)
+        await tb.axil_master.write_dword(k*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_CONS_PTR_ARM | 0xfff0)
+        await tb.axil_master.write_dword(k*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_ENABLE | 1)
 
     current_tag = 1
 
-    queue_head_ptr = [0xfff0]*4
-    queue_tail_ptr = [0xfff0]*4
+    queue_prod_ptr = [0xfff0]*4
+    queue_cons_ptr = [0xfff0]*4
     queue_depth = [0]*4
     queue_uncommit_depth = [0]*4
 
@@ -212,16 +206,17 @@ async def run_test(dut):
                 tb.log.info("Enqueue response: %s", resp)
 
                 assert resp.queue == q
-                assert resp.ptr == queue_head_ptr[q]
+                assert resp.ptr == queue_prod_ptr[q]
+                assert resp.phase == ~(resp.ptr >> 4) & 1
                 assert (resp.addr >> 16) & 0xf == q
-                assert (resp.addr >> 4) & 0xf == queue_head_ptr[q] & 0xf
+                assert (resp.addr >> 4) & 0xf == queue_prod_ptr[q] & 0xf
                 assert resp.event == q
                 assert resp.tag == current_tag
                 assert not resp.error
 
                 if queue_uncommit_depth[q] < 16:
                     commit_list.append((q, resp.op_tag))
-                    queue_head_ptr[q] = (queue_head_ptr[q] + 1) & 0xffff
+                    queue_prod_ptr[q] = (queue_prod_ptr[q] + 1) & MQNIC_CQ_PTR_MASK
                     queue_uncommit_depth[q] += 1
                     assert not resp.full
                 else:
@@ -243,13 +238,6 @@ async def run_test(dut):
 
                 queue_depth[q] += 1
 
-                # check event
-                event = await tb.event_sink.recv()
-                tb.log.info("Event: %s", event)
-
-                assert event.event == q
-                assert event.event_source == q
-
         # dequeue
         for k in range(random.randrange(8)):
             q = random.randrange(4)
@@ -257,19 +245,19 @@ async def run_test(dut):
             if queue_depth[q] > 0:
                 tb.log.info("Dequeue from queue %d", q)
 
-                # increment tail pointer
-                tail_ptr = await tb.axil_master.read_dword(q*32+24)  # tail pointer
+                # increment consumer pointer
+                cons_ptr = (await tb.axil_master.read_dword(q*16+MQNIC_CQ_PTR_REG)) >> 16
 
-                assert tail_ptr == queue_tail_ptr[q]
+                assert cons_ptr == queue_cons_ptr[q]
 
-                tail_ptr = (tail_ptr + 1) & 0xffff
+                cons_ptr = (cons_ptr + 1) & MQNIC_CQ_PTR_MASK
 
-                queue_tail_ptr[q] = tail_ptr
+                queue_cons_ptr[q] = cons_ptr
                 queue_depth[q] -= 1
                 queue_uncommit_depth[q] -= 1
 
-                tb.log.info("Tail pointer: %d", tail_ptr)
-                await tb.axil_master.write_dword(q*32+24, tail_ptr)  # tail pointer
+                tb.log.info("Consumer pointer: %d", cons_ptr)
+                await tb.axil_master.write_dword(q*16+MQNIC_CQ_CTRL_STATUS_REG, MQNIC_CQ_CMD_SET_CONS_PTR | cons_ptr)
 
     await RisingEdge(dut.clk)
     await RisingEdge(dut.clk)
@@ -314,7 +302,7 @@ def test_cpl_queue_manager(request):
     parameters['CPL_SIZE'] = 16
     parameters['PIPELINE'] = 2
     parameters['AXIL_DATA_WIDTH'] = 32
-    parameters['AXIL_ADDR_WIDTH'] = 16
+    parameters['AXIL_ADDR_WIDTH'] = parameters['QUEUE_INDEX_WIDTH'] + 4
     parameters['AXIL_STRB_WIDTH'] = parameters['AXIL_DATA_WIDTH'] // 8
 
     extra_env = {f'PARAM_{k}': str(v) for k, v in parameters.items()}

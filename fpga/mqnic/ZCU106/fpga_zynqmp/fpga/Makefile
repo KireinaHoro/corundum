@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-2-Clause-Views
+# Copyright (c) 2019-2023 The Regents of the University of California
 
 # FPGA settings
 FPGA_PART = xczu7ev-ffvc1156-2-e
@@ -10,6 +12,7 @@ SYN_FILES += rtl/fpga_core.v
 SYN_FILES += rtl/debounce_switch.v
 SYN_FILES += rtl/common/mqnic_core_axi.v
 SYN_FILES += rtl/common/mqnic_core.v
+SYN_FILES += rtl/common/mqnic_dram_if.v
 SYN_FILES += rtl/common/mqnic_interface.v
 SYN_FILES += rtl/common/mqnic_interface_tx.v
 SYN_FILES += rtl/common/mqnic_interface_rx.v
@@ -30,7 +33,6 @@ SYN_FILES += rtl/common/cpl_write.v
 SYN_FILES += rtl/common/cpl_op_mux.v
 SYN_FILES += rtl/common/desc_fetch.v
 SYN_FILES += rtl/common/desc_op_mux.v
-SYN_FILES += rtl/common/event_mux.v
 SYN_FILES += rtl/common/queue_manager.v
 SYN_FILES += rtl/common/cpl_queue_manager.v
 SYN_FILES += rtl/common/tx_fifo.v
@@ -138,3 +140,23 @@ program: $(FPGA_TOP).bit
 	echo "program_hw_devices [current_hw_device]" >> program.tcl
 	echo "exit" >> program.tcl
 	vivado -nojournal -nolog -mode batch -source program.tcl
+
+APP_DIR = app
+
+$(APP_DIR)/shell.json:
+	@mkdir -p $(@D)
+	echo '{"shell_type": "XRT_FLAT", "num_slots": "1"}' > $@
+
+$(APP_DIR)/$(FPGA_TOP).bin: $(FPGA_TOP).bin
+	@mkdir -p $(@D)
+	cp $< $@
+
+$(APP_DIR)/overlay.dtbo: ../ps/overlay.dtsi
+	@mkdir -p $(@D)
+	dtc -@ -O dtb -o $@ $^
+
+.PHONY: app
+app: $(APP_DIR)/$(FPGA_TOP).bin $(APP_DIR)/shell.json $(APP_DIR)/overlay.dtbo
+
+clean::
+	-rm -rf $(APP_DIR)

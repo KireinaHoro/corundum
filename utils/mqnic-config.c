@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2019, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2019-2023 The Regents of the University of California
+ */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -182,25 +154,10 @@ int main(int argc, char *argv[])
     printf("TX MTU: %d\n", mqnic_reg_read32(dev_interface->if_ctrl_rb->regs, MQNIC_RB_IF_CTRL_REG_TX_MTU));
     printf("RX MTU: %d\n", mqnic_reg_read32(dev_interface->if_ctrl_rb->regs, MQNIC_RB_IF_CTRL_REG_RX_MTU));
 
-    printf("Event queue offset: 0x%08x\n", dev_interface->event_queue_offset);
-    printf("Event queue count: %d\n", dev_interface->event_queue_count);
-    printf("Event queue stride: 0x%08x\n", dev_interface->event_queue_stride);
-
-    printf("TX queue offset: 0x%08x\n", dev_interface->tx_queue_offset);
-    printf("TX queue count: %d\n", dev_interface->tx_queue_count);
-    printf("TX queue stride: 0x%08x\n", dev_interface->tx_queue_stride);
-
-    printf("TX completion queue offset: 0x%08x\n", dev_interface->tx_cpl_queue_offset);
-    printf("TX completion queue count: %d\n", dev_interface->tx_cpl_queue_count);
-    printf("TX completion queue stride: 0x%08x\n", dev_interface->tx_cpl_queue_stride);
-
-    printf("RX queue offset: 0x%08x\n", dev_interface->rx_queue_offset);
-    printf("RX queue count: %d\n", dev_interface->rx_queue_count);
-    printf("RX queue stride: 0x%08x\n", dev_interface->rx_queue_stride);
-
-    printf("RX completion queue offset: 0x%08x\n", dev_interface->rx_cpl_queue_offset);
-    printf("RX completion queue count: %d\n", dev_interface->rx_cpl_queue_count);
-    printf("RX completion queue stride: 0x%08x\n", dev_interface->rx_cpl_queue_stride);
+    printf("EQ count: %d\n", mqnic_res_get_count(dev_interface->eq_res));
+    printf("CQ count: %d\n", mqnic_res_get_count(dev_interface->cq_res));
+    printf("TXQ count: %d\n", mqnic_res_get_count(dev_interface->txq_res));
+    printf("RXQ count: %d\n", mqnic_res_get_count(dev_interface->rxq_res));
 
     if (port < 0 || port >= dev_interface->port_count)
     {

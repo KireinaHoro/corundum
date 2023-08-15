@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2021-2022, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2021-2023 The Regents of the University of California
+ */
 
 // Language: Verilog 2001
 
@@ -51,8 +23,7 @@ module mqnic_interface_rx #
     // Queue manager configuration (interface)
     parameter RX_QUEUE_INDEX_WIDTH = 8,
     parameter QUEUE_INDEX_WIDTH = RX_QUEUE_INDEX_WIDTH,
-    parameter RX_CPL_QUEUE_INDEX_WIDTH = RX_QUEUE_INDEX_WIDTH,
-    parameter CPL_QUEUE_INDEX_WIDTH = RX_CPL_QUEUE_INDEX_WIDTH,
+    parameter CQN_WIDTH = RX_QUEUE_INDEX_WIDTH,
     parameter QUEUE_PTR_WIDTH = 16,
     parameter LOG_QUEUE_SIZE_WIDTH = 4,
     parameter LOG_BLOCK_SIZE_WIDTH = 2,
@@ -70,6 +41,7 @@ module mqnic_interface_rx #
     // TX and RX engine configuration
     parameter RX_DESC_TABLE_SIZE = 32,
     parameter DESC_TABLE_DMA_OP_COUNT_WIDTH = 4,
+    parameter RX_INDIR_TBL_ADDR_WIDTH = RX_QUEUE_INDEX_WIDTH > 8 ? 8 : RX_QUEUE_INDEX_WIDTH,
 
     // Interface configuration
     parameter PTP_TS_ENABLE = 1,
@@ -96,11 +68,17 @@ module mqnic_interface_rx #
     parameter RB_BASE_ADDR = 0,
     parameter RB_NEXT_PTR = 0,
 
+    // AXI lite interface configuration
+    parameter AXIL_DATA_WIDTH = 32,
+    parameter AXIL_ADDR_WIDTH = $clog2(PORTS)+RX_INDIR_TBL_ADDR_WIDTH+2,
+    parameter AXIL_STRB_WIDTH = (AXIL_DATA_WIDTH/8),
+    parameter AXIL_BASE_ADDR = 0,
+
     // Streaming interface configuration
     parameter AXIS_DATA_WIDTH = 512*2**$clog2(PORTS),
     parameter AXIS_KEEP_WIDTH = AXIS_DATA_WIDTH/8,
     parameter AXIS_RX_ID_WIDTH = PORTS > 1 ? $clog2(PORTS) : 1,
-    parameter AXIS_RX_DEST_WIDTH = RX_QUEUE_INDEX_WIDTH,
+    parameter AXIS_RX_DEST_WIDTH = RX_QUEUE_INDEX_WIDTH+1,
     parameter AXIS_RX_USER_WIDTH = (PTP_TS_ENABLE ? PTP_TS_WIDTH : 0) + 1
 )
 (
@@ -123,6 +101,29 @@ module mqnic_interface_rx #
     output wire                                         ctrl_reg_rd_ack,
 
     /*
+     * AXI-Lite slave interface (indirection table)
+     */
+    input  wire [AXIL_ADDR_WIDTH-1:0]                   s_axil_awaddr,
+    input  wire [2:0]                                   s_axil_awprot,
+    input  wire                                         s_axil_awvalid,
+    output wire                                         s_axil_awready,
+    input  wire [AXIL_DATA_WIDTH-1:0]                   s_axil_wdata,
+    input  wire [AXIL_STRB_WIDTH-1:0]                   s_axil_wstrb,
+    input  wire                                         s_axil_wvalid,
+    output wire                                         s_axil_wready,
+    output wire [1:0]                                   s_axil_bresp,
+    output wire                                         s_axil_bvalid,
+    input  wire                                         s_axil_bready,
+    input  wire [AXIL_ADDR_WIDTH-1:0]                   s_axil_araddr,
+    input  wire [2:0]                                   s_axil_arprot,
+    input  wire                                         s_axil_arvalid,
+    output wire                                         s_axil_arready,
+    output wire [AXIL_DATA_WIDTH-1:0]                   s_axil_rdata,
+    output wire [1:0]                                   s_axil_rresp,
+    output wire                                         s_axil_rvalid,
+    input  wire                                         s_axil_rready,
+
+    /*
      * Descriptor request output
      */
     output wire [QUEUE_INDEX_WIDTH-1:0]                 m_axis_desc_req_queue,
@@ -135,7 +136,7 @@ module mqnic_interface_rx #
      */
     input  wire [QUEUE_INDEX_WIDTH-1:0]                 s_axis_desc_req_status_queue,
     input  wire [QUEUE_PTR_WIDTH-1:0]                   s_axis_desc_req_status_ptr,
-    input  wire [CPL_QUEUE_INDEX_WIDTH-1:0]             s_axis_desc_req_status_cpl,
+    input  wire [CQN_WIDTH-1:0]                         s_axis_desc_req_status_cpl,
     input  wire [DESC_REQ_TAG_WIDTH-1:0]                s_axis_desc_req_status_tag,
     input  wire                                         s_axis_desc_req_status_empty,
     input  wire                                         s_axis_desc_req_status_error,
@@ -155,7 +156,7 @@ module mqnic_interface_rx #
     /*
      * Completion request output
      */
-    output wire [QUEUE_INDEX_WIDTH-1:0]                 m_axis_cpl_req_queue,
+    output wire [CQN_WIDTH-1:0]                         m_axis_cpl_req_queue,
     output wire [CPL_REQ_TAG_WIDTH-1:0]                 m_axis_cpl_req_tag,
     output wire [CPL_SIZE*8-1:0]                        m_axis_cpl_req_data,
     output wire                                         m_axis_cpl_req_valid,
@@ -328,11 +329,6 @@ end
 
 rx_engine #(
     .PORTS(PORTS),
-    .REG_ADDR_WIDTH(REG_ADDR_WIDTH),
-    .REG_DATA_WIDTH(REG_DATA_WIDTH),
-    .REG_STRB_WIDTH(REG_STRB_WIDTH),
-    .RB_BASE_ADDR(RB_BASE_ADDR),
-    .RB_NEXT_PTR(RB_NEXT_PTR),
     .RAM_ADDR_WIDTH(RAM_ADDR_WIDTH),
     .DMA_ADDR_WIDTH(DMA_ADDR_WIDTH),
     .DMA_LEN_WIDTH(DMA_LEN_WIDTH),
@@ -344,9 +340,10 @@ rx_engine #(
     .DMA_CLIENT_TAG_WIDTH(DMA_CLIENT_TAG_WIDTH),
     .QUEUE_INDEX_WIDTH(RX_QUEUE_INDEX_WIDTH),
     .QUEUE_PTR_WIDTH(QUEUE_PTR_WIDTH),
-    .CPL_QUEUE_INDEX_WIDTH(RX_CPL_QUEUE_INDEX_WIDTH),
+    .CQN_WIDTH(CQN_WIDTH),
     .DESC_TABLE_SIZE(RX_DESC_TABLE_SIZE),
     .DESC_TABLE_DMA_OP_COUNT_WIDTH(DESC_TABLE_DMA_OP_COUNT_WIDTH),
+    .INDIR_TBL_ADDR_WIDTH(RX_INDIR_TBL_ADDR_WIDTH),
     .MAX_RX_SIZE(MAX_RX_SIZE),
     .RX_BUFFER_OFFSET(0),
     .RX_BUFFER_SIZE(RX_RAM_SIZE),
@@ -360,6 +357,15 @@ rx_engine #(
     .PTP_TS_WIDTH(PTP_TS_WIDTH),
     .RX_HASH_ENABLE(RX_HASH_ENABLE),
     .RX_CHECKSUM_ENABLE(RX_CHECKSUM_ENABLE),
+    .REG_ADDR_WIDTH(REG_ADDR_WIDTH),
+    .REG_DATA_WIDTH(REG_DATA_WIDTH),
+    .REG_STRB_WIDTH(REG_STRB_WIDTH),
+    .RB_BASE_ADDR(RB_BASE_ADDR),
+    .RB_NEXT_PTR(RB_NEXT_PTR),
+    .AXIL_DATA_WIDTH(AXIL_DATA_WIDTH),
+    .AXIL_ADDR_WIDTH(AXIL_ADDR_WIDTH),
+    .AXIL_STRB_WIDTH(AXIL_STRB_WIDTH),
+    .AXIL_BASE_ADDR(AXIL_BASE_ADDR),
     .AXIS_RX_ID_WIDTH(AXIS_RX_ID_WIDTH),
     .AXIS_RX_DEST_WIDTH(AXIS_RX_DEST_WIDTH),
     .AXIS_RX_USER_WIDTH(INT_AXIS_RX_USER_WIDTH)
@@ -382,6 +388,29 @@ rx_engine_inst (
     .ctrl_reg_rd_data(ctrl_reg_rd_data),
     .ctrl_reg_rd_wait(ctrl_reg_rd_wait),
     .ctrl_reg_rd_ack(ctrl_reg_rd_ack),
+
+    /*
+     * AXI-Lite slave interface (indirection table)
+     */
+    .s_axil_awaddr(s_axil_awaddr),
+    .s_axil_awprot(s_axil_awprot),
+    .s_axil_awvalid(s_axil_awvalid),
+    .s_axil_awready(s_axil_awready),
+    .s_axil_wdata(s_axil_wdata),
+    .s_axil_wstrb(s_axil_wstrb),
+    .s_axil_wvalid(s_axil_wvalid),
+    .s_axil_wready(s_axil_wready),
+    .s_axil_bresp(s_axil_bresp),
+    .s_axil_bvalid(s_axil_bvalid),
+    .s_axil_bready(s_axil_bready),
+    .s_axil_araddr(s_axil_araddr),
+    .s_axil_arprot(s_axil_arprot),
+    .s_axil_arvalid(s_axil_arvalid),
+    .s_axil_arready(s_axil_arready),
+    .s_axil_rdata(s_axil_rdata),
+    .s_axil_rresp(s_axil_rresp),
+    .s_axil_rvalid(s_axil_rvalid),
+    .s_axil_rready(s_axil_rready),
 
     /*
      * Receive request input (queue index)

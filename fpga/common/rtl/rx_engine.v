@@ -1,35 +1,7 @@
+// SPDX-License-Identifier: BSD-2-Clause-Views
 /*
-
-Copyright 2019, The Regents of the University of California.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
-
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE REGENTS OF THE UNIVERSITY OF CALIFORNIA ''AS
-IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE REGENTS OF THE UNIVERSITY OF CALIFORNIA OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
-OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
-OF SUCH DAMAGE.
-
-The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of The Regents of the University of California.
-
-*/
+ * Copyright (c) 2019-2023 The Regents of the University of California
+ */
 
 // Language: Verilog 2001
 
@@ -44,16 +16,6 @@ module rx_engine #
 (
     // Number of ports
     parameter PORTS = 1,
-    // Control register interface address width
-    parameter REG_ADDR_WIDTH = 7,
-    // Control register interface data width
-    parameter REG_DATA_WIDTH = 32,
-    // Control register interface byte enable width
-    parameter REG_STRB_WIDTH = (REG_DATA_WIDTH/8),
-    // Register block base address
-    parameter RB_BASE_ADDR = 0,
-    // Register block next block address
-    parameter RB_NEXT_PTR = 0,
     // DMA RAM address width
     parameter RAM_ADDR_WIDTH = 16,
     // DMA address width
@@ -77,11 +39,13 @@ module rx_engine #
     // Queue element pointer width
     parameter QUEUE_PTR_WIDTH = 16,
     // Completion queue index width
-    parameter CPL_QUEUE_INDEX_WIDTH = 4,
+    parameter CQN_WIDTH = QUEUE_INDEX_WIDTH,
     // Descriptor table size (number of in-flight operations)
     parameter DESC_TABLE_SIZE = 8,
     // Width of descriptor table field for tracking outstanding DMA operations
     parameter DESC_TABLE_DMA_OP_COUNT_WIDTH = 4,
+    // Indirection table address width
+    parameter INDIR_TBL_ADDR_WIDTH = QUEUE_INDEX_WIDTH > 8 ? 8 : QUEUE_INDEX_WIDTH,
     // Max receive packet size
     parameter MAX_RX_SIZE = 2048,
     // Receive buffer offset
@@ -108,10 +72,28 @@ module rx_engine #
     parameter RX_HASH_ENABLE = 1,
     // Enable RX checksum offload
     parameter RX_CHECKSUM_ENABLE = 1,
+    // Control register interface address width
+    parameter REG_ADDR_WIDTH = 7,
+    // Control register interface data width
+    parameter REG_DATA_WIDTH = 32,
+    // Control register interface byte enable width
+    parameter REG_STRB_WIDTH = (REG_DATA_WIDTH/8),
+    // Register block base address
+    parameter RB_BASE_ADDR = 0,
+    // Register block next block address
+    parameter RB_NEXT_PTR = 0,
+    // Width of AXI lite data bus in bits
+    parameter AXIL_DATA_WIDTH = 32,
+    // Width of AXI lite address bus in bits
+    parameter AXIL_ADDR_WIDTH = $clog2(PORTS)+INDIR_TBL_ADDR_WIDTH+2,
+    // Width of AXI lite wstrb (width of data bus in words)
+    parameter AXIL_STRB_WIDTH = (AXIL_DATA_WIDTH/8),
+    // Base address of AXI lite interface
+    parameter AXIL_BASE_ADDR = 0,
     // AXI stream tid signal width
     parameter AXIS_RX_ID_WIDTH = PORTS > 1 ? $clog2(PORTS) : 1,
     // AXI stream tdest signal width
-    parameter AXIS_RX_DEST_WIDTH = QUEUE_INDEX_WIDTH,
+    parameter AXIS_RX_DEST_WIDTH = QUEUE_INDEX_WIDTH+1,
     // AXI stream tuser signal width
     parameter AXIS_RX_USER_WIDTH = (PTP_TS_ENABLE ? PTP_TS_WIDTH : 0) + 1
 )
@@ -133,6 +115,29 @@ module rx_engine #
     output wire [REG_DATA_WIDTH-1:0]        ctrl_reg_rd_data,
     output wire                             ctrl_reg_rd_wait,
     output wire                             ctrl_reg_rd_ack,
+
+    /*
+     * AXI-Lite slave interface (indirection table)
+     */
+    input  wire [AXIL_ADDR_WIDTH-1:0]       s_axil_awaddr,
+    input  wire [2:0]                       s_axil_awprot,
+    input  wire                             s_axil_awvalid,
+    output wire                             s_axil_awready,
+    input  wire [AXIL_DATA_WIDTH-1:0]       s_axil_wdata,
+    input  wire [AXIL_STRB_WIDTH-1:0]       s_axil_wstrb,
+    input  wire                             s_axil_wvalid,
+    output wire                             s_axil_wready,
+    output wire [1:0]                       s_axil_bresp,
+    output wire                             s_axil_bvalid,
+    input  wire                             s_axil_bready,
+    input  wire [AXIL_ADDR_WIDTH-1:0]       s_axil_araddr,
+    input  wire [2:0]                       s_axil_arprot,
+    input  wire                             s_axil_arvalid,
+    output wire                             s_axil_arready,
+    output wire [AXIL_DATA_WIDTH-1:0]       s_axil_rdata,
+    output wire [1:0]                       s_axil_rresp,
+    output wire                             s_axil_rvalid,
+    input  wire                             s_axil_rready,
 
     /*
      * Receive request input (queue index)
@@ -161,7 +166,7 @@ module rx_engine #
      */
     input  wire [QUEUE_INDEX_WIDTH-1:0]     s_axis_desc_req_status_queue,
     input  wire [QUEUE_PTR_WIDTH-1:0]       s_axis_desc_req_status_ptr,
-    input  wire [CPL_QUEUE_INDEX_WIDTH-1:0] s_axis_desc_req_status_cpl,
+    input  wire [CQN_WIDTH-1:0]             s_axis_desc_req_status_cpl,
     input  wire [DESC_REQ_TAG_WIDTH-1:0]    s_axis_desc_req_status_tag,
     input  wire                             s_axis_desc_req_status_empty,
     input  wire                             s_axis_desc_req_status_error,
@@ -181,7 +186,7 @@ module rx_engine #
     /*
      * Completion request output
      */
-    output wire [CPL_QUEUE_INDEX_WIDTH-1:0] m_axis_cpl_req_queue,
+    output wire [CQN_WIDTH-1:0]             m_axis_cpl_req_queue,
     output wire [CPL_REQ_TAG_WIDTH-1:0]     m_axis_cpl_req_tag,
     output wire [CPL_SIZE*8-1:0]            m_axis_cpl_req_data,
     output wire                             m_axis_cpl_req_valid,
@@ -305,7 +310,7 @@ reg m_axis_desc_req_valid_reg = 1'b0, m_axis_desc_req_valid_next;
 
 reg s_axis_desc_tready_reg = 1'b0, s_axis_desc_tready_next;
 
-reg [CPL_QUEUE_INDEX_WIDTH-1:0] m_axis_cpl_req_queue_reg = {CPL_QUEUE_INDEX_WIDTH{1'b0}}, m_axis_cpl_req_queue_next;
+reg [CQN_WIDTH-1:0] m_axis_cpl_req_queue_reg = {CQN_WIDTH{1'b0}}, m_axis_cpl_req_queue_next;
 reg [CPL_REQ_TAG_WIDTH-1:0] m_axis_cpl_req_tag_reg = {CPL_REQ_TAG_WIDTH{1'b0}}, m_axis_cpl_req_tag_next;
 reg [CPL_SIZE*8-1:0] m_axis_cpl_req_data_reg = {CPL_SIZE*8{1'b0}}, m_axis_cpl_req_data_next;
 reg m_axis_cpl_req_valid_reg = 1'b0, m_axis_cpl_req_valid_next;
@@ -346,7 +351,7 @@ reg [QUEUE_INDEX_WIDTH-1:0] desc_table_queue[DESC_TABLE_SIZE-1:0];
 (* ram_style = "distributed", ramstyle = "no_rw_check, mlab" *)
 reg [QUEUE_PTR_WIDTH-1:0] desc_table_queue_ptr[DESC_TABLE_SIZE-1:0];
 (* ram_style = "distributed", ramstyle = "no_rw_check, mlab" *)
-reg [CPL_QUEUE_INDEX_WIDTH-1:0] desc_table_cpl_queue[DESC_TABLE_SIZE-1:0];
+reg [CQN_WIDTH-1:0] desc_table_cpl_queue[DESC_TABLE_SIZE-1:0];
 (* ram_style = "distributed", ramstyle = "no_rw_check, mlab" *)
 reg [DMA_CLIENT_LEN_WIDTH-1:0] desc_table_dma_len[DESC_TABLE_SIZE-1:0];
 (* ram_style = "distributed", ramstyle = "no_rw_check, mlab" *)
@@ -388,7 +393,7 @@ reg [CL_DESC_TABLE_SIZE+1-1:0] desc_table_dequeue_start_ptr_reg = 0;
 reg desc_table_dequeue_start_en;
 reg [CL_DESC_TABLE_SIZE-1:0] desc_table_dequeue_ptr;
 reg [QUEUE_PTR_WIDTH-1:0] desc_table_dequeue_queue_ptr;
-reg [CPL_QUEUE_INDEX_WIDTH-1:0] desc_table_dequeue_cpl_queue;
+reg [CQN_WIDTH-1:0] desc_table_dequeue_cpl_queue;
 reg desc_table_dequeue_invalid;
 reg desc_table_dequeue_en;
 reg [CL_DESC_TABLE_SIZE-1:0] desc_table_desc_fetched_ptr;
@@ -487,6 +492,7 @@ wire queue_map_resp_valid;
 mqnic_rx_queue_map #(
     .PORTS(PORTS),
     .QUEUE_INDEX_WIDTH(QUEUE_INDEX_WIDTH),
+    .INDIR_TBL_ADDR_WIDTH(INDIR_TBL_ADDR_WIDTH),
     .ID_WIDTH(AXIS_RX_ID_WIDTH),
     .DEST_WIDTH(AXIS_RX_DEST_WIDTH),
     .HASH_WIDTH(RX_HASH_WIDTH),
@@ -495,7 +501,11 @@ mqnic_rx_queue_map #(
     .REG_DATA_WIDTH(REG_DATA_WIDTH),
     .REG_STRB_WIDTH(REG_STRB_WIDTH),
     .RB_BASE_ADDR(RB_BASE_ADDR),
-    .RB_NEXT_PTR(RB_NEXT_PTR)
+    .RB_NEXT_PTR(RB_NEXT_PTR),
+    .AXIL_DATA_WIDTH(AXIL_DATA_WIDTH),
+    .AXIL_ADDR_WIDTH(AXIL_ADDR_WIDTH),
+    .AXIL_STRB_WIDTH(AXIL_STRB_WIDTH),
+    .AXIL_BASE_ADDR(AXIL_BASE_ADDR)
 )
 mqnic_rx_queue_map_inst (
     .clk(clk),
@@ -515,6 +525,29 @@ mqnic_rx_queue_map_inst (
     .reg_rd_data(ctrl_reg_rd_data),
     .reg_rd_wait(ctrl_reg_rd_wait),
     .reg_rd_ack(ctrl_reg_rd_ack),
+
+    /*
+     * AXI-Lite slave interface (indirection table)
+     */
+    .s_axil_awaddr(s_axil_awaddr),
+    .s_axil_awprot(s_axil_awprot),
+    .s_axil_awvalid(s_axil_awvalid),
+    .s_axil_awready(s_axil_awready),
+    .s_axil_wdata(s_axil_wdata),
+    .s_axil_wstrb(s_axil_wstrb),
+    .s_axil_wvalid(s_axil_wvalid),
+    .s_axil_wready(s_axil_wready),
+    .s_axil_bresp(s_axil_bresp),
+    .s_axil_bvalid(s_axil_bvalid),
+    .s_axil_bready(s_axil_bready),
+    .s_axil_araddr(s_axil_araddr),
+    .s_axil_arprot(s_axil_arprot),
+    .s_axil_arvalid(s_axil_arvalid),
+    .s_axil_arready(s_axil_arready),
+    .s_axil_rdata(s_axil_rdata),
+    .s_axil_rresp(s_axil_rresp),
+    .s_axil_rvalid(s_axil_rvalid),
+    .s_axil_rready(s_axil_rready),
 
     /*
      * Request input

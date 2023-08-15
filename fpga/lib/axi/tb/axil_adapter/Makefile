@@ -34,20 +34,16 @@ VERILOG_SOURCES += ../../rtl/$(DUT)_wr.v
 VERILOG_SOURCES += ../../rtl/$(DUT)_rd.v
 
 # module parameters
-export PARAM_ADDR_WIDTH ?= 32
-export PARAM_S_DATA_WIDTH ?= 32
-export PARAM_S_STRB_WIDTH ?= $(shell expr $(PARAM_S_DATA_WIDTH) / 8 )
-export PARAM_M_DATA_WIDTH ?= 32
-export PARAM_M_STRB_WIDTH ?= $(shell expr $(PARAM_M_DATA_WIDTH) / 8 )
+export PARAM_ADDR_WIDTH := 32
+export PARAM_S_DATA_WIDTH := 32
+export PARAM_S_STRB_WIDTH := $(shell expr $(PARAM_S_DATA_WIDTH) / 8 )
+export PARAM_M_DATA_WIDTH := 32
+export PARAM_M_STRB_WIDTH := $(shell expr $(PARAM_M_DATA_WIDTH) / 8 )
 
 ifeq ($(SIM), icarus)
 	PLUSARGS += -fst
 
-	COMPILE_ARGS += -P $(TOPLEVEL).ADDR_WIDTH=$(PARAM_ADDR_WIDTH)
-	COMPILE_ARGS += -P $(TOPLEVEL).S_DATA_WIDTH=$(PARAM_S_DATA_WIDTH)
-	COMPILE_ARGS += -P $(TOPLEVEL).S_STRB_WIDTH=$(PARAM_S_STRB_WIDTH)
-	COMPILE_ARGS += -P $(TOPLEVEL).M_DATA_WIDTH=$(PARAM_M_DATA_WIDTH)
-	COMPILE_ARGS += -P $(TOPLEVEL).M_STRB_WIDTH=$(PARAM_M_STRB_WIDTH)
+	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-P $(TOPLEVEL).$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
 		VERILOG_SOURCES += iverilog_dump.v
@@ -56,11 +52,7 @@ ifeq ($(SIM), icarus)
 else ifeq ($(SIM), verilator)
 	COMPILE_ARGS += -Wno-SELRANGE -Wno-WIDTH
 
-	COMPILE_ARGS += -GADDR_WIDTH=$(PARAM_ADDR_WIDTH)
-	COMPILE_ARGS += -GS_DATA_WIDTH=$(PARAM_S_DATA_WIDTH)
-	COMPILE_ARGS += -GS_STRB_WIDTH=$(PARAM_S_STRB_WIDTH)
-	COMPILE_ARGS += -GM_DATA_WIDTH=$(PARAM_M_DATA_WIDTH)
-	COMPILE_ARGS += -GM_STRB_WIDTH=$(PARAM_M_STRB_WIDTH)
+	COMPILE_ARGS += $(foreach v,$(filter PARAM_%,$(.VARIABLES)),-G$(subst PARAM_,,$(v))=$($(v)))
 
 	ifeq ($(WAVES), 1)
 		COMPILE_ARGS += --trace-fst
