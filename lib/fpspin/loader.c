@@ -127,18 +127,9 @@ void fpspin_ruleset_slmp(fpspin_ruleset_t *rs) {
   // message ID rule in hardware
 }
 
-uint64_t fpspin_addr_to_off(fpspin_addr_t pspin_addr) {
-  uint64_t off;
-  if (pspin_addr >= PROG_BASE)
-    off = pspin_addr - PROG_BASE + 0x400000;
-  else
-    off = pspin_addr - L2_BASE;
-  return off;
-}
-
 void fpspin_write_memory(fpspin_ctx_t *ctx, fpspin_addr_t pspin_addr,
                          void *host_addr, size_t len) {
-  uint64_t off = fpspin_addr_to_off(pspin_addr);
+  uint64_t off = pspin_addr;
 
   int dev_fd = ctx->fd;
   if (dev_fd < 0) {

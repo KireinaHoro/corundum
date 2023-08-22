@@ -28,16 +28,16 @@ struct pspin_ioctl_msg {
     struct {
       u64 addr;
       u64 data;
-    } write_raw;
+    } write;
     struct {
       u64 word; // req: addr; resp: data
-    } read_raw;
+    } read;
   };
 };
 
 #define PSPIN_IOCTL_MAGIC 0x95910
 #define PSPIN_HOSTDMA_QUERY _IOWR(PSPIN_IOCTL_MAGIC, 0x1, struct pspin_ioctl_msg)
-#define PSPIN_HOSTDMA_WRITE_RAW _IOW(PSPIN_IOCTL_MAGIC, 0x2, struct pspin_ioctl_msg)
-#define PSPIN_HOSTDMA_READ_RAW _IOR(PSPIN_IOCTL_MAGIC, 0x3, struct pspin_ioctl_msg)
+#define PSPIN_HOST_WRITE _IOW(PSPIN_IOCTL_MAGIC, 0x2, struct pspin_ioctl_msg)
+#define PSPIN_HOST_READ _IOR(PSPIN_IOCTL_MAGIC, 0x3, struct pspin_ioctl_msg)
 
 #endif // __PSPIN_IOCTL_H__

@@ -183,40 +183,38 @@ void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t flag) {
 
   // notify pspin via host flag
   struct pspin_ioctl_msg flag_msg = {
-      .write_raw.addr = fpspin_addr_to_off(ctx->host_flag_base + 8 * hpu_id),
-      .write_raw.data = flag.data,
+      .write.addr = ctx->host_flag_base + 8 * hpu_id,
+      .write.data = flag.data,
   };
-  if (ioctl(ctx->fd, PSPIN_HOSTDMA_WRITE_RAW, &flag_msg) < 0) {
+  if (ioctl(ctx->fd, PSPIN_HOST_WRITE, &flag_msg) < 0) {
     perror("ioctl pspin device");
   }
 }
 
 void fpspin_clear_counter(fpspin_ctx_t *ctx, int id) {
-  uint64_t perf_off = fpspin_addr_to_off(ctx->host_flag_base + 8 * NUM_HPUS +
-                                         sizeof(fpspin_counter_t) *
-                                             id); // perf_count & perf_sum
+  uint64_t perf_off = ctx->host_flag_base + 8 * NUM_HPUS +
+                      sizeof(fpspin_counter_t) * id; // perf_count & perf_sum
   struct pspin_ioctl_msg perf_msg = {
-      .write_raw.addr = perf_off,
-      .write_raw.data = 0UL,
+      .write.addr = perf_off,
+      .write.data = 0UL,
   };
-  if (ioctl(ctx->fd, PSPIN_HOSTDMA_WRITE_RAW, &perf_msg) < 0) {
+  if (ioctl(ctx->fd, PSPIN_HOST_WRITE, &perf_msg) < 0) {
     perror("ioctl pspin device");
   }
 }
 
 fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id) {
-  uint64_t perf_off = fpspin_addr_to_off(ctx->host_flag_base + 8 * NUM_HPUS +
-                                         sizeof(fpspin_counter_t) *
-                                             id); // perf_count & perf_sum
+  uint64_t perf_off = ctx->host_flag_base + 8 * NUM_HPUS +
+                      sizeof(fpspin_counter_t) * id; // perf_count & perf_sum
   struct pspin_ioctl_msg perf_msg = {
-      .read_raw.word = perf_off,
+      .read.word = perf_off,
   };
-  if (ioctl(ctx->fd, PSPIN_HOSTDMA_READ_RAW, &perf_msg) < 0) {
+  if (ioctl(ctx->fd, PSPIN_HOST_READ, &perf_msg) < 0) {
     perror("ioctl pspin device");
   }
   return (fpspin_counter_t){
-      .sum = (uint32_t)perf_msg.read_raw.word,
-      .count = (uint32_t)(perf_msg.read_raw.word >> 32),
+      .sum = (uint32_t)perf_msg.read.word,
+      .count = (uint32_t)(perf_msg.read.word >> 32),
   };
 }
 

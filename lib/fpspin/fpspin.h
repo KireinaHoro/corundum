@@ -138,9 +138,7 @@ static_assert(sizeof(fpspin_flag_t) == sizeof(uint64_t),
 #define DMA_BUS_WIDTH 512
 #define DMA_ALIGN (DMA_BUS_WIDTH / 8)
 
-#define L2_BASE 0x1c000000UL
 #define L2_END 0x1c100000UL
-#define PROG_BASE 0x1d000000UL
 #define PAGE_SIZE 4096
 
 void hexdump(const volatile void *data, size_t size);
@@ -214,8 +212,6 @@ static_assert(sizeof(fpspin_counter_t) == sizeof(uint64_t),
 fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id);
 void fpspin_clear_counter(fpspin_ctx_t *ctx, int id);
 uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx);
-
-uint64_t fpspin_addr_to_off(fpspin_addr_t pspin_addr);
 
 // for initialising handler memory from host dynamically
 void fpspin_write_memory(fpspin_ctx_t *ctx, fpspin_addr_t pspin_addr,

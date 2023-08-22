@@ -62,14 +62,30 @@ MODULE_AUTHOR("Pengcheng Xu");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_VERSION("0.1");
 
-// We expose the mapped L2/prog mem address space to userspace as a single
-// character-special file.  The userspace handler loader should undo the
-// mapping correctly.
 #define UMATCH_RULESETS 4
 #define UMATCH_ENTRIES 4
 #define HER_NUM_HANDLER_CTX 4
 #define PSPIN_DEVICE_NAME "pspin"
 #define PSPIN_NUM_CLUSTERS 2
+
+// memory mapping for host access
+#define PSPIN_PROG_BASE 0x1d000000UL
+#define PSPIN_PROG_SIZE (32 * 1024) // MEM_PROG_SIZE @ pspin_cfg_pkg.sv
+#define PSPIN_HND_BASE 0x1c000000UL
+#define PSPIN_HND_SIZE (1 * 1024 * 1024) // MEM_HND_SIZE @ pspin_cfg_pkg.sv
+
+#define CHECK_RANGE(addr, area)                                                \
+  ((addr) >= (PSPIN_##area##_BASE) &&                                          \
+   (addr) < (PSPIN_##area##_BASE) + (PSPIN_##area##_SIZE))
+static s64 pspin_addr_to_corundum(u64 pspin_addr) {
+  s64 ret = -1;
+  if (CHECK_RANGE(pspin_addr, PROG))
+    ret = pspin_addr - PSPIN_PROG_BASE + 0x400000;
+  else if (CHECK_RANGE(pspin_addr, HND))
+    ret = pspin_addr - PSPIN_HND_BASE;
+  return ret;
+}
+
 #define NUM_HPUS_PER_CLUSTER 8
 #define NUM_HPUS (NUM_HPUS_PER_CLUSTER * PSPIN_NUM_CLUSTERS)
 
@@ -412,6 +428,7 @@ static ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
   struct pspin_cdev *dev = filp->private_data;
   struct mqnic_app_pspin *app = dev->app;
   ssize_t retval = 0;
+  s64 corundum_addr;
   int i;
 
   // prevent operation on mem if in reset
@@ -433,7 +450,13 @@ static ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
 
   if (dev->type == TY_MEM) {
     for (i = 0; i < count; i += 4) {
-      *((u32 *)&dev->block_buffer[i]) = ioread32(PSPIN_MEM(app, *f_pos + i));
+      if ((corundum_addr = pspin_addr_to_corundum(*f_pos + i)) < 0) {
+        dev_err(dev->dev, "trying to access non-existent PsPIN memory %#llx\n",
+                *f_pos + i);
+        retval = -EFAULT;
+        goto out;
+      }
+      *((u32 *)&dev->block_buffer[i]) = ioread32(PSPIN_MEM(app, corundum_addr));
     }
     retval = count;
   } else {
@@ -479,6 +502,7 @@ static ssize_t pspin_write(struct file *filp, const char __user *buf,
   struct pspin_cdev *dev = filp->private_data;
   struct mqnic_app_pspin *app = dev->app;
   ssize_t retval = 0;
+  s64 corundum_addr;
   int i;
 
   if (dev->type == TY_FIFO) {
@@ -512,11 +536,13 @@ static ssize_t pspin_write(struct file *filp, const char __user *buf,
   }
 
   for (i = 0; i < count; i += 4) {
-    if ((u64)PSPIN_MEM(app, *f_pos + i) == 0x1c000210) {
-      dev_info(dev->dev, "writing %#x to %p\n", *((u32 *)&dev->block_buffer[i]),
-               PSPIN_MEM(app, *f_pos + i));
+    if ((corundum_addr = pspin_addr_to_corundum(*f_pos + i)) < 0) {
+      dev_err(dev->dev, "trying to access non-existent PsPIN memory %#llx\n",
+              *f_pos + i);
+      retval = -EFAULT;
+      goto out;
     }
-    iowrite32(*((u32 *)&dev->block_buffer[i]), PSPIN_MEM(app, *f_pos + i));
+    iowrite32(*((u32 *)&dev->block_buffer[i]), PSPIN_MEM(app, corundum_addr));
   }
   *f_pos += count;
   retval = count;
@@ -573,6 +599,7 @@ static long pspin_ioctl(struct file *filp, unsigned int cmd,
 
   int ctx_id;
   u64 addr, data;
+  s64 corundum_addr;
 
   if (cdev->type == TY_FIFO) {
     dev_warn(dev, "stdout FIFO does not support writing\n");
@@ -595,24 +622,32 @@ static long pspin_ioctl(struct file *filp, unsigned int cmd,
       return -EFAULT;
     }
     break;
-  case PSPIN_HOSTDMA_WRITE_RAW:
-    if (copy_from_user(&addr, &user_ptr->write_raw.addr, sizeof(u64))) {
+  case PSPIN_HOST_WRITE:
+    if (copy_from_user(&addr, &user_ptr->write.addr, sizeof(u64))) {
       dev_err(dev, "read flag error\n");
       return -EFAULT;
     }
-    if (copy_from_user(&data, &user_ptr->write_raw.data, sizeof(u64))) {
+    if ((corundum_addr = pspin_addr_to_corundum(addr)) < 0) {
+      dev_err(dev, "trying to access non-existent PsPIN memory %#llx\n", addr);
+      return -EFAULT;
+    }
+    if (copy_from_user(&data, &user_ptr->write.data, sizeof(u64))) {
       dev_err(dev, "read flag error\n");
       return -EFAULT;
     }
-    iowrite64_lo_hi(data, PSPIN_MEM(app, addr));
+    iowrite64_lo_hi(data, PSPIN_MEM(app, corundum_addr));
     break;
-  case PSPIN_HOSTDMA_READ_RAW:
-    if (copy_from_user(&addr, &user_ptr->read_raw.word, sizeof(u64))) {
+  case PSPIN_HOST_READ:
+    if (copy_from_user(&addr, &user_ptr->read.word, sizeof(u64))) {
       dev_err(dev, "read addr error\n");
       return -EFAULT;
     }
-    data = ioread64_lo_hi(PSPIN_MEM(app, addr));
-    if (copy_to_user(&user_ptr->read_raw.word, &data, sizeof(u64))) {
+    if ((corundum_addr = pspin_addr_to_corundum(addr)) < 0) {
+      dev_err(dev, "trying to access non-existent PsPIN memory %#llx\n", addr);
+      return -EFAULT;
+    }
+    data = ioread64_lo_hi(PSPIN_MEM(app, corundum_addr));
+    if (copy_to_user(&user_ptr->read.word, &data, sizeof(u64))) {
       dev_err(dev, "write data error\n");
       return -EFAULT;
     }
@@ -700,7 +735,7 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
     dev_err(dev, "host dma page must be mapped shared\n");
     return -EINVAL;
   }
-  
+
   area = &app->dma_areas[ctx_id];
 
   map_data = devm_kzalloc(dev, sizeof(struct pspin_map_data), GFP_KERNEL);

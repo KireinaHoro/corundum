@@ -67,9 +67,9 @@ int main(int argc, char *argv[]) {
   }
 
   struct pspin_ioctl_msg read_msg = {
-      .read_raw.word = fpspin_addr_to_off(args.addr),
+      .read.word = fpspin_addr_to_off(args.addr),
   };
-  if (ioctl(fd, PSPIN_HOSTDMA_READ_RAW, &read_msg) < 0) {
+  if (ioctl(fd, PSPIN_HOST_READ, &read_msg) < 0) {
     perror("ioctl pspin device");
     return EXIT_FAILURE;
   }
