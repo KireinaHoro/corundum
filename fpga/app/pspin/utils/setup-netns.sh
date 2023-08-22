@@ -13,12 +13,14 @@ on() {
     ip link set $PSPIN_IF netns $PSPIN_NS
     ip -n $PSPIN_NS addr add 10.0.0.1/24 dev $PSPIN_IF
     ip -n $PSPIN_NS link set $PSPIN_IF up
+    ip -n $PSPIN_NS link set lo up
 
     echo "Creating $BYPASS_NS namespace..."
     ip netns add $BYPASS_NS
     ip link set $BYPASS_IF netns $BYPASS_NS
     ip -n $BYPASS_NS addr add 10.0.0.2/24 dev $BYPASS_IF
     ip -n $BYPASS_NS link set $BYPASS_IF up
+    ip -n $BYPASS_NS link set lo up
 
     echo "Route to PsPIN from $BYPASS_NS:"
     ip -n $BYPASS_NS route get 10.0.0.1
