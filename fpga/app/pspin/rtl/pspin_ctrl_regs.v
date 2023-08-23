@@ -1,56 +1,3 @@
-// control registers (32bit):
-// - cluster fetch enable (RW) 0x0000
-// - cluster reset (high) (RW) 0x0004
-
-// - cluster eoc          (RO) 0x0100
-// - cluster busy         (RO) 0x0104
-
-// - mpq full[ 31:  0]    (RO) 0x0200
-// - mpq full[ 63: 32]    (RO) 0x0204
-// - mpq full[ 95: 64]    (RO) 0x0208
-// - mpq full[127: 96]    (RO) 0x020c
-// - mpq full[159:128]    (RO) 0x0210
-// - mpq full[191:160]    (RO) 0x0214
-// - mpq full[223:192]    (RO) 0x0218
-// - mpq full[255:224]    (RO) 0x021c
-
-// - stdout FIFO          (RO) 0x1000
-
-// - matching engine
-//   match valid          (RW) 0x2000
-//   match mode           (RW) 0x2100 -
-//   match idx            (RW) 0x2200 -
-//   match mask           (RW) 0x2300 -
-//   match start          (RW) 0x2400 -
-//   match end            (RW) 0x2500 -
-
-// - in/e-gress datapath statistics
-//   alloc dropped pkts   (RO) 0x2600
-//   egress dma error     (RO) 0x2604
-
-// - HER generator
-//   conf_valid           (RW) 0x3000
-//   conf_ctx_enabled     (RW) 0x3100 -
-//   handler_mem_addr     (RW) 0x3200 -
-//   handler_mem_size     (RW) 0x3300 -
-//   host_mem_addr_lo     (RW) 0x3400 -
-//   host_mem_addr_hi     (RW) 0x3500 -
-//   host_mem_size        (RW) 0x3600 -
-//   hh_addr              (RW) 0x3700 -
-//   hh_size              (RW) 0x3800 -
-//   ph_addr              (RW) 0x3900 -
-//   ph_size              (RW) 0x3a00 -
-//   th_addr              (RW) 0x3b00 -
-//   th_size              (RW) 0x3c00 -
-//   scratchpad_0_addr    (RW) 0x3d00 -
-//   scratchpad_0_size    (RW) 0x3e00 -
-//   scratchpad_1_addr    (RW) 0x3f00 -
-//   scratchpad_1_size    (RW) 0x4000 -
-//   scratchpad_2_addr    (RW) 0x4100 -
-//   scratchpad_2_size    (RW) 0x4200 -
-//   scratchpad_3_addr    (RW) 0x4300 -
-//   scratchpad_3_size    (RW) 0x4400 -
-
 `timescale 1ns / 1ps
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
 
@@ -64,13 +11,6 @@ module pspin_ctrl_regs #
     parameter STRB_WIDTH = DATA_WIDTH/8,
     parameter NUM_CLUSTERS = 2,
     parameter NUM_MPQ = 16,
-
-    parameter UMATCH_WIDTH = 32,
-    parameter UMATCH_ENTRIES = 4,
-    parameter UMATCH_RULESETS = 4,
-    parameter UMATCH_MODES = 2,
-
-    parameter HER_NUM_HANDLER_CTX = 4
 ) (
     input  wire                   clk,
     input  wire                   rst,
@@ -114,117 +54,223 @@ module pspin_ctrl_regs #
     input  wire [31:0]                                      alloc_dropped_pkts,
 
     // matching engine configuration
-    output reg  [$clog2(UMATCH_MODES)*UMATCH_RULESETS-1:0]                  match_mode_o,
-    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0]           match_idx_o,
-    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0]           match_mask_o,
-    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0]           match_start_o,
-    output reg  [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0]           match_end_o,
-    output reg                                              match_valid_o,
+    output reg  [0:0] match_valid_o,
+    output reg  [7:0] match_mode_o,
+    output reg  [511:0] match_idx_o,
+    output reg  [511:0] match_mask_o,
+    output reg  [511:0] match_start_o,
+    output reg  [511:0] match_end_o,
 
     // HER generator execution context
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_handler_mem_addr,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_handler_mem_size,
-    output reg  [HER_NUM_HANDLER_CTX*64-1:0]                her_gen_host_mem_addr,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_host_mem_size,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_hh_addr,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_hh_size,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_ph_addr,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_ph_size,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_th_addr,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_th_size,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_0_addr,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_0_size,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_1_addr,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_1_size,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_2_addr,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_2_size,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_3_addr,
-    output reg  [HER_NUM_HANDLER_CTX*32-1:0]                her_gen_scratchpad_3_size,
-    output reg  [HER_NUM_HANDLER_CTX-1:0]                   her_gen_enabled,
-    output reg                                              her_gen_valid,
+    output reg  [0:0] her_gen_valid_o,
+    output reg  [3:0] her_gen_ctx_enabled_o,
+    output reg  [127:0] her_gen_handler_mem_addr_o,
+    output reg  [127:0] her_gen_handler_mem_size_o,
+    output reg  [255:0] her_gen_host_mem_addr_o,
+    output reg  [127:0] her_gen_host_mem_size_o,
+    output reg  [127:0] her_gen_hh_addr_o,
+    output reg  [127:0] her_gen_hh_size_o,
+    output reg  [127:0] her_gen_ph_addr_o,
+    output reg  [127:0] her_gen_ph_size_o,
+    output reg  [127:0] her_gen_th_addr_o,
+    output reg  [127:0] her_gen_th_size_o,
+    output reg  [127:0] her_gen_scratchpad_0_addr_o,
+    output reg  [127:0] her_gen_scratchpad_0_size_o,
+    output reg  [127:0] her_gen_scratchpad_1_addr_o,
+    output reg  [127:0] her_gen_scratchpad_1_size_o,
+    output reg  [127:0] her_gen_scratchpad_2_addr_o,
+    output reg  [127:0] her_gen_scratchpad_2_size_o,
+    output reg  [127:0] her_gen_scratchpad_3_addr_o,
+    output reg  [127:0] her_gen_scratchpad_3_size_o,
 
     // egress datapath
     input  wire [3:0]                                       egress_dma_last_error
 );
+localparam UMATCH_WIDTH = 32;
+localparam UMATCH_ENTRIES = 4;
+localparam UMATCH_RULESETS = 4;
+localparam UMATCH_MODES = 2;
+localparam HER_NUM_HANDLER_CTX = 4;
 
 localparam VALID_ADDR_WIDTH = ADDR_WIDTH - $clog2(STRB_WIDTH);
 localparam WORD_WIDTH = STRB_WIDTH;
 localparam WORD_SIZE = DATA_WIDTH/WORD_WIDTH;
 
-localparam NUM_REGS =
-    4 + 1 + 1 + // PsPIN
-    1 + UMATCH_RULESETS + UMATCH_RULESETS * UMATCH_ENTRIES * 4 + // MATCH
-    2 + // DATAPATH_STATS
-    1 + HER_NUM_HANDLER_CTX * 20 + // HER
-    1; // GUARD
+localparam NUM_REGS = 154;
+
 reg [DATA_WIDTH-1:0] ctrl_regs [NUM_REGS-1:0];
 
 `define REGFILE_IDX_INVALID {VALID_ADDR_WIDTH{1'b1}}
 wire [NUM_REGS-1:0] REGFILE_IDX_READONLY;
+localparam [ADDR_WIDTH-1:0] CL_CTRL_BASE = {{ADDR_WIDTH{1'b0}}, 32'h0};
+localparam CL_CTRL_REG_COUNT = 2;
+localparam CL_CTRL_REG_OFF = 0;
+assign REGFILE_IDX_READONLY[1:0] = 2'b00;
 
-`define DECL_REG_COMMON(name, count, addr_offset) \
-    localparam [ADDR_WIDTH-1:0] name``_BASE = {{ADDR_WIDTH{1'b0}}, addr_offset}; \
-    localparam name``_REG_COUNT = count;
-`define DECL_REG_RDONLY(name, rdonly) \
-        genvar i_``name; \
-        for (i_``name = name``_REG_OFF; \
-            i_``name < name``_REG_OFF + name``_REG_COUNT; \
-            i_``name = i_``name + 1) \
-            assign REGFILE_IDX_READONLY[i_``name] = rdonly;
-`define DECL_REG_HEAD(name, count, rdonly, addr_offset) \
-    `DECL_REG_COMMON(name, count, addr_offset) \
-    localparam [$clog2(NUM_REGS)-1:0] name``_REG_OFF = 0; \
-    `DECL_REG_RDONLY(name, rdonly)
-`define DECL_REG(name, count, rdonly, addr_offset, prev_block) \
-    `DECL_REG_COMMON(name, count, addr_offset) \
-    localparam [$clog2(NUM_REGS)-1:0] name``_REG_OFF = prev_block``_REG_OFF + prev_block``_REG_COUNT; \
-    `DECL_REG_RDONLY(name, rdonly)
+localparam [ADDR_WIDTH-1:0] CL_FIFO_BASE = {{ADDR_WIDTH{1'b0}}, 32'h8};
+localparam CL_FIFO_REG_COUNT = 1;
+localparam CL_FIFO_REG_OFF = 2;
+assign REGFILE_IDX_READONLY[2:2] = 1'b1;
 
-generate
-// FIXME: ideally this is generated from one source of ground-truth for all
-//        consumers (this module in Verilog AND the kernel driver)
-`DECL_REG_HEAD(CL_CTRL, 2,           1'b0,   32'h0000)
-`DECL_REG(CL_STAT,  2,               1'b1,   32'h0100, CL_CTRL)
-`DECL_REG(MPQ,      1,               1'b1,   32'h0200, CL_STAT)
-`DECL_REG(FIFO,     1,               1'b1,   32'h1000, MPQ)
 
-`DECL_REG(ME_VALID, 1,                               1'b0,   32'h2000, FIFO)
-`DECL_REG(ME_MODE,  UMATCH_RULESETS,                 1'b0,   32'h2100, ME_VALID)
-`DECL_REG(ME_IDX,   UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2200, ME_MODE)
-`DECL_REG(ME_MASK,  UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2300, ME_IDX)
-`DECL_REG(ME_START, UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2400, ME_MASK)
-`DECL_REG(ME_END,   UMATCH_ENTRIES*UMATCH_RULESETS,  1'b0,   32'h2500, ME_START)
+localparam [ADDR_WIDTH-1:0] STATS_CLUSTER_BASE = {{ADDR_WIDTH{1'b0}}, 32'h1000};
+localparam STATS_CLUSTER_REG_COUNT = 2;
+localparam STATS_CLUSTER_REG_OFF = 3;
+assign REGFILE_IDX_READONLY[4:3] = 2'b11;
 
-`DECL_REG(DATAPATH_STATS,           2,                      1'b1,   32'h2600, ME_END)
+localparam [ADDR_WIDTH-1:0] STATS_MPQ_BASE = {{ADDR_WIDTH{1'b0}}, 32'h1008};
+localparam STATS_MPQ_REG_COUNT = 1;
+localparam STATS_MPQ_REG_OFF = 5;
+assign REGFILE_IDX_READONLY[5:5] = 1'b1;
 
-`DECL_REG(HER,                      1,                      1'b0,   32'h3000, DATAPATH_STATS)
-`DECL_REG(HER_CTX_ENABLED,          HER_NUM_HANDLER_CTX,    1'b0,   32'h3100, HER)
-`DECL_REG(HER_HANDLER_MEM_ADDR,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3200, HER_CTX_ENABLED)
-`DECL_REG(HER_HANDLER_MEM_SIZE,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3300, HER_HANDLER_MEM_ADDR)
-`DECL_REG(HER_HOST_MEM_ADDR_LO,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3400, HER_HANDLER_MEM_SIZE)
-`DECL_REG(HER_HOST_MEM_ADDR_HI,     HER_NUM_HANDLER_CTX,    1'b0,   32'h3500, HER_HOST_MEM_ADDR_LO)
-`DECL_REG(HER_HOST_MEM_SIZE,        HER_NUM_HANDLER_CTX,    1'b0,   32'h3600, HER_HOST_MEM_ADDR_HI)
-`DECL_REG(HER_HH_ADDR,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3700, HER_HOST_MEM_SIZE)
-`DECL_REG(HER_HH_SIZE,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3800, HER_HH_ADDR)
-`DECL_REG(HER_PH_ADDR,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3900, HER_HH_SIZE)
-`DECL_REG(HER_PH_SIZE,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3a00, HER_PH_ADDR)
-`DECL_REG(HER_TH_ADDR,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3b00, HER_PH_SIZE)
-`DECL_REG(HER_TH_SIZE,              HER_NUM_HANDLER_CTX,    1'b0,   32'h3c00, HER_TH_ADDR)
-`DECL_REG(HER_SCRATCHPAD_0_ADDR,    HER_NUM_HANDLER_CTX,    1'b0,   32'h3d00, HER_TH_SIZE)
-`DECL_REG(HER_SCRATCHPAD_0_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h3e00, HER_SCRATCHPAD_0_ADDR)
-`DECL_REG(HER_SCRATCHPAD_1_ADDR,    HER_NUM_HANDLER_CTX,    1'b0,   32'h3f00, HER_SCRATCHPAD_0_SIZE)
-`DECL_REG(HER_SCRATCHPAD_1_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4000, HER_SCRATCHPAD_1_ADDR)
-`DECL_REG(HER_SCRATCHPAD_2_ADDR,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4100, HER_SCRATCHPAD_1_SIZE)
-`DECL_REG(HER_SCRATCHPAD_2_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4200, HER_SCRATCHPAD_2_ADDR)
-`DECL_REG(HER_SCRATCHPAD_3_ADDR,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4300, HER_SCRATCHPAD_2_SIZE)
-`DECL_REG(HER_SCRATCHPAD_3_SIZE,    HER_NUM_HANDLER_CTX,    1'b0,   32'h4400, HER_SCRATCHPAD_3_ADDR)
+localparam [ADDR_WIDTH-1:0] STATS_DATAPATH_BASE = {{ADDR_WIDTH{1'b0}}, 32'h100c};
+localparam STATS_DATAPATH_REG_COUNT = 2;
+localparam STATS_DATAPATH_REG_OFF = 6;
+assign REGFILE_IDX_READONLY[7:6] = 2'b11;
 
-`DECL_REG(GUARD,                    1,                      1'b1,   32'hff00, HER_SCRATCHPAD_3_SIZE)
-endgenerate
+
+localparam [ADDR_WIDTH-1:0] ME_VALID_BASE = {{ADDR_WIDTH{1'b0}}, 32'h2000};
+localparam ME_VALID_REG_COUNT = 1;
+localparam ME_VALID_REG_OFF = 8;
+assign REGFILE_IDX_READONLY[8:8] = 1'b0;
+
+localparam [ADDR_WIDTH-1:0] ME_MODE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h2004};
+localparam ME_MODE_REG_COUNT = 4;
+localparam ME_MODE_REG_OFF = 9;
+assign REGFILE_IDX_READONLY[12:9] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] ME_IDX_BASE = {{ADDR_WIDTH{1'b0}}, 32'h2014};
+localparam ME_IDX_REG_COUNT = 16;
+localparam ME_IDX_REG_OFF = 13;
+assign REGFILE_IDX_READONLY[28:13] = 16'b0000000000000000;
+
+localparam [ADDR_WIDTH-1:0] ME_MASK_BASE = {{ADDR_WIDTH{1'b0}}, 32'h2054};
+localparam ME_MASK_REG_COUNT = 16;
+localparam ME_MASK_REG_OFF = 29;
+assign REGFILE_IDX_READONLY[44:29] = 16'b0000000000000000;
+
+localparam [ADDR_WIDTH-1:0] ME_START_BASE = {{ADDR_WIDTH{1'b0}}, 32'h2094};
+localparam ME_START_REG_COUNT = 16;
+localparam ME_START_REG_OFF = 45;
+assign REGFILE_IDX_READONLY[60:45] = 16'b0000000000000000;
+
+localparam [ADDR_WIDTH-1:0] ME_END_BASE = {{ADDR_WIDTH{1'b0}}, 32'h20d4};
+localparam ME_END_REG_COUNT = 16;
+localparam ME_END_REG_OFF = 61;
+assign REGFILE_IDX_READONLY[76:61] = 16'b0000000000000000;
+
+
+localparam [ADDR_WIDTH-1:0] HER_VALID_BASE = {{ADDR_WIDTH{1'b0}}, 32'h3000};
+localparam HER_VALID_REG_COUNT = 1;
+localparam HER_VALID_REG_OFF = 77;
+assign REGFILE_IDX_READONLY[77:77] = 1'b0;
+
+localparam [ADDR_WIDTH-1:0] HER_CTX_ENABLED_BASE = {{ADDR_WIDTH{1'b0}}, 32'h3004};
+localparam HER_CTX_ENABLED_REG_COUNT = 4;
+localparam HER_CTX_ENABLED_REG_OFF = 78;
+assign REGFILE_IDX_READONLY[81:78] = 4'b0000;
+
+
+localparam [ADDR_WIDTH-1:0] HER_META_HANDLER_MEM_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4000};
+localparam HER_META_HANDLER_MEM_ADDR_REG_COUNT = 4;
+localparam HER_META_HANDLER_MEM_ADDR_REG_OFF = 82;
+assign REGFILE_IDX_READONLY[85:82] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_HANDLER_MEM_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4010};
+localparam HER_META_HANDLER_MEM_SIZE_REG_COUNT = 4;
+localparam HER_META_HANDLER_MEM_SIZE_REG_OFF = 86;
+assign REGFILE_IDX_READONLY[89:86] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_HOST_MEM_ADDR_0_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4020};
+localparam HER_META_HOST_MEM_ADDR_0_REG_COUNT = 4;
+localparam HER_META_HOST_MEM_ADDR_0_REG_OFF = 154;
+assign REGFILE_IDX_READONLY[157:154] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_HOST_MEM_ADDR_1_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4030};
+localparam HER_META_HOST_MEM_ADDR_1_REG_COUNT = 4;
+localparam HER_META_HOST_MEM_ADDR_1_REG_OFF = 158;
+assign REGFILE_IDX_READONLY[161:158] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_HOST_MEM_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4040};
+localparam HER_META_HOST_MEM_SIZE_REG_COUNT = 4;
+localparam HER_META_HOST_MEM_SIZE_REG_OFF = 94;
+assign REGFILE_IDX_READONLY[97:94] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_HH_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4050};
+localparam HER_META_HH_ADDR_REG_COUNT = 4;
+localparam HER_META_HH_ADDR_REG_OFF = 98;
+assign REGFILE_IDX_READONLY[101:98] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_HH_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4060};
+localparam HER_META_HH_SIZE_REG_COUNT = 4;
+localparam HER_META_HH_SIZE_REG_OFF = 102;
+assign REGFILE_IDX_READONLY[105:102] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_PH_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4070};
+localparam HER_META_PH_ADDR_REG_COUNT = 4;
+localparam HER_META_PH_ADDR_REG_OFF = 106;
+assign REGFILE_IDX_READONLY[109:106] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_PH_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4080};
+localparam HER_META_PH_SIZE_REG_COUNT = 4;
+localparam HER_META_PH_SIZE_REG_OFF = 110;
+assign REGFILE_IDX_READONLY[113:110] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_TH_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4090};
+localparam HER_META_TH_ADDR_REG_COUNT = 4;
+localparam HER_META_TH_ADDR_REG_OFF = 114;
+assign REGFILE_IDX_READONLY[117:114] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_TH_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40a0};
+localparam HER_META_TH_SIZE_REG_COUNT = 4;
+localparam HER_META_TH_SIZE_REG_OFF = 118;
+assign REGFILE_IDX_READONLY[121:118] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_0_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40b0};
+localparam HER_META_SCRATCHPAD_0_ADDR_REG_COUNT = 4;
+localparam HER_META_SCRATCHPAD_0_ADDR_REG_OFF = 122;
+assign REGFILE_IDX_READONLY[125:122] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_0_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40c0};
+localparam HER_META_SCRATCHPAD_0_SIZE_REG_COUNT = 4;
+localparam HER_META_SCRATCHPAD_0_SIZE_REG_OFF = 126;
+assign REGFILE_IDX_READONLY[129:126] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_1_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40d0};
+localparam HER_META_SCRATCHPAD_1_ADDR_REG_COUNT = 4;
+localparam HER_META_SCRATCHPAD_1_ADDR_REG_OFF = 130;
+assign REGFILE_IDX_READONLY[133:130] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_1_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40e0};
+localparam HER_META_SCRATCHPAD_1_SIZE_REG_COUNT = 4;
+localparam HER_META_SCRATCHPAD_1_SIZE_REG_OFF = 134;
+assign REGFILE_IDX_READONLY[137:134] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_2_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40f0};
+localparam HER_META_SCRATCHPAD_2_ADDR_REG_COUNT = 4;
+localparam HER_META_SCRATCHPAD_2_ADDR_REG_OFF = 138;
+assign REGFILE_IDX_READONLY[141:138] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_2_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4100};
+localparam HER_META_SCRATCHPAD_2_SIZE_REG_COUNT = 4;
+localparam HER_META_SCRATCHPAD_2_SIZE_REG_OFF = 142;
+assign REGFILE_IDX_READONLY[145:142] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_3_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4110};
+localparam HER_META_SCRATCHPAD_3_ADDR_REG_COUNT = 4;
+localparam HER_META_SCRATCHPAD_3_ADDR_REG_OFF = 146;
+assign REGFILE_IDX_READONLY[149:146] = 4'b0000;
+
+localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_3_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4120};
+localparam HER_META_SCRATCHPAD_3_SIZE_REG_COUNT = 4;
+localparam HER_META_SCRATCHPAD_3_SIZE_REG_OFF = 150;
+assign REGFILE_IDX_READONLY[153:150] = 4'b0000;
+
+
 
 initial begin
-    if (NUM_REGS != GUARD_REG_OFF + 1) begin
-        $error("NUM_REGS mismatch with end of reg declaration, please update");
+    if (DATA_WIDTH != 32) begin
+        $error("Word width mismatch, please re-generate");
         $finish;
     end
 end
@@ -241,52 +287,98 @@ wire reg_intf_wr_en;
 reg reg_intf_wr_ack;
 
 // address decode
-`define GEN_DECODE(op, name) name``_BASE: regfile_idx_``op = name``_REG_OFF + (block_offset_``op >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
-`define DECODE_ADDR(op) \
-    reg [VALID_ADDR_WIDTH-1:0] regfile_idx_``op; \
-    reg [15:0] block_id_``op, block_offset_``op; \
-    always @* begin \
-        block_id_``op     = reg_intf_``op``_addr & 32'hff00; \
-        block_offset_``op = reg_intf_``op``_addr & 32'h00ff; \
-        case (block_id_``op) \
-            `GEN_DECODE(op, CL_CTRL) \
-            `GEN_DECODE(op, CL_STAT) \
-            `GEN_DECODE(op, MPQ) \
-            `GEN_DECODE(op, FIFO) \
-            `GEN_DECODE(op, ME_VALID) \
-            `GEN_DECODE(op, ME_MODE) \
-            `GEN_DECODE(op, ME_IDX) \
-            `GEN_DECODE(op, ME_MASK) \
-            `GEN_DECODE(op, ME_START) \
-            `GEN_DECODE(op, ME_END) \
-            `GEN_DECODE(op, DATAPATH_STATS) \
-            `GEN_DECODE(op, HER) \
-            `GEN_DECODE(op, HER_CTX_ENABLED) \
-            `GEN_DECODE(op, HER_HANDLER_MEM_ADDR) \
-            `GEN_DECODE(op, HER_HANDLER_MEM_SIZE) \
-            `GEN_DECODE(op, HER_HOST_MEM_ADDR_LO) \
-            `GEN_DECODE(op, HER_HOST_MEM_ADDR_HI) \
-            `GEN_DECODE(op, HER_HOST_MEM_SIZE) \
-            `GEN_DECODE(op, HER_HH_ADDR) \
-            `GEN_DECODE(op, HER_HH_SIZE) \
-            `GEN_DECODE(op, HER_PH_ADDR) \
-            `GEN_DECODE(op, HER_PH_SIZE) \
-            `GEN_DECODE(op, HER_TH_ADDR) \
-            `GEN_DECODE(op, HER_TH_SIZE) \
-            `GEN_DECODE(op, HER_SCRATCHPAD_0_ADDR) \
-            `GEN_DECODE(op, HER_SCRATCHPAD_0_SIZE) \
-            `GEN_DECODE(op, HER_SCRATCHPAD_1_ADDR) \
-            `GEN_DECODE(op, HER_SCRATCHPAD_1_SIZE) \
-            `GEN_DECODE(op, HER_SCRATCHPAD_2_ADDR) \
-            `GEN_DECODE(op, HER_SCRATCHPAD_2_SIZE) \
-            `GEN_DECODE(op, HER_SCRATCHPAD_3_ADDR) \
-            `GEN_DECODE(op, HER_SCRATCHPAD_3_SIZE) \
-            default:  regfile_idx_``op = `REGFILE_IDX_INVALID; \
-        endcase \
-    end
-
-`DECODE_ADDR(wr)
-`DECODE_ADDR(rd)
+reg [VALID_ADDR_WIDTH-1:0] regfile_idx_wr;
+reg [15:0] block_id_wr, block_offset_wr;
+always @* begin
+    block_id_wr     = reg_intf_wr_addr & 32'hf000;
+    block_offset_wr = reg_intf_wr_addr & 32'h0fff;
+    case (block_id_wr)
+        CL_CTRL_BASE: regfile_idx_wr = CL_CTRL_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        CL_FIFO_BASE: regfile_idx_wr = CL_FIFO_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        STATS_CLUSTER_BASE: regfile_idx_wr = STATS_CLUSTER_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        STATS_MPQ_BASE: regfile_idx_wr = STATS_MPQ_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        STATS_DATAPATH_BASE: regfile_idx_wr = STATS_DATAPATH_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        ME_VALID_BASE: regfile_idx_wr = ME_VALID_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_MODE_BASE: regfile_idx_wr = ME_MODE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_IDX_BASE: regfile_idx_wr = ME_IDX_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_MASK_BASE: regfile_idx_wr = ME_MASK_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_START_BASE: regfile_idx_wr = ME_START_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_END_BASE: regfile_idx_wr = ME_END_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        HER_VALID_BASE: regfile_idx_wr = HER_VALID_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_CTX_ENABLED_BASE: regfile_idx_wr = HER_CTX_ENABLED_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        HER_META_HANDLER_MEM_ADDR_BASE: regfile_idx_wr = HER_META_HANDLER_MEM_ADDR_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HANDLER_MEM_SIZE_BASE: regfile_idx_wr = HER_META_HANDLER_MEM_SIZE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HOST_MEM_ADDR_0_BASE: regfile_idx_wr = HER_META_HOST_MEM_ADDR_0_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HOST_MEM_ADDR_1_BASE: regfile_idx_wr = HER_META_HOST_MEM_ADDR_1_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HOST_MEM_SIZE_BASE: regfile_idx_wr = HER_META_HOST_MEM_SIZE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HH_ADDR_BASE: regfile_idx_wr = HER_META_HH_ADDR_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HH_SIZE_BASE: regfile_idx_wr = HER_META_HH_SIZE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_PH_ADDR_BASE: regfile_idx_wr = HER_META_PH_ADDR_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_PH_SIZE_BASE: regfile_idx_wr = HER_META_PH_SIZE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_TH_ADDR_BASE: regfile_idx_wr = HER_META_TH_ADDR_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_TH_SIZE_BASE: regfile_idx_wr = HER_META_TH_SIZE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_0_ADDR_BASE: regfile_idx_wr = HER_META_SCRATCHPAD_0_ADDR_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_0_SIZE_BASE: regfile_idx_wr = HER_META_SCRATCHPAD_0_SIZE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_1_ADDR_BASE: regfile_idx_wr = HER_META_SCRATCHPAD_1_ADDR_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_1_SIZE_BASE: regfile_idx_wr = HER_META_SCRATCHPAD_1_SIZE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_2_ADDR_BASE: regfile_idx_wr = HER_META_SCRATCHPAD_2_ADDR_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_2_SIZE_BASE: regfile_idx_wr = HER_META_SCRATCHPAD_2_SIZE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_3_ADDR_BASE: regfile_idx_wr = HER_META_SCRATCHPAD_3_ADDR_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_3_SIZE_BASE: regfile_idx_wr = HER_META_SCRATCHPAD_3_SIZE_REG_OFF + (block_offset_wr >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        default:  regfile_idx_wr = `REGFILE_IDX_INVALID;
+    endcase
+end
+reg [VALID_ADDR_WIDTH-1:0] regfile_idx_rd;
+reg [15:0] block_id_rd, block_offset_rd;
+always @* begin
+    block_id_rd     = reg_intf_rd_addr & 32'hf000;
+    block_offset_rd = reg_intf_rd_addr & 32'h0fff;
+    case (block_id_rd)
+        CL_CTRL_BASE: regfile_idx_rd = CL_CTRL_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        CL_FIFO_BASE: regfile_idx_rd = CL_FIFO_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        STATS_CLUSTER_BASE: regfile_idx_rd = STATS_CLUSTER_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        STATS_MPQ_BASE: regfile_idx_rd = STATS_MPQ_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        STATS_DATAPATH_BASE: regfile_idx_rd = STATS_DATAPATH_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        ME_VALID_BASE: regfile_idx_rd = ME_VALID_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_MODE_BASE: regfile_idx_rd = ME_MODE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_IDX_BASE: regfile_idx_rd = ME_IDX_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_MASK_BASE: regfile_idx_rd = ME_MASK_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_START_BASE: regfile_idx_rd = ME_START_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        ME_END_BASE: regfile_idx_rd = ME_END_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        HER_VALID_BASE: regfile_idx_rd = HER_VALID_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_CTX_ENABLED_BASE: regfile_idx_rd = HER_CTX_ENABLED_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        HER_META_HANDLER_MEM_ADDR_BASE: regfile_idx_rd = HER_META_HANDLER_MEM_ADDR_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HANDLER_MEM_SIZE_BASE: regfile_idx_rd = HER_META_HANDLER_MEM_SIZE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HOST_MEM_ADDR_0_BASE: regfile_idx_rd = HER_META_HOST_MEM_ADDR_0_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HOST_MEM_ADDR_1_BASE: regfile_idx_rd = HER_META_HOST_MEM_ADDR_1_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HOST_MEM_SIZE_BASE: regfile_idx_rd = HER_META_HOST_MEM_SIZE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HH_ADDR_BASE: regfile_idx_rd = HER_META_HH_ADDR_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_HH_SIZE_BASE: regfile_idx_rd = HER_META_HH_SIZE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_PH_ADDR_BASE: regfile_idx_rd = HER_META_PH_ADDR_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_PH_SIZE_BASE: regfile_idx_rd = HER_META_PH_SIZE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_TH_ADDR_BASE: regfile_idx_rd = HER_META_TH_ADDR_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_TH_SIZE_BASE: regfile_idx_rd = HER_META_TH_SIZE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_0_ADDR_BASE: regfile_idx_rd = HER_META_SCRATCHPAD_0_ADDR_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_0_SIZE_BASE: regfile_idx_rd = HER_META_SCRATCHPAD_0_SIZE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_1_ADDR_BASE: regfile_idx_rd = HER_META_SCRATCHPAD_1_ADDR_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_1_SIZE_BASE: regfile_idx_rd = HER_META_SCRATCHPAD_1_SIZE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_2_ADDR_BASE: regfile_idx_rd = HER_META_SCRATCHPAD_2_ADDR_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_2_SIZE_BASE: regfile_idx_rd = HER_META_SCRATCHPAD_2_SIZE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_3_ADDR_BASE: regfile_idx_rd = HER_META_SCRATCHPAD_3_ADDR_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+        HER_META_SCRATCHPAD_3_SIZE_BASE: regfile_idx_rd = HER_META_SCRATCHPAD_3_SIZE_REG_OFF + (block_offset_rd >> (ADDR_WIDTH - VALID_ADDR_WIDTH));
+    
+        default:  regfile_idx_rd = `REGFILE_IDX_INVALID;
+    endcase
+end
 
 integer i;
 // register output
@@ -294,43 +386,64 @@ always @* begin
     cl_fetch_en_o = ctrl_regs[CL_CTRL_REG_OFF];
     aux_rst_o = ctrl_regs[CL_CTRL_REG_OFF + 1][0];
 
-    match_valid_o = ctrl_regs[ME_VALID_REG_OFF][0];
+    // Matching engine
+    for (i = 0; i < 1; i = i + 1)
+        `SLICE(match_valid_o, i, 1) = ctrl_regs[ME_VALID + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(match_mode_o, i, 2) = ctrl_regs[ME_MODE + i];
+    for (i = 0; i < 16; i = i + 1)
+        `SLICE(match_idx_o, i, 32) = ctrl_regs[ME_IDX + i];
+    for (i = 0; i < 16; i = i + 1)
+        `SLICE(match_mask_o, i, 32) = ctrl_regs[ME_MASK + i];
+    for (i = 0; i < 16; i = i + 1)
+        `SLICE(match_start_o, i, 32) = ctrl_regs[ME_START + i];
+    for (i = 0; i < 16; i = i + 1)
+        `SLICE(match_end_o, i, 32) = ctrl_regs[ME_END + i];
 
-    for (i = 0; i < UMATCH_RULESETS; i = i + 1) begin
-        `SLICE(match_mode_o , i, $clog2(UMATCH_MODES)) = ctrl_regs[ME_MODE_REG_OFF + i];
-    end
-
-    for (i = 0; i < UMATCH_ENTRIES*UMATCH_RULESETS; i = i + 1) begin
-        `SLICE(match_idx_o  , i, UMATCH_WIDTH) = ctrl_regs[ME_IDX_REG_OFF + i];
-        `SLICE(match_mask_o , i, UMATCH_WIDTH) = ctrl_regs[ME_MASK_REG_OFF + i];
-        `SLICE(match_start_o, i, UMATCH_WIDTH) = ctrl_regs[ME_START_REG_OFF + i];
-        `SLICE(match_end_o  , i, UMATCH_WIDTH) = ctrl_regs[ME_END_REG_OFF + i];
-    end
-
-    her_gen_valid = ctrl_regs[HER_REG_OFF][0];
-    for (i = 0; i < HER_NUM_HANDLER_CTX; i = i + 1) begin
-        `SLICE(her_gen_handler_mem_addr , i, 32) = ctrl_regs[HER_HANDLER_MEM_ADDR_REG_OFF + i];
-        `SLICE(her_gen_handler_mem_size , i, 32) = ctrl_regs[HER_HANDLER_MEM_SIZE_REG_OFF + i];
-        `SLICE(her_gen_host_mem_addr    , i, 64) = {
-            ctrl_regs[HER_HOST_MEM_ADDR_HI_REG_OFF + i],
-            ctrl_regs[HER_HOST_MEM_ADDR_LO_REG_OFF + i]};
-        `SLICE(her_gen_host_mem_size    , i, 32) = ctrl_regs[HER_HOST_MEM_SIZE_REG_OFF + i];
-        `SLICE(her_gen_hh_addr          , i, 32) = ctrl_regs[HER_HH_ADDR_REG_OFF + i];
-        `SLICE(her_gen_hh_size          , i, 32) = ctrl_regs[HER_HH_SIZE_REG_OFF + i];
-        `SLICE(her_gen_ph_addr          , i, 32) = ctrl_regs[HER_PH_ADDR_REG_OFF + i];
-        `SLICE(her_gen_ph_size          , i, 32) = ctrl_regs[HER_PH_SIZE_REG_OFF + i];
-        `SLICE(her_gen_th_addr          , i, 32) = ctrl_regs[HER_TH_ADDR_REG_OFF + i];
-        `SLICE(her_gen_th_size          , i, 32) = ctrl_regs[HER_TH_SIZE_REG_OFF + i];
-        `SLICE(her_gen_scratchpad_0_addr, i, 32) = ctrl_regs[HER_SCRATCHPAD_0_ADDR_REG_OFF + i];
-        `SLICE(her_gen_scratchpad_0_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_0_ADDR_REG_OFF + i];
-        `SLICE(her_gen_scratchpad_1_addr, i, 32) = ctrl_regs[HER_SCRATCHPAD_1_ADDR_REG_OFF + i];
-        `SLICE(her_gen_scratchpad_1_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_1_ADDR_REG_OFF + i];
-        `SLICE(her_gen_scratchpad_2_addr, i, 32) = ctrl_regs[HER_SCRATCHPAD_2_ADDR_REG_OFF + i];
-        `SLICE(her_gen_scratchpad_2_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_2_ADDR_REG_OFF + i];
-        `SLICE(her_gen_scratchpad_3_addr, i, 32) = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
-        `SLICE(her_gen_scratchpad_3_size, i, 32) = ctrl_regs[HER_SCRATCHPAD_3_ADDR_REG_OFF + i];
-        `SLICE(her_gen_enabled          , i, 1)  = ctrl_regs[HER_CTX_ENABLED_REG_OFF + i][0];
-    end
+    // HER generator execution context
+    for (i = 0; i < 1; i = i + 1)
+        `SLICE(her_gen_valid_o, i, 1) = ctrl_regs[HER_VALID + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_ctx_enabled_o, i, 1) = ctrl_regs[HER_CTX_ENABLED + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_handler_mem_addr_o, i, 32) = ctrl_regs[HER_META_HANDLER_MEM_ADDR + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_handler_mem_size_o, i, 32) = ctrl_regs[HER_META_HANDLER_MEM_SIZE + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_host_mem_addr_o, i, 64) = {
+            ctrl_regs[HER_META_HOST_MEM_ADDR_1 + i],
+            ctrl_regs[HER_META_HOST_MEM_ADDR_0 + i]
+        };
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_host_mem_size_o, i, 32) = ctrl_regs[HER_META_HOST_MEM_SIZE + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_hh_addr_o, i, 32) = ctrl_regs[HER_META_HH_ADDR + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_hh_size_o, i, 32) = ctrl_regs[HER_META_HH_SIZE + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_ph_addr_o, i, 32) = ctrl_regs[HER_META_PH_ADDR + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_ph_size_o, i, 32) = ctrl_regs[HER_META_PH_SIZE + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_th_addr_o, i, 32) = ctrl_regs[HER_META_TH_ADDR + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_th_size_o, i, 32) = ctrl_regs[HER_META_TH_SIZE + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_scratchpad_0_addr_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_0_ADDR + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_scratchpad_0_size_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_0_SIZE + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_scratchpad_1_addr_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_1_ADDR + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_scratchpad_1_size_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_1_SIZE + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_scratchpad_2_addr_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_2_ADDR + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_scratchpad_2_size_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_2_SIZE + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_scratchpad_3_addr_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_3_ADDR + i];
+    for (i = 0; i < 4; i = i + 1)
+        `SLICE(her_gen_scratchpad_3_size_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_3_SIZE + i];
 end
 
 always @(posedge clk) begin

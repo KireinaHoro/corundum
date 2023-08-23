@@ -1,3 +1,4 @@
+{% import "verilog-macros.j2" as m with context -%}
 /*
 
 Copyright 2021, The Regents of the University of California.
@@ -635,11 +636,8 @@ localparam NUM_MPQ = 16;  // pspin_cfg_pkg.sv
 localparam UMATCH_MATCHER_LEN = 66;
 localparam UMATCH_MTU = 1500;
 localparam UMATCH_BUF_FRAMES = 0;
-localparam UMATCH_WIDTH = 32;
-localparam UMATCH_ENTRIES = 4;
-localparam UMATCH_RULESETS = 4;
-localparam UMATCH_MODES = 2;
-localparam HER_NUM_HANDLER_CTX = 4;
+
+{{ declare_params() }}
 
 localparam AXI_HOST_ADDR_WIDTH = 64; // pspin_cfg_pkg::HOST_AXI_AW
 localparam AXI_DATA_WIDTH = 512; // pspin_cfg_pkg::data_t
@@ -836,32 +834,11 @@ wire [31:0] stdout_dout;
 wire stdout_data_valid;
 
 wire [31:0]                                      alloc_dropped_pkts;
-wire [0:0] match_valid;
-wire [7:0] match_mode;
-wire [511:0] match_idx;
-wire [511:0] match_mask;
-wire [511:0] match_start;
-wire [511:0] match_end;
-wire [0:0] her_gen_valid;
-wire [3:0] her_gen_ctx_enabled;
-wire [127:0] her_gen_handler_mem_addr;
-wire [127:0] her_gen_handler_mem_size;
-wire [255:0] her_gen_host_mem_addr;
-wire [127:0] her_gen_host_mem_size;
-wire [127:0] her_gen_hh_addr;
-wire [127:0] her_gen_hh_size;
-wire [127:0] her_gen_ph_addr;
-wire [127:0] her_gen_ph_size;
-wire [127:0] her_gen_th_addr;
-wire [127:0] her_gen_th_size;
-wire [127:0] her_gen_scratchpad_0_addr;
-wire [127:0] her_gen_scratchpad_0_size;
-wire [127:0] her_gen_scratchpad_1_addr;
-wire [127:0] her_gen_scratchpad_1_size;
-wire [127:0] her_gen_scratchpad_2_addr;
-wire [127:0] her_gen_scratchpad_2_size;
-wire [127:0] her_gen_scratchpad_3_addr;
-wire [127:0] her_gen_scratchpad_3_size;
+
+{{- m.call_group("me", m.declare_wire, "match") }}
+
+{{- m.call_group("her", m.declare_wire, "her_gen") }}
+{{- m.call_group("her_meta", m.declare_wire, "her_gen") }}
 
 wire [AXIS_IF_DATA_WIDTH-1:0]                   s_axis_nic_rx_tdata;
 wire [AXIS_IF_KEEP_WIDTH-1:0]                   s_axis_nic_rx_tkeep;
@@ -1060,24 +1037,7 @@ wire                                            her_is_eom;
 wire [AXI_ADDR_WIDTH-1:0]                       her_addr;
 wire [AXI_ADDR_WIDTH-1:0]                       her_size;
 wire [AXI_ADDR_WIDTH-1:0]                       her_xfer_size;
-wire [127:0] her_meta_handler_mem_addr;
-wire [127:0] her_meta_handler_mem_size;
-wire [255:0] her_meta_host_mem_addr;
-wire [127:0] her_meta_host_mem_size;
-wire [127:0] her_meta_hh_addr;
-wire [127:0] her_meta_hh_size;
-wire [127:0] her_meta_ph_addr;
-wire [127:0] her_meta_ph_size;
-wire [127:0] her_meta_th_addr;
-wire [127:0] her_meta_th_size;
-wire [127:0] her_meta_scratchpad_0_addr;
-wire [127:0] her_meta_scratchpad_0_size;
-wire [127:0] her_meta_scratchpad_1_addr;
-wire [127:0] her_meta_scratchpad_1_size;
-wire [127:0] her_meta_scratchpad_2_addr;
-wire [127:0] her_meta_scratchpad_2_size;
-wire [127:0] her_meta_scratchpad_3_addr;
-wire [127:0] her_meta_scratchpad_3_size;
+{{- m.call_group("her_meta", m.declare_wire, "her_meta") }}
 
 wire                                            feedback_ready;
 wire                                            feedback_valid;
@@ -1379,32 +1339,14 @@ pspin_ctrl_regs #(
     .stdout_data_valid,
 
     .alloc_dropped_pkts,
-    .match_valid,
-    .match_mode,
-    .match_idx,
-    .match_mask,
-    .match_start,
-    .match_end,
-    .her_gen_valid,
-    .her_gen_ctx_enabled,
-    .her_gen_handler_mem_addr,
-    .her_gen_handler_mem_size,
-    .her_gen_host_mem_addr,
-    .her_gen_host_mem_size,
-    .her_gen_hh_addr,
-    .her_gen_hh_size,
-    .her_gen_ph_addr,
-    .her_gen_ph_size,
-    .her_gen_th_addr,
-    .her_gen_th_size,
-    .her_gen_scratchpad_0_addr,
-    .her_gen_scratchpad_0_size,
-    .her_gen_scratchpad_1_addr,
-    .her_gen_scratchpad_1_size,
-    .her_gen_scratchpad_2_addr,
-    .her_gen_scratchpad_2_size,
-    .her_gen_scratchpad_3_addr,
-    .her_gen_scratchpad_3_size,
+
+{%- macro connect_wire(signal_name, sg) %}
+    .{{ signal_name }}_{{ sg.name }},
+{%- endmacro %}
+{{- m.call_group("me", connect_wire, "match") }}
+
+{{- m.call_group("her", connect_wire, "her_gen") }}
+{{- m.call_group("her_meta", connect_wire, "her_gen") }}
 
     .egress_dma_last_error
 );
@@ -1778,32 +1720,11 @@ pspin_ingress_datapath #(
 ) i_ingress_path (
     .clk(pspin_clk),
     .rstn(!pspin_rst && !aux_rst),
-    .match_valid,
-    .match_mode,
-    .match_idx,
-    .match_mask,
-    .match_start,
-    .match_end,
-    .her_gen_valid,
-    .her_gen_ctx_enabled,
-    .her_gen_handler_mem_addr,
-    .her_gen_handler_mem_size,
-    .her_gen_host_mem_addr,
-    .her_gen_host_mem_size,
-    .her_gen_hh_addr,
-    .her_gen_hh_size,
-    .her_gen_ph_addr,
-    .her_gen_ph_size,
-    .her_gen_th_addr,
-    .her_gen_th_size,
-    .her_gen_scratchpad_0_addr,
-    .her_gen_scratchpad_0_size,
-    .her_gen_scratchpad_1_addr,
-    .her_gen_scratchpad_1_size,
-    .her_gen_scratchpad_2_addr,
-    .her_gen_scratchpad_2_size,
-    .her_gen_scratchpad_3_addr,
-    .her_gen_scratchpad_3_size,
+
+{{- m.call_group("me", connect_wire, "match") }}
+
+{{- m.call_group("her", connect_wire, "her_gen") }}
+{{- m.call_group("her_meta", connect_wire, "her_gen") }}
 
     .her_gen_enabled,
     .her_gen_valid,
@@ -1869,24 +1790,7 @@ pspin_ingress_datapath #(
     .her_addr,
     .her_size,
     .her_xfer_size,
-    .her_meta_handler_mem_addr,
-    .her_meta_handler_mem_size,
-    .her_meta_host_mem_addr,
-    .her_meta_host_mem_size,
-    .her_meta_hh_addr,
-    .her_meta_hh_size,
-    .her_meta_ph_addr,
-    .her_meta_ph_size,
-    .her_meta_th_addr,
-    .her_meta_th_size,
-    .her_meta_scratchpad_0_addr,
-    .her_meta_scratchpad_0_size,
-    .her_meta_scratchpad_1_addr,
-    .her_meta_scratchpad_1_size,
-    .her_meta_scratchpad_2_addr,
-    .her_meta_scratchpad_2_size,
-    .her_meta_scratchpad_3_addr,
-    .her_meta_scratchpad_3_size,
+{{- m.call_group("her_meta", connect_wire, "her_meta") }}
 
     .feedback_ready,
     .feedback_valid,
@@ -2371,24 +2275,11 @@ pspin_inst (
     .her_addr_i(her_addr),
     .her_size_i(her_size),
     .her_xfer_size_i(her_xfer_size),
-    .her_meta_handler_mem_addr_i(her_meta_handler_mem_addr),
-    .her_meta_handler_mem_size_i(her_meta_handler_mem_size),
-    .her_meta_host_mem_addr_i(her_meta_host_mem_addr),
-    .her_meta_host_mem_size_i(her_meta_host_mem_size),
-    .her_meta_hh_addr_i(her_meta_hh_addr),
-    .her_meta_hh_size_i(her_meta_hh_size),
-    .her_meta_ph_addr_i(her_meta_ph_addr),
-    .her_meta_ph_size_i(her_meta_ph_size),
-    .her_meta_th_addr_i(her_meta_th_addr),
-    .her_meta_th_size_i(her_meta_th_size),
-    .her_meta_scratchpad_0_addr_i(her_meta_scratchpad_0_addr),
-    .her_meta_scratchpad_0_size_i(her_meta_scratchpad_0_size),
-    .her_meta_scratchpad_1_addr_i(her_meta_scratchpad_1_addr),
-    .her_meta_scratchpad_1_size_i(her_meta_scratchpad_1_size),
-    .her_meta_scratchpad_2_addr_i(her_meta_scratchpad_2_addr),
-    .her_meta_scratchpad_2_size_i(her_meta_scratchpad_2_size),
-    .her_meta_scratchpad_3_addr_i(her_meta_scratchpad_3_addr),
-    .her_meta_scratchpad_3_size_i(her_meta_scratchpad_3_size),
+
+{%- macro connect_pspin(signal_name, sg) %}
+    .{{ signal_name }}_{{ sg.name }}_i({{ signal_name }}_{{ sg.name }}),
+{%- endmacro %}
+{{- m.call_group("her_meta", connect_pspin, "her_meta") }}
 
     .feedback_ready_i(feedback_ready),
     .feedback_valid_o(feedback_valid),
