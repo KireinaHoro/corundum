@@ -1,3 +1,5 @@
+/* Generated on 2023-08-24 10:01:01.934969 with: ./regs-compiler.py --all v ../rtl */
+
 /**
  * PsPIN Packet Match Engine
  *
@@ -32,11 +34,6 @@
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
 
 module pspin_pkt_match #(
-    parameter UMATCH_WIDTH = 32,
-    parameter UMATCH_ENTRIES = 4,
-    parameter UMATCH_MODES = 2,
-    parameter UMATCH_RULESETS = 4,     // same number as HER contexts
-
     parameter UMATCH_MATCHER_LEN = 66, // TCP + IP + ETH
     parameter UMATCH_MTU = 1500,       // Ethernet MTU - set to 9000 for jumbo frames
     parameter UMATCH_BUF_FRAMES = 3,
@@ -84,12 +81,12 @@ module pspin_pkt_match #(
     output wire [AXIS_IF_RX_USER_WIDTH-1:0]      m_axis_pspin_rx_tuser,
 
     // matching rules
-    input  wire [$clog2(UMATCH_MODES)*UMATCH_RULESETS-1:0]        match_mode,
-    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_idx,
-    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_mask,
-    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_start,
-    input  wire [UMATCH_WIDTH*UMATCH_ENTRIES*UMATCH_RULESETS-1:0] match_end,
-    input  wire                                                   match_valid,
+    input wire [0:0] match_valid,
+    input wire [3:0] match_mode,
+    input wire [511:0] match_idx,
+    input wire [511:0] match_mask,
+    input wire [511:0] match_start,
+    input wire [511:0] match_end,
 
     // packet metadata - size and index
     output wire [TAG_WIDTH-1:0]                  packet_meta_tag,
@@ -97,6 +94,13 @@ module pspin_pkt_match #(
     output reg                                   packet_meta_valid,
     input  wire                                  packet_meta_ready
 );
+
+
+localparam UMATCH_WIDTH = 32;
+localparam UMATCH_ENTRIES = 4;
+localparam UMATCH_RULESETS = 4;
+localparam UMATCH_MODES = 2;
+localparam HER_NUM_HANDLER_CTX = 4;
 
 localparam MATCHER_BEATS = (UMATCH_MATCHER_LEN * 8 + AXIS_IF_DATA_WIDTH - 1) / (AXIS_IF_DATA_WIDTH);
 localparam MATCHER_WIDTH = MATCHER_BEATS * AXIS_IF_DATA_WIDTH;
@@ -165,11 +169,11 @@ reg [AXIS_IF_RX_ID_WIDTH-1:0] saved_tid [MATCHER_BEATS-1:0];
 reg [AXIS_IF_RX_DEST_WIDTH-1:0] saved_tdest [MATCHER_BEATS-1:0];
 
 // saved matching rules - only updated when in IDLE
-reg [$clog2(UMATCH_MODES)*UMATCH_RULESETS-1:0]        match_mode_q;
-reg [UMATCH_WIDTH*NUM_MATCHERS-1:0] match_idx_q;
-reg [UMATCH_WIDTH*NUM_MATCHERS-1:0] match_mask_q;
-reg [UMATCH_WIDTH*NUM_MATCHERS-1:0] match_start_q;
-reg [UMATCH_WIDTH*NUM_MATCHERS-1:0] match_end_q;
+reg [3:0] store_mode [0:0];
+reg [15:0] store_idx [31:0];
+reg [15:0] store_mask [31:0];
+reg [15:0] store_start [31:0];
+reg [15:0] store_end [31:0];
 
 // matching units, in rulesets
 reg [UMATCH_WIDTH-1:0]      mu_data  [UMATCH_RULESETS-1:0][UMATCH_ENTRIES-1:0];
@@ -196,7 +200,7 @@ always @* begin
     for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
         and_matched[idx] = &mu_matched[idx][UMATCH_ENTRIES-2:0];
         or_matched [idx] = |mu_matched[idx][UMATCH_ENTRIES-2:0];
-        ruleset_matched[idx] = match_mode_q[idx] == MATCH_AND ? and_matched[idx] : or_matched[idx];
+        ruleset_matched[idx] = store_mode[idx] == MATCH_AND ? and_matched[idx] : or_matched[idx];
         ruleset_eom[idx] = mu_matched[idx][UMATCH_ENTRIES-1];
     end
 
@@ -256,11 +260,12 @@ for (j = 0; j < UMATCH_RULESETS; j = j + 1) begin
         end
 
         always @* begin
-            mu_idx  [j][i] = `SLICE(match_idx_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
-            mu_mask [j][i] = `SLICE(match_mask_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
+            mu_idx  [j][i] = store_idx[j * UMATCH_RULESETS + i];
+            mu_mask [j][i] = store_mask[j * UMATCH_RULESETS + i];
+            mu_start[j][i] = store_start[j * UMATCH_RULESETS + i];
+            mu_end  [j][i] = store_end[j * UMATCH_RULESETS + i];
+
             mu_data [j][i] = `SLICE(matcher, mu_idx[j][i], UMATCH_WIDTH) & mu_mask[j][i];
-            mu_start[j][i] = `SLICE(match_start_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
-            mu_end  [j][i] = `SLICE(match_end_q, j * UMATCH_RULESETS + i, UMATCH_WIDTH);
 
             mu_matched[j][i] =
                 mu_start[j][i] <= mu_data[j][i] && mu_end[j][i] >= mu_data[j][i];
@@ -390,17 +395,17 @@ always @(posedge clk) begin
             end
 
             if (match_valid) begin
-                match_mode_q <= match_mode;
-                match_idx_q <= match_idx;
-                match_mask_q <= match_mask;
-                match_start_q <= match_start;
-                match_end_q <= match_end;
+store_mode[idx] <= `SLICE(match_mode, idx, 1);
+store_idx[idx] <= `SLICE(match_idx, idx, 32);
+store_mask[idx] <= `SLICE(match_mask, idx, 32);
+store_start[idx] <= `SLICE(match_start, idx, 32);
+store_end[idx] <= `SLICE(match_end, idx, 32);
             end else begin
-                match_mode_q <= {$clog2(UMATCH_MODES)*UMATCH_RULESETS{1'b0}};
-                match_idx_q <= {UMATCH_WIDTH*NUM_MATCHERS{1'b0}};
-                match_mask_q <= {UMATCH_WIDTH*NUM_MATCHERS{1'b0}};
-                match_start_q <= {UMATCH_WIDTH*NUM_MATCHERS{1'b0}};
-                match_end_q <= {UMATCH_WIDTH*NUM_MATCHERS{1'b0}};
+store_mode[idx] <= 1'b0;
+store_idx[idx] <= 32'b0;
+store_mask[idx] <= 32'b0;
+store_start[idx] <= 32'b0;
+store_end[idx] <= 32'b0;
             end
 
             matched_q <= 1'b0;

@@ -1,3 +1,5 @@
+/* Generated on 2023-08-24 10:01:01.901225 with: ./regs-compiler.py --all v ../rtl */
+
 /*
 
 Copyright 2021, The Regents of the University of California.
@@ -635,6 +637,8 @@ localparam NUM_MPQ = 16;  // pspin_cfg_pkg.sv
 localparam UMATCH_MATCHER_LEN = 66;
 localparam UMATCH_MTU = 1500;
 localparam UMATCH_BUF_FRAMES = 0;
+
+
 localparam UMATCH_WIDTH = 32;
 localparam UMATCH_ENTRIES = 4;
 localparam UMATCH_RULESETS = 4;
@@ -837,7 +841,7 @@ wire stdout_data_valid;
 
 wire [31:0]                                      alloc_dropped_pkts;
 wire [0:0] match_valid;
-wire [7:0] match_mode;
+wire [3:0] match_mode;
 wire [511:0] match_idx;
 wire [511:0] match_mask;
 wire [511:0] match_start;

@@ -1,3 +1,5 @@
+/* Generated on 2023-08-24 10:01:01.923726 with: ./regs-compiler.py --all v ../rtl */
+
 /**
  * PsPIN Handler Execution Request (HER) Generator
  *
@@ -33,46 +35,46 @@ module pspin_her_gen #(
     output reg  [AXI_ADDR_WIDTH-1:0]        her_addr,
     output reg  [AXI_ADDR_WIDTH-1:0]        her_size,
     output reg  [AXI_ADDR_WIDTH-1:0]        her_xfer_size,
-    output reg  [127:0] her_meta_handler_mem_addr_o,
-    output reg  [127:0] her_meta_handler_mem_size_o,
-    output reg  [255:0] her_meta_host_mem_addr_o,
-    output reg  [127:0] her_meta_host_mem_size_o,
-    output reg  [127:0] her_meta_hh_addr_o,
-    output reg  [127:0] her_meta_hh_size_o,
-    output reg  [127:0] her_meta_ph_addr_o,
-    output reg  [127:0] her_meta_ph_size_o,
-    output reg  [127:0] her_meta_th_addr_o,
-    output reg  [127:0] her_meta_th_size_o,
-    output reg  [127:0] her_meta_scratchpad_0_addr_o,
-    output reg  [127:0] her_meta_scratchpad_0_size_o,
-    output reg  [127:0] her_meta_scratchpad_1_addr_o,
-    output reg  [127:0] her_meta_scratchpad_1_size_o,
-    output reg  [127:0] her_meta_scratchpad_2_addr_o,
-    output reg  [127:0] her_meta_scratchpad_2_size_o,
-    output reg  [127:0] her_meta_scratchpad_3_addr_o,
-    output reg  [127:0] her_meta_scratchpad_3_size_o,
+    output reg  [127:0] her_meta_handler_mem_addr,
+    output reg  [127:0] her_meta_handler_mem_size,
+    output reg  [255:0] her_meta_host_mem_addr,
+    output reg  [127:0] her_meta_host_mem_size,
+    output reg  [127:0] her_meta_hh_addr,
+    output reg  [127:0] her_meta_hh_size,
+    output reg  [127:0] her_meta_ph_addr,
+    output reg  [127:0] her_meta_ph_size,
+    output reg  [127:0] her_meta_th_addr,
+    output reg  [127:0] her_meta_th_size,
+    output reg  [127:0] her_meta_scratchpad_0_addr,
+    output reg  [127:0] her_meta_scratchpad_0_size,
+    output reg  [127:0] her_meta_scratchpad_1_addr,
+    output reg  [127:0] her_meta_scratchpad_1_size,
+    output reg  [127:0] her_meta_scratchpad_2_addr,
+    output reg  [127:0] her_meta_scratchpad_2_size,
+    output reg  [127:0] her_meta_scratchpad_3_addr,
+    output reg  [127:0] her_meta_scratchpad_3_size,
 
     // execution context from ctrl regs
-    input wire [127:0] conf_handler_mem_addr_o,
-    input wire [127:0] conf_handler_mem_size_o,
-    input wire [255:0] conf_host_mem_addr_o,
-    input wire [127:0] conf_host_mem_size_o,
-    input wire [127:0] conf_hh_addr_o,
-    input wire [127:0] conf_hh_size_o,
-    input wire [127:0] conf_ph_addr_o,
-    input wire [127:0] conf_ph_size_o,
-    input wire [127:0] conf_th_addr_o,
-    input wire [127:0] conf_th_size_o,
-    input wire [127:0] conf_scratchpad_0_addr_o,
-    input wire [127:0] conf_scratchpad_0_size_o,
-    input wire [127:0] conf_scratchpad_1_addr_o,
-    input wire [127:0] conf_scratchpad_1_size_o,
-    input wire [127:0] conf_scratchpad_2_addr_o,
-    input wire [127:0] conf_scratchpad_2_size_o,
-    input wire [127:0] conf_scratchpad_3_addr_o,
-    input wire [127:0] conf_scratchpad_3_size_o,
-    input wire [0:0] conf_valid_o,
-    input wire [3:0] conf_ctx_enabled_o,
+    input wire [127:0] conf_handler_mem_addr,
+    input wire [127:0] conf_handler_mem_size,
+    input wire [255:0] conf_host_mem_addr,
+    input wire [127:0] conf_host_mem_size,
+    input wire [127:0] conf_hh_addr,
+    input wire [127:0] conf_hh_size,
+    input wire [127:0] conf_ph_addr,
+    input wire [127:0] conf_ph_size,
+    input wire [127:0] conf_th_addr,
+    input wire [127:0] conf_th_size,
+    input wire [127:0] conf_scratchpad_0_addr,
+    input wire [127:0] conf_scratchpad_0_size,
+    input wire [127:0] conf_scratchpad_1_addr,
+    input wire [127:0] conf_scratchpad_1_size,
+    input wire [127:0] conf_scratchpad_2_addr,
+    input wire [127:0] conf_scratchpad_2_size,
+    input wire [127:0] conf_scratchpad_3_addr,
+    input wire [127:0] conf_scratchpad_3_size,
+    input wire [0:0] conf_valid,
+    input wire [3:0] conf_ctx_enabled,
 
     // completion from ingress DMA
     input  wire [AXI_ADDR_WIDTH-1:0]        gen_addr,
@@ -109,7 +111,6 @@ reg [3:0] store_scratchpad_2_addr [31:0];
 reg [3:0] store_scratchpad_2_size [31:0];
 reg [3:0] store_scratchpad_3_addr [31:0];
 reg [3:0] store_scratchpad_3_size [31:0];
-reg [0:0] store_valid [0:0];
 reg [3:0] store_ctx_enabled [0:0];
 
 wire [C_MSGID_WIDTH-1:0] decode_msgid;
@@ -144,7 +145,6 @@ $dumpvars(0, store_scratchpad_2_addr[idx]);
 $dumpvars(0, store_scratchpad_2_size[idx]);
 $dumpvars(0, store_scratchpad_3_addr[idx]);
 $dumpvars(0, store_scratchpad_3_size[idx]);
-$dumpvars(0, store_valid[idx]);
 $dumpvars(0, store_ctx_enabled[idx]);
     end
 end
@@ -171,31 +171,29 @@ store_scratchpad_2_addr[idx] <= 32'b0;
 store_scratchpad_2_size[idx] <= 32'b0;
 store_scratchpad_3_addr[idx] <= 32'b0;
 store_scratchpad_3_size[idx] <= 32'b0;
-store_valid[idx] <= 1'b0;
 store_ctx_enabled[idx] <= 1'b0;
         end
     end else if (conf_valid) begin
         for (idx = 0; idx < HER_NUM_HANDLER_CTX; idx = idx + 1) begin
-store_handler_mem_addr[idx] <= conf_handler_mem_addr[idx];
-store_handler_mem_size[idx] <= conf_handler_mem_size[idx];
-store_host_mem_addr[idx] <= conf_host_mem_addr[idx];
-store_host_mem_size[idx] <= conf_host_mem_size[idx];
-store_hh_addr[idx] <= conf_hh_addr[idx];
-store_hh_size[idx] <= conf_hh_size[idx];
-store_ph_addr[idx] <= conf_ph_addr[idx];
-store_ph_size[idx] <= conf_ph_size[idx];
-store_th_addr[idx] <= conf_th_addr[idx];
-store_th_size[idx] <= conf_th_size[idx];
-store_scratchpad_0_addr[idx] <= conf_scratchpad_0_addr[idx];
-store_scratchpad_0_size[idx] <= conf_scratchpad_0_size[idx];
-store_scratchpad_1_addr[idx] <= conf_scratchpad_1_addr[idx];
-store_scratchpad_1_size[idx] <= conf_scratchpad_1_size[idx];
-store_scratchpad_2_addr[idx] <= conf_scratchpad_2_addr[idx];
-store_scratchpad_2_size[idx] <= conf_scratchpad_2_size[idx];
-store_scratchpad_3_addr[idx] <= conf_scratchpad_3_addr[idx];
-store_scratchpad_3_size[idx] <= conf_scratchpad_3_size[idx];
-store_valid[idx] <= conf_valid[idx];
-store_ctx_enabled[idx] <= conf_ctx_enabled[idx];
+store_handler_mem_addr[idx] <= `SLICE(conf_handler_mem_addr, idx, 32);
+store_handler_mem_size[idx] <= `SLICE(conf_handler_mem_size, idx, 32);
+store_host_mem_addr[idx] <= `SLICE(conf_host_mem_addr, idx, 64);
+store_host_mem_size[idx] <= `SLICE(conf_host_mem_size, idx, 32);
+store_hh_addr[idx] <= `SLICE(conf_hh_addr, idx, 32);
+store_hh_size[idx] <= `SLICE(conf_hh_size, idx, 32);
+store_ph_addr[idx] <= `SLICE(conf_ph_addr, idx, 32);
+store_ph_size[idx] <= `SLICE(conf_ph_size, idx, 32);
+store_th_addr[idx] <= `SLICE(conf_th_addr, idx, 32);
+store_th_size[idx] <= `SLICE(conf_th_size, idx, 32);
+store_scratchpad_0_addr[idx] <= `SLICE(conf_scratchpad_0_addr, idx, 32);
+store_scratchpad_0_size[idx] <= `SLICE(conf_scratchpad_0_size, idx, 32);
+store_scratchpad_1_addr[idx] <= `SLICE(conf_scratchpad_1_addr, idx, 32);
+store_scratchpad_1_size[idx] <= `SLICE(conf_scratchpad_1_size, idx, 32);
+store_scratchpad_2_addr[idx] <= `SLICE(conf_scratchpad_2_addr, idx, 32);
+store_scratchpad_2_size[idx] <= `SLICE(conf_scratchpad_2_size, idx, 32);
+store_scratchpad_3_addr[idx] <= `SLICE(conf_scratchpad_3_addr, idx, 32);
+store_scratchpad_3_size[idx] <= `SLICE(conf_scratchpad_3_size, idx, 32);
+store_ctx_enabled[idx] <= `SLICE(conf_ctx_enabled, idx, 1);
         end
     end
 end

@@ -1,3 +1,5 @@
+/* Generated on 2023-08-24 10:01:01.916558 with: ./regs-compiler.py --all v ../rtl */
+
 `timescale 1ns / 1ps
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
 
@@ -54,38 +56,40 @@ module pspin_ctrl_regs #
     input  wire [31:0]                                      alloc_dropped_pkts,
 
     // matching engine configuration
-    output reg  [0:0] match_valid_o,
-    output reg  [7:0] match_mode_o,
-    output reg  [511:0] match_idx_o,
-    output reg  [511:0] match_mask_o,
-    output reg  [511:0] match_start_o,
-    output reg  [511:0] match_end_o,
+    output reg  [0:0] match_valid,
+    output reg  [3:0] match_mode,
+    output reg  [511:0] match_idx,
+    output reg  [511:0] match_mask,
+    output reg  [511:0] match_start,
+    output reg  [511:0] match_end,
 
     // HER generator execution context
-    output reg  [0:0] her_gen_valid_o,
-    output reg  [3:0] her_gen_ctx_enabled_o,
-    output reg  [127:0] her_gen_handler_mem_addr_o,
-    output reg  [127:0] her_gen_handler_mem_size_o,
-    output reg  [255:0] her_gen_host_mem_addr_o,
-    output reg  [127:0] her_gen_host_mem_size_o,
-    output reg  [127:0] her_gen_hh_addr_o,
-    output reg  [127:0] her_gen_hh_size_o,
-    output reg  [127:0] her_gen_ph_addr_o,
-    output reg  [127:0] her_gen_ph_size_o,
-    output reg  [127:0] her_gen_th_addr_o,
-    output reg  [127:0] her_gen_th_size_o,
-    output reg  [127:0] her_gen_scratchpad_0_addr_o,
-    output reg  [127:0] her_gen_scratchpad_0_size_o,
-    output reg  [127:0] her_gen_scratchpad_1_addr_o,
-    output reg  [127:0] her_gen_scratchpad_1_size_o,
-    output reg  [127:0] her_gen_scratchpad_2_addr_o,
-    output reg  [127:0] her_gen_scratchpad_2_size_o,
-    output reg  [127:0] her_gen_scratchpad_3_addr_o,
-    output reg  [127:0] her_gen_scratchpad_3_size_o,
+    output reg  [0:0] her_gen_valid,
+    output reg  [3:0] her_gen_ctx_enabled,
+    output reg  [127:0] her_gen_handler_mem_addr,
+    output reg  [127:0] her_gen_handler_mem_size,
+    output reg  [255:0] her_gen_host_mem_addr,
+    output reg  [127:0] her_gen_host_mem_size,
+    output reg  [127:0] her_gen_hh_addr,
+    output reg  [127:0] her_gen_hh_size,
+    output reg  [127:0] her_gen_ph_addr,
+    output reg  [127:0] her_gen_ph_size,
+    output reg  [127:0] her_gen_th_addr,
+    output reg  [127:0] her_gen_th_size,
+    output reg  [127:0] her_gen_scratchpad_0_addr,
+    output reg  [127:0] her_gen_scratchpad_0_size,
+    output reg  [127:0] her_gen_scratchpad_1_addr,
+    output reg  [127:0] her_gen_scratchpad_1_size,
+    output reg  [127:0] her_gen_scratchpad_2_addr,
+    output reg  [127:0] her_gen_scratchpad_2_size,
+    output reg  [127:0] her_gen_scratchpad_3_addr,
+    output reg  [127:0] her_gen_scratchpad_3_size,
 
     // egress datapath
     input  wire [3:0]                                       egress_dma_last_error
 );
+
+
 localparam UMATCH_WIDTH = 32;
 localparam UMATCH_ENTRIES = 4;
 localparam UMATCH_RULESETS = 4;
@@ -390,7 +394,7 @@ always @* begin
     for (i = 0; i < 1; i = i + 1)
         `SLICE(match_valid_o, i, 1) = ctrl_regs[ME_VALID + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(match_mode_o, i, 2) = ctrl_regs[ME_MODE + i];
+        `SLICE(match_mode_o, i, 1) = ctrl_regs[ME_MODE + i];
     for (i = 0; i < 16; i = i + 1)
         `SLICE(match_idx_o, i, 32) = ctrl_regs[ME_IDX + i];
     for (i = 0; i < 16; i = i + 1)

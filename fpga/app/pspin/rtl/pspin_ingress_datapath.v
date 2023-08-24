@@ -1,3 +1,5 @@
+/* Generated on 2023-08-24 10:01:01.930045 with: ./regs-compiler.py --all v ../rtl */
+
 /**
  * PsPIN Ingress Datapath
  *
@@ -7,37 +9,12 @@
  */
 
 `timescale 1ns / 1ps
-`define HER_META(X) \
-    `X(handler_mem_addr, AXI_ADDR_WIDTH) \
-    `X(handler_mem_size, AXI_ADDR_WIDTH) \
-    `X(host_mem_addr, AXI_HOST_ADDR_WIDTH) \
-    `X(host_mem_size, AXI_ADDR_WIDTH) \
-    `X(hh_addr, AXI_ADDR_WIDTH) \
-    `X(hh_size, AXI_ADDR_WIDTH) \
-    `X(ph_addr, AXI_ADDR_WIDTH) \
-    `X(ph_size, AXI_ADDR_WIDTH) \
-    `X(th_addr, AXI_ADDR_WIDTH) \
-    `X(th_size, AXI_ADDR_WIDTH) \
-    `X(scratchpad_0_addr, AXI_ADDR_WIDTH) \
-    `X(scratchpad_0_size, AXI_ADDR_WIDTH) \
-    `X(scratchpad_1_addr, AXI_ADDR_WIDTH) \
-    `X(scratchpad_1_size, AXI_ADDR_WIDTH) \
-    `X(scratchpad_2_addr, AXI_ADDR_WIDTH) \
-    `X(scratchpad_2_size, AXI_ADDR_WIDTH) \
-    `X(scratchpad_3_addr, AXI_ADDR_WIDTH) \
-    `X(scratchpad_3_size, AXI_ADDR_WIDTH)
 
 module pspin_ingress_datapath #(
-    parameter UMATCH_WIDTH = 32,
-    parameter UMATCH_ENTRIES = 4,
-    parameter UMATCH_MODES = 2,
-
     parameter UMATCH_MATCHER_LEN = 66,
     parameter UMATCH_MTU = 1500,
     parameter UMATCH_BUF_FRAMES = 3,
  
-    parameter NUM_HANDLER_CTX = 4,
-
     parameter AXIS_IF_DATA_WIDTH = 512,
     parameter AXIS_IF_KEEP_WIDTH = AXIS_IF_DATA_WIDTH/8,
     parameter AXIS_IF_RX_ID_WIDTH = 1,
@@ -61,18 +38,34 @@ module pspin_ingress_datapath #(
     input wire                                             rstn,
 
     // matching engine configuration
-    input wire [$clog2(UMATCH_MODES)*NUM_HANDLER_CTX-1:0]         match_mode,
-    input wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]  match_idx,
-    input wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]  match_mask,
-    input wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]  match_start,
-    input wire [UMATCH_WIDTH*UMATCH_ENTRIES*NUM_HANDLER_CTX-1:0]  match_end,
-    input wire                                                    match_valid,
+    input wire [0:0] match_valid,
+    input wire [3:0] match_mode,
+    input wire [511:0] match_idx,
+    input wire [511:0] match_mask,
+    input wire [511:0] match_start,
+    input wire [511:0] match_end,
 
     // HER generator execution context
-`define INPUT_HER_CFG(name, width) input wire [NUM_HANDLER_CTX*(width)-1:0] her_gen_``name,
-`HER_META(INPUT_HER_CFG)
-    input wire [NUM_HANDLER_CTX-1:0]                   her_gen_enabled,
-    input wire                                             her_gen_valid,
+    input wire [127:0] her_gen_handler_mem_addr,
+    input wire [127:0] her_gen_handler_mem_size,
+    input wire [255:0] her_gen_host_mem_addr,
+    input wire [127:0] her_gen_host_mem_size,
+    input wire [127:0] her_gen_hh_addr,
+    input wire [127:0] her_gen_hh_size,
+    input wire [127:0] her_gen_ph_addr,
+    input wire [127:0] her_gen_ph_size,
+    input wire [127:0] her_gen_th_addr,
+    input wire [127:0] her_gen_th_size,
+    input wire [127:0] her_gen_scratchpad_0_addr,
+    input wire [127:0] her_gen_scratchpad_0_size,
+    input wire [127:0] her_gen_scratchpad_1_addr,
+    input wire [127:0] her_gen_scratchpad_1_size,
+    input wire [127:0] her_gen_scratchpad_2_addr,
+    input wire [127:0] her_gen_scratchpad_2_size,
+    input wire [127:0] her_gen_scratchpad_3_addr,
+    input wire [127:0] her_gen_scratchpad_3_size,
+    input wire [0:0] her_gen_valid,
+    input wire [3:0] her_gen_ctx_enabled,
 
     // from NIC
     input  wire [AXIS_IF_DATA_WIDTH-1:0]                   s_axis_nic_rx_tdata,
@@ -139,8 +132,24 @@ module pspin_ingress_datapath #(
     output wire [AXI_ADDR_WIDTH-1:0]                       her_addr,
     output wire [AXI_ADDR_WIDTH-1:0]                       her_size,
     output wire [AXI_ADDR_WIDTH-1:0]                       her_xfer_size,
-`define OUTPUT_HER(name, width) output wire [(width)-1:0] her_meta_``name,
-`HER_META(OUTPUT_HER)
+    output wire [127:0] her_meta_handler_mem_addr,
+    output wire [127:0] her_meta_handler_mem_size,
+    output wire [255:0] her_meta_host_mem_addr,
+    output wire [127:0] her_meta_host_mem_size,
+    output wire [127:0] her_meta_hh_addr,
+    output wire [127:0] her_meta_hh_size,
+    output wire [127:0] her_meta_ph_addr,
+    output wire [127:0] her_meta_ph_size,
+    output wire [127:0] her_meta_th_addr,
+    output wire [127:0] her_meta_th_size,
+    output wire [127:0] her_meta_scratchpad_0_addr,
+    output wire [127:0] her_meta_scratchpad_0_size,
+    output wire [127:0] her_meta_scratchpad_1_addr,
+    output wire [127:0] her_meta_scratchpad_1_size,
+    output wire [127:0] her_meta_scratchpad_2_addr,
+    output wire [127:0] her_meta_scratchpad_2_size,
+    output wire [127:0] her_meta_scratchpad_3_addr,
+    output wire [127:0] her_meta_scratchpad_3_size,
 
     // from PsPIN
     output wire                                            feedback_ready,
@@ -180,11 +189,6 @@ wire                                  to_her_gen_valid;
 wire                                  to_her_gen_ready;
 
 pspin_pkt_match #(
-    .UMATCH_WIDTH(UMATCH_WIDTH),
-    .UMATCH_ENTRIES(UMATCH_ENTRIES),
-    .UMATCH_MODES(UMATCH_MODES),
-    .UMATCH_RULESETS(NUM_HANDLER_CTX),
-    
     .UMATCH_MATCHER_LEN(UMATCH_MATCHER_LEN),
     .UMATCH_MTU(UMATCH_MTU),
     .UMATCH_BUF_FRAMES(UMATCH_BUF_FRAMES),
@@ -228,12 +232,12 @@ pspin_pkt_match #(
     .m_axis_pspin_rx_tdest,
     .m_axis_pspin_rx_tuser,
 
+    .match_valid,
     .match_mode,
     .match_idx,
     .match_mask,
     .match_start,
     .match_end,
-    .match_valid,
 
     .packet_meta_tag,
     .packet_meta_size,
@@ -358,8 +362,7 @@ pspin_her_gen #(
     .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
     .AXI_HOST_ADDR_WIDTH(AXI_HOST_ADDR_WIDTH),
     .LEN_WIDTH(LEN_WIDTH),
-    .TAG_WIDTH(TAG_WIDTH),
-    .NUM_HANDLER_CTX(NUM_HANDLER_CTX)
+    .TAG_WIDTH(TAG_WIDTH)
 ) i_her_gen (
     .clk,
     .rstn,
@@ -371,19 +374,50 @@ pspin_her_gen #(
     .her_addr,
     .her_size,
     .her_xfer_size,
-`define HER_INST(name, width) .her_meta_``name,
-`HER_META(HER_INST)
+    .her_meta_handler_mem_addr,
+    .her_meta_handler_mem_size,
+    .her_meta_host_mem_addr,
+    .her_meta_host_mem_size,
+    .her_meta_hh_addr,
+    .her_meta_hh_size,
+    .her_meta_ph_addr,
+    .her_meta_ph_size,
+    .her_meta_th_addr,
+    .her_meta_th_size,
+    .her_meta_scratchpad_0_addr,
+    .her_meta_scratchpad_0_size,
+    .her_meta_scratchpad_1_addr,
+    .her_meta_scratchpad_1_size,
+    .her_meta_scratchpad_2_addr,
+    .her_meta_scratchpad_2_size,
+    .her_meta_scratchpad_3_addr,
+    .her_meta_scratchpad_3_size,
+    .conf_handler_mem_addr (her_gen_handler_mem_addr),
+    .conf_handler_mem_size (her_gen_handler_mem_size),
+    .conf_host_mem_addr (her_gen_host_mem_addr),
+    .conf_host_mem_size (her_gen_host_mem_size),
+    .conf_hh_addr (her_gen_hh_addr),
+    .conf_hh_size (her_gen_hh_size),
+    .conf_ph_addr (her_gen_ph_addr),
+    .conf_ph_size (her_gen_ph_size),
+    .conf_th_addr (her_gen_th_addr),
+    .conf_th_size (her_gen_th_size),
+    .conf_scratchpad_0_addr (her_gen_scratchpad_0_addr),
+    .conf_scratchpad_0_size (her_gen_scratchpad_0_size),
+    .conf_scratchpad_1_addr (her_gen_scratchpad_1_addr),
+    .conf_scratchpad_1_size (her_gen_scratchpad_1_size),
+    .conf_scratchpad_2_addr (her_gen_scratchpad_2_addr),
+    .conf_scratchpad_2_size (her_gen_scratchpad_2_size),
+    .conf_scratchpad_3_addr (her_gen_scratchpad_3_addr),
+    .conf_scratchpad_3_size (her_gen_scratchpad_3_size),
+    .conf_valid (her_gen_valid),
+    .conf_ctx_enabled (her_gen_ctx_enabled),
 
     .gen_addr                   (to_her_gen_addr),
     .gen_len                    (to_her_gen_len),
     .gen_tag                    (to_her_gen_tag),
     .gen_valid                  (to_her_gen_valid),
-    .gen_ready                  (to_her_gen_ready),
-
-`define HER_CTRL_INST(name, width) .conf_``name(her_gen_``name),
-`HER_META(HER_CTRL_INST)
-    .conf_ctx_enabled           (her_gen_enabled),
-    .conf_valid                 (her_gen_valid)
+    .gen_ready                  (to_her_gen_ready)
 );
 
 endmodule
