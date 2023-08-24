@@ -1340,13 +1340,10 @@ pspin_ctrl_regs #(
 
     .alloc_dropped_pkts,
 
-{%- macro connect_wire(signal_name, sg) %}
-    .{{ signal_name }}_{{ sg.name }},
-{%- endmacro %}
-{{- m.call_group("me", connect_wire, "match") }}
+{{- m.call_group("me", m.connect_wire, "match") }}
 
-{{- m.call_group("her", connect_wire, "her_gen") }}
-{{- m.call_group("her_meta", connect_wire, "her_gen") }}
+{{- m.call_group("her", m.connect_wire, "her_gen") }}
+{{- m.call_group("her_meta", m.connect_wire, "her_gen") }}
 
     .egress_dma_last_error
 );
@@ -1721,10 +1718,10 @@ pspin_ingress_datapath #(
     .clk(pspin_clk),
     .rstn(!pspin_rst && !aux_rst),
 
-{{- m.call_group("me", connect_wire, "match") }}
+{{- m.call_group("me", m.connect_wire, "match") }}
 
-{{- m.call_group("her", connect_wire, "her_gen") }}
-{{- m.call_group("her_meta", connect_wire, "her_gen") }}
+{{- m.call_group("her", m.connect_wire, "her_gen") }}
+{{- m.call_group("her_meta", m.connect_wire, "her_gen") }}
 
     .her_gen_enabled,
     .her_gen_valid,
@@ -1790,7 +1787,7 @@ pspin_ingress_datapath #(
     .her_addr,
     .her_size,
     .her_xfer_size,
-{{- m.call_group("her_meta", connect_wire, "her_meta") }}
+{{- m.call_group("her_meta", m.connect_wire, "her_meta") }}
 
     .feedback_ready,
     .feedback_valid,

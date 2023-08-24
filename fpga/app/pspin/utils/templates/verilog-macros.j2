@@ -14,12 +14,20 @@
     output reg  [{{ sg.signal_width * sg.count - 1}}:0] {{ sn }}_{{ sg.name }}_o,
 {%- endmacro %}
 
+{%- macro declare_out_wire(sn, sg) %}
+    output wire [{{ sg.signal_width * sg.count - 1}}:0] {{ sn }}_{{ sg.name }}_o,
+{%- endmacro %}
+
 {%- macro declare_in(sn, sg) %}
     input wire [{{ sg.signal_width * sg.count - 1}}:0] {{ sn }}_{{ sg.name }}_o,
 {%- endmacro %}
 
 {%- macro declare_wire(signal_name, sg) %}
 wire [{{ sg.signal_width * sg.count - 1}}:0] {{ signal_name }}_{{ sg.name }};
+{%- endmacro %}
+
+{%- macro connect_wire(signal_name, sg) %}
+    .{{ signal_name }}_{{ sg.name }},
 {%- endmacro %}
 
 {%- macro declare_params() %}
