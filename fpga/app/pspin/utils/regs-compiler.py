@@ -204,7 +204,7 @@ def gen_single(name):
     template = environment.get_template(name)
     content = template.render(template_args)
 
-    if name.endswith(('.c', '.v')):
+    if name.endswith(('.c', '.v', '.h')):
         comment_f = lambda c: f'/* {c} */\n'
     else:
         comment_f = lambda c: f'# {c}\n'
