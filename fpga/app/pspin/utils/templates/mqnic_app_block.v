@@ -1723,9 +1723,6 @@ pspin_ingress_datapath #(
 {{- m.call_group("her", m.connect_wire, "her_gen") }}
 {{- m.call_group("her_meta", m.connect_wire, "her_gen") }}
 
-    .her_gen_enabled,
-    .her_gen_valid,
-
     .s_axis_nic_rx_tdata,
     .s_axis_nic_rx_tkeep,
     .s_axis_nic_rx_tvalid,

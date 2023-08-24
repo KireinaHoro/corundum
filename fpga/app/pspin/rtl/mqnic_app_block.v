@@ -1,4 +1,4 @@
-/* Generated on 2023-08-24 10:01:01.901225 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-24 10:09:23.226459 with: ./regs-compiler.py --all v ../rtl */
 
 /*
 
@@ -1808,9 +1808,6 @@ pspin_ingress_datapath #(
     .her_gen_scratchpad_2_size,
     .her_gen_scratchpad_3_addr,
     .her_gen_scratchpad_3_size,
-
-    .her_gen_enabled,
-    .her_gen_valid,
 
     .s_axis_nic_rx_tdata,
     .s_axis_nic_rx_tkeep,
