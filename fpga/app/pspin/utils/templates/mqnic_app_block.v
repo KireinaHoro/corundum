@@ -637,7 +637,7 @@ localparam UMATCH_MATCHER_LEN = 66;
 localparam UMATCH_MTU = 1500;
 localparam UMATCH_BUF_FRAMES = 0;
 
-{{ declare_params() }}
+{{ m.declare_params() }}
 
 localparam AXI_HOST_ADDR_WIDTH = 64; // pspin_cfg_pkg::HOST_AXI_AW
 localparam AXI_DATA_WIDTH = 512; // pspin_cfg_pkg::data_t

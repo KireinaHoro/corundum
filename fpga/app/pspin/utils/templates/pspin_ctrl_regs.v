@@ -66,7 +66,7 @@ module pspin_ctrl_regs #
     input  wire [3:0]                                       egress_dma_last_error
 );
 
-{{ declare_params() }}
+{{ m.declare_params() }}
 
 localparam VALID_ADDR_WIDTH = ADDR_WIDTH - $clog2(STRB_WIDTH);
 localparam WORD_WIDTH = STRB_WIDTH;

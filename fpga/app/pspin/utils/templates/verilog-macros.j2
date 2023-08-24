@@ -11,15 +11,15 @@
 {%- endmacro %}
 
 {%- macro declare_out(sn, sg) %}
-    output reg  [{{ sg.signal_width * sg.count - 1}}:0] {{ sn }}_{{ sg.name }}_o,
+    output reg  [{{ sg.signal_width * sg.count - 1}}:0] {{ sn }}_{{ sg.name }},
 {%- endmacro %}
 
 {%- macro declare_out_wire(sn, sg) %}
-    output wire [{{ sg.signal_width * sg.count - 1}}:0] {{ sn }}_{{ sg.name }}_o,
+    output wire [{{ sg.signal_width * sg.count - 1}}:0] {{ sn }}_{{ sg.name }},
 {%- endmacro %}
 
 {%- macro declare_in(sn, sg) %}
-    input wire [{{ sg.signal_width * sg.count - 1}}:0] {{ sn }}_{{ sg.name }}_o,
+    input wire [{{ sg.signal_width * sg.count - 1}}:0] {{ sn }}_{{ sg.name }},
 {%- endmacro %}
 
 {%- macro declare_wire(signal_name, sg) %}
