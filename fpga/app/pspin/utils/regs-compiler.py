@@ -18,11 +18,12 @@ parser.add_argument('--word-size', type=int, help='size of native word', default
 parser.add_argument('--all', action='store_true', help='generate all with name as extension')
 
 args = parser.parse_args()
+word_width = args.word_size * 8
 
 class RegSubGroup:
     next_alloc = 0
 
-    def __init__(self, name, readonly, count, signal_width=args.word_size*8):
+    def __init__(self, name, readonly, count, signal_width=args.word_size*8, expand_id=None):
         self.name = name
         self.readonly = readonly
         self.count = count
@@ -31,8 +32,17 @@ class RegSubGroup:
         # width is for a single register
         self.signal_width = signal_width
 
-        self.glb_idx = RegSubGroup.next_alloc
-        RegSubGroup.next_alloc += self.count
+        if signal_width:
+            self.num_words = int(ceil(self.signal_width / word_width))
+        else:
+            self.num_words = 1
+
+        if not expand_id:
+            self.glb_idx = RegSubGroup.next_alloc
+            RegSubGroup.next_alloc += self.count * self.num_words
+        else:
+            parent_id, rank = expand_id
+            self.glb_idx = parent_id + rank * self.count
 
         # not populated yet
         self.base = None
@@ -50,18 +60,17 @@ class RegSubGroup:
         return f'{self.parent.name}_{self.name}'.upper()
 
     def expand(self):
-        word_width = args.word_size * 8
         if not self.is_extended():
             ret = [self]
         else:
-            num_words = int(ceil(self.signal_width / word_width))
             self.expanded = []
-            for idx in range(num_words):
+            for idx in range(self.num_words):
                 self.expanded.append(RegSubGroup(
                     f'{self.name}_{idx}',
                     self.readonly,
                     self.count,
                     signal_width=None, # we only use signal width from unexpanded subgroups
+                    expand_id=(self.glb_idx, idx),
                 ))
             ret = self.expanded
         return ret
@@ -79,8 +88,7 @@ class RegSubGroup:
         return ret
 
     def is_extended(self):
-        word_width = args.word_size * 8
-        return self.signal_width > word_width
+        return self.num_words > 1
 
 class RegGroup:
     next_alloc = 0
@@ -107,7 +115,7 @@ class RegGroup:
             cur_base += sg.count * args.word_size
 
     def reg_count(self):
-        return sum(map(lambda sg: sg.count, self.subgroups))
+        return sum(map(lambda sg: sg.count, self.expanded))
 
     def __repr__(self):
         return '\n[' + ', \n'.join(map(str, self.subgroups)) + ']'

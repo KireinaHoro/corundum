@@ -1,4 +1,4 @@
-/* Generated on 2023-08-24 10:09:23.248856 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-24 10:59:28.328055 with: ./regs-compiler.py --all v ../rtl */
 
 /**
  * PsPIN Handler Execution Request (HER) Generator
@@ -22,7 +22,7 @@ module pspin_her_gen #(
     parameter AXI_ADDR_WIDTH = 32,
     parameter AXI_HOST_ADDR_WIDTH = 64,
     parameter LEN_WIDTH = 20,
-    parameter TAG_WIDTH = 32,
+    parameter TAG_WIDTH = 32
 ) (
     input                                   clk,
     input                                   rstn,

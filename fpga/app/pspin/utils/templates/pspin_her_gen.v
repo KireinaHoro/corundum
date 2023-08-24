@@ -21,7 +21,7 @@ module pspin_her_gen #(
     parameter AXI_ADDR_WIDTH = 32,
     parameter AXI_HOST_ADDR_WIDTH = 64,
     parameter LEN_WIDTH = 20,
-    parameter TAG_WIDTH = 32,
+    parameter TAG_WIDTH = 32
 ) (
     input                                   clk,
     input                                   rstn,

@@ -12,7 +12,7 @@ module pspin_ctrl_regs #
     parameter DATA_WIDTH = 32,
     parameter STRB_WIDTH = DATA_WIDTH/8,
     parameter NUM_CLUSTERS = 2,
-    parameter NUM_MPQ = 16,
+    parameter NUM_MPQ = 16
 ) (
     input  wire                   clk,
     input  wire                   rst,
@@ -137,13 +137,13 @@ always @* begin
 
 {%- macro assign_out(signal_name, sg) %}
     for (i = 0; i < {{ sg.count }}; i = i + 1)
-        `SLICE({{ signal_name }}_{{ sg.name }}_o, i, {{ sg.signal_width }}) =
+        `SLICE({{ signal_name }}_{{ sg.name }}, i, {{ sg.signal_width }}) =
     {%- if sg.is_extended() %} {
         {%- for child in sg.expanded | reverse %}
-            ctrl_regs[{{ child.get_signal_name() }} + i]{{ "," if loop.index + 1 == sg.expanded | length }}
+            ctrl_regs[{{ child.get_signal_name() }}_REG_OFF + i]{{ "," if loop.index + 1 == sg.expanded | length }}
         {%- endfor %}
         };
-    {%- else %} ctrl_regs[{{ sg.get_signal_name() }} + i];
+    {%- else %} ctrl_regs[{{ sg.get_signal_name() }}_REG_OFF + i];
     {%- endif %}
 {%- endmacro %}
 
@@ -169,7 +169,7 @@ always @(posedge clk) begin
     end else begin
         // read
         if (reg_intf_rd_en) begin
-            if (reg_intf_rd_addr == FIFO_BASE) begin
+            if (reg_intf_rd_addr == CL_FIFO_BASE) begin
                 if (!stdout_data_valid) begin
                     // FIFO data not valid, give garbage data
                     reg_intf_rd_data <= {DATA_WIDTH{1'b1}};
@@ -206,16 +206,16 @@ always @(posedge clk) begin
         end
 
         // register input
-        ctrl_regs[CL_STAT_REG_OFF]     <= cl_eoc_i;   // eoc
-        ctrl_regs[CL_STAT_REG_OFF + 1] <= cl_busy_i;  // busy
+        ctrl_regs[STATS_CLUSTER_REG_OFF]     <= cl_eoc_i;   // eoc
+        ctrl_regs[STATS_CLUSTER_REG_OFF + 1] <= cl_busy_i;  // busy
 
         // we only have 16 MPQs
         {% raw -%}
-        ctrl_regs[MPQ_REG_OFF] <= {{DATA_WIDTH - NUM_MPQ{1'b0}}, mpq_full_i};
+        ctrl_regs[STATS_MPQ_REG_OFF] <= {{DATA_WIDTH - NUM_MPQ{1'b0}}, mpq_full_i};
         {%- endraw %}
 
-        ctrl_regs[DATAPATH_STATS_REG_OFF] <= alloc_dropped_pkts;
-        ctrl_regs[DATAPATH_STATS_REG_OFF + 1] <= {28'b0, egress_dma_last_error};
+        ctrl_regs[STATS_DATAPATH_REG_OFF] <= alloc_dropped_pkts;
+        ctrl_regs[STATS_DATAPATH_REG_OFF + 1] <= {28'b0, egress_dma_last_error};
     end
 end
 

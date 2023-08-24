@@ -1,4 +1,4 @@
-/* Generated on 2023-08-24 10:09:23.226459 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-24 10:59:28.305652 with: ./regs-compiler.py --all v ../rtl */
 
 /*
 
@@ -1751,15 +1751,9 @@ axi_dwidth_converter_0 i_pspin_upsize (
 );
 
 pspin_ingress_datapath #(
-    .UMATCH_WIDTH(UMATCH_WIDTH),
-    .UMATCH_ENTRIES(UMATCH_ENTRIES),
-    .UMATCH_MODES(UMATCH_MODES),
-
     .UMATCH_MATCHER_LEN(UMATCH_MATCHER_LEN),
     .UMATCH_MTU(UMATCH_MTU),
     .UMATCH_BUF_FRAMES(UMATCH_BUF_FRAMES),
-
-    .NUM_HANDLER_CTX(HER_NUM_HANDLER_CTX),
 
     .AXIS_IF_DATA_WIDTH(AXIS_IF_DATA_WIDTH),
     .AXIS_IF_KEEP_WIDTH(AXIS_IF_KEEP_WIDTH),

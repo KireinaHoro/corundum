@@ -1,4 +1,4 @@
-/* Generated on 2023-08-24 10:09:23.241787 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-24 10:59:28.320933 with: ./regs-compiler.py --all v ../rtl */
 
 `timescale 1ns / 1ps
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
@@ -12,7 +12,7 @@ module pspin_ctrl_regs #
     parameter DATA_WIDTH = 32,
     parameter STRB_WIDTH = DATA_WIDTH/8,
     parameter NUM_CLUSTERS = 2,
-    parameter NUM_MPQ = 16,
+    parameter NUM_MPQ = 16
 ) (
     input  wire                   clk,
     input  wire                   rst,
@@ -100,7 +100,7 @@ localparam VALID_ADDR_WIDTH = ADDR_WIDTH - $clog2(STRB_WIDTH);
 localparam WORD_WIDTH = STRB_WIDTH;
 localparam WORD_SIZE = DATA_WIDTH/WORD_WIDTH;
 
-localparam NUM_REGS = 154;
+localparam NUM_REGS = 158;
 
 reg [DATA_WIDTH-1:0] ctrl_regs [NUM_REGS-1:0];
 
@@ -187,88 +187,88 @@ assign REGFILE_IDX_READONLY[89:86] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_HOST_MEM_ADDR_0_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4020};
 localparam HER_META_HOST_MEM_ADDR_0_REG_COUNT = 4;
-localparam HER_META_HOST_MEM_ADDR_0_REG_OFF = 154;
-assign REGFILE_IDX_READONLY[157:154] = 4'b0000;
+localparam HER_META_HOST_MEM_ADDR_0_REG_OFF = 90;
+assign REGFILE_IDX_READONLY[93:90] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_HOST_MEM_ADDR_1_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4030};
 localparam HER_META_HOST_MEM_ADDR_1_REG_COUNT = 4;
-localparam HER_META_HOST_MEM_ADDR_1_REG_OFF = 158;
-assign REGFILE_IDX_READONLY[161:158] = 4'b0000;
+localparam HER_META_HOST_MEM_ADDR_1_REG_OFF = 94;
+assign REGFILE_IDX_READONLY[97:94] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_HOST_MEM_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4040};
 localparam HER_META_HOST_MEM_SIZE_REG_COUNT = 4;
-localparam HER_META_HOST_MEM_SIZE_REG_OFF = 94;
-assign REGFILE_IDX_READONLY[97:94] = 4'b0000;
+localparam HER_META_HOST_MEM_SIZE_REG_OFF = 98;
+assign REGFILE_IDX_READONLY[101:98] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_HH_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4050};
 localparam HER_META_HH_ADDR_REG_COUNT = 4;
-localparam HER_META_HH_ADDR_REG_OFF = 98;
-assign REGFILE_IDX_READONLY[101:98] = 4'b0000;
+localparam HER_META_HH_ADDR_REG_OFF = 102;
+assign REGFILE_IDX_READONLY[105:102] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_HH_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4060};
 localparam HER_META_HH_SIZE_REG_COUNT = 4;
-localparam HER_META_HH_SIZE_REG_OFF = 102;
-assign REGFILE_IDX_READONLY[105:102] = 4'b0000;
+localparam HER_META_HH_SIZE_REG_OFF = 106;
+assign REGFILE_IDX_READONLY[109:106] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_PH_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4070};
 localparam HER_META_PH_ADDR_REG_COUNT = 4;
-localparam HER_META_PH_ADDR_REG_OFF = 106;
-assign REGFILE_IDX_READONLY[109:106] = 4'b0000;
+localparam HER_META_PH_ADDR_REG_OFF = 110;
+assign REGFILE_IDX_READONLY[113:110] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_PH_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4080};
 localparam HER_META_PH_SIZE_REG_COUNT = 4;
-localparam HER_META_PH_SIZE_REG_OFF = 110;
-assign REGFILE_IDX_READONLY[113:110] = 4'b0000;
+localparam HER_META_PH_SIZE_REG_OFF = 114;
+assign REGFILE_IDX_READONLY[117:114] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_TH_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4090};
 localparam HER_META_TH_ADDR_REG_COUNT = 4;
-localparam HER_META_TH_ADDR_REG_OFF = 114;
-assign REGFILE_IDX_READONLY[117:114] = 4'b0000;
+localparam HER_META_TH_ADDR_REG_OFF = 118;
+assign REGFILE_IDX_READONLY[121:118] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_TH_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40a0};
 localparam HER_META_TH_SIZE_REG_COUNT = 4;
-localparam HER_META_TH_SIZE_REG_OFF = 118;
-assign REGFILE_IDX_READONLY[121:118] = 4'b0000;
+localparam HER_META_TH_SIZE_REG_OFF = 122;
+assign REGFILE_IDX_READONLY[125:122] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_0_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40b0};
 localparam HER_META_SCRATCHPAD_0_ADDR_REG_COUNT = 4;
-localparam HER_META_SCRATCHPAD_0_ADDR_REG_OFF = 122;
-assign REGFILE_IDX_READONLY[125:122] = 4'b0000;
+localparam HER_META_SCRATCHPAD_0_ADDR_REG_OFF = 126;
+assign REGFILE_IDX_READONLY[129:126] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_0_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40c0};
 localparam HER_META_SCRATCHPAD_0_SIZE_REG_COUNT = 4;
-localparam HER_META_SCRATCHPAD_0_SIZE_REG_OFF = 126;
-assign REGFILE_IDX_READONLY[129:126] = 4'b0000;
+localparam HER_META_SCRATCHPAD_0_SIZE_REG_OFF = 130;
+assign REGFILE_IDX_READONLY[133:130] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_1_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40d0};
 localparam HER_META_SCRATCHPAD_1_ADDR_REG_COUNT = 4;
-localparam HER_META_SCRATCHPAD_1_ADDR_REG_OFF = 130;
-assign REGFILE_IDX_READONLY[133:130] = 4'b0000;
+localparam HER_META_SCRATCHPAD_1_ADDR_REG_OFF = 134;
+assign REGFILE_IDX_READONLY[137:134] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_1_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40e0};
 localparam HER_META_SCRATCHPAD_1_SIZE_REG_COUNT = 4;
-localparam HER_META_SCRATCHPAD_1_SIZE_REG_OFF = 134;
-assign REGFILE_IDX_READONLY[137:134] = 4'b0000;
+localparam HER_META_SCRATCHPAD_1_SIZE_REG_OFF = 138;
+assign REGFILE_IDX_READONLY[141:138] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_2_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h40f0};
 localparam HER_META_SCRATCHPAD_2_ADDR_REG_COUNT = 4;
-localparam HER_META_SCRATCHPAD_2_ADDR_REG_OFF = 138;
-assign REGFILE_IDX_READONLY[141:138] = 4'b0000;
+localparam HER_META_SCRATCHPAD_2_ADDR_REG_OFF = 142;
+assign REGFILE_IDX_READONLY[145:142] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_2_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4100};
 localparam HER_META_SCRATCHPAD_2_SIZE_REG_COUNT = 4;
-localparam HER_META_SCRATCHPAD_2_SIZE_REG_OFF = 142;
-assign REGFILE_IDX_READONLY[145:142] = 4'b0000;
+localparam HER_META_SCRATCHPAD_2_SIZE_REG_OFF = 146;
+assign REGFILE_IDX_READONLY[149:146] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_3_ADDR_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4110};
 localparam HER_META_SCRATCHPAD_3_ADDR_REG_COUNT = 4;
-localparam HER_META_SCRATCHPAD_3_ADDR_REG_OFF = 146;
-assign REGFILE_IDX_READONLY[149:146] = 4'b0000;
+localparam HER_META_SCRATCHPAD_3_ADDR_REG_OFF = 150;
+assign REGFILE_IDX_READONLY[153:150] = 4'b0000;
 
 localparam [ADDR_WIDTH-1:0] HER_META_SCRATCHPAD_3_SIZE_BASE = {{ADDR_WIDTH{1'b0}}, 32'h4120};
 localparam HER_META_SCRATCHPAD_3_SIZE_REG_COUNT = 4;
-localparam HER_META_SCRATCHPAD_3_SIZE_REG_OFF = 150;
-assign REGFILE_IDX_READONLY[153:150] = 4'b0000;
+localparam HER_META_SCRATCHPAD_3_SIZE_REG_OFF = 154;
+assign REGFILE_IDX_READONLY[157:154] = 4'b0000;
 
 
 
@@ -392,62 +392,62 @@ always @* begin
 
     // Matching engine
     for (i = 0; i < 1; i = i + 1)
-        `SLICE(match_valid_o, i, 1) = ctrl_regs[ME_VALID + i];
+        `SLICE(match_valid, i, 1) = ctrl_regs[ME_VALID_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(match_mode_o, i, 1) = ctrl_regs[ME_MODE + i];
+        `SLICE(match_mode, i, 1) = ctrl_regs[ME_MODE_REG_OFF + i];
     for (i = 0; i < 16; i = i + 1)
-        `SLICE(match_idx_o, i, 32) = ctrl_regs[ME_IDX + i];
+        `SLICE(match_idx, i, 32) = ctrl_regs[ME_IDX_REG_OFF + i];
     for (i = 0; i < 16; i = i + 1)
-        `SLICE(match_mask_o, i, 32) = ctrl_regs[ME_MASK + i];
+        `SLICE(match_mask, i, 32) = ctrl_regs[ME_MASK_REG_OFF + i];
     for (i = 0; i < 16; i = i + 1)
-        `SLICE(match_start_o, i, 32) = ctrl_regs[ME_START + i];
+        `SLICE(match_start, i, 32) = ctrl_regs[ME_START_REG_OFF + i];
     for (i = 0; i < 16; i = i + 1)
-        `SLICE(match_end_o, i, 32) = ctrl_regs[ME_END + i];
+        `SLICE(match_end, i, 32) = ctrl_regs[ME_END_REG_OFF + i];
 
     // HER generator execution context
     for (i = 0; i < 1; i = i + 1)
-        `SLICE(her_gen_valid_o, i, 1) = ctrl_regs[HER_VALID + i];
+        `SLICE(her_gen_valid, i, 1) = ctrl_regs[HER_VALID_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_ctx_enabled_o, i, 1) = ctrl_regs[HER_CTX_ENABLED + i];
+        `SLICE(her_gen_ctx_enabled, i, 1) = ctrl_regs[HER_CTX_ENABLED_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_handler_mem_addr_o, i, 32) = ctrl_regs[HER_META_HANDLER_MEM_ADDR + i];
+        `SLICE(her_gen_handler_mem_addr, i, 32) = ctrl_regs[HER_META_HANDLER_MEM_ADDR_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_handler_mem_size_o, i, 32) = ctrl_regs[HER_META_HANDLER_MEM_SIZE + i];
+        `SLICE(her_gen_handler_mem_size, i, 32) = ctrl_regs[HER_META_HANDLER_MEM_SIZE_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_host_mem_addr_o, i, 64) = {
-            ctrl_regs[HER_META_HOST_MEM_ADDR_1 + i],
-            ctrl_regs[HER_META_HOST_MEM_ADDR_0 + i]
+        `SLICE(her_gen_host_mem_addr, i, 64) = {
+            ctrl_regs[HER_META_HOST_MEM_ADDR_1_REG_OFF + i],
+            ctrl_regs[HER_META_HOST_MEM_ADDR_0_REG_OFF + i]
         };
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_host_mem_size_o, i, 32) = ctrl_regs[HER_META_HOST_MEM_SIZE + i];
+        `SLICE(her_gen_host_mem_size, i, 32) = ctrl_regs[HER_META_HOST_MEM_SIZE_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_hh_addr_o, i, 32) = ctrl_regs[HER_META_HH_ADDR + i];
+        `SLICE(her_gen_hh_addr, i, 32) = ctrl_regs[HER_META_HH_ADDR_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_hh_size_o, i, 32) = ctrl_regs[HER_META_HH_SIZE + i];
+        `SLICE(her_gen_hh_size, i, 32) = ctrl_regs[HER_META_HH_SIZE_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_ph_addr_o, i, 32) = ctrl_regs[HER_META_PH_ADDR + i];
+        `SLICE(her_gen_ph_addr, i, 32) = ctrl_regs[HER_META_PH_ADDR_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_ph_size_o, i, 32) = ctrl_regs[HER_META_PH_SIZE + i];
+        `SLICE(her_gen_ph_size, i, 32) = ctrl_regs[HER_META_PH_SIZE_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_th_addr_o, i, 32) = ctrl_regs[HER_META_TH_ADDR + i];
+        `SLICE(her_gen_th_addr, i, 32) = ctrl_regs[HER_META_TH_ADDR_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_th_size_o, i, 32) = ctrl_regs[HER_META_TH_SIZE + i];
+        `SLICE(her_gen_th_size, i, 32) = ctrl_regs[HER_META_TH_SIZE_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_scratchpad_0_addr_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_0_ADDR + i];
+        `SLICE(her_gen_scratchpad_0_addr, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_0_ADDR_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_scratchpad_0_size_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_0_SIZE + i];
+        `SLICE(her_gen_scratchpad_0_size, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_0_SIZE_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_scratchpad_1_addr_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_1_ADDR + i];
+        `SLICE(her_gen_scratchpad_1_addr, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_1_ADDR_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_scratchpad_1_size_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_1_SIZE + i];
+        `SLICE(her_gen_scratchpad_1_size, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_1_SIZE_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_scratchpad_2_addr_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_2_ADDR + i];
+        `SLICE(her_gen_scratchpad_2_addr, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_2_ADDR_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_scratchpad_2_size_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_2_SIZE + i];
+        `SLICE(her_gen_scratchpad_2_size, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_2_SIZE_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_scratchpad_3_addr_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_3_ADDR + i];
+        `SLICE(her_gen_scratchpad_3_addr, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_3_ADDR_REG_OFF + i];
     for (i = 0; i < 4; i = i + 1)
-        `SLICE(her_gen_scratchpad_3_size_o, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_3_SIZE + i];
+        `SLICE(her_gen_scratchpad_3_size, i, 32) = ctrl_regs[HER_META_SCRATCHPAD_3_SIZE_REG_OFF + i];
 end
 
 always @(posedge clk) begin
@@ -464,7 +464,7 @@ always @(posedge clk) begin
     end else begin
         // read
         if (reg_intf_rd_en) begin
-            if (reg_intf_rd_addr == FIFO_BASE) begin
+            if (reg_intf_rd_addr == CL_FIFO_BASE) begin
                 if (!stdout_data_valid) begin
                     // FIFO data not valid, give garbage data
                     reg_intf_rd_data <= {DATA_WIDTH{1'b1}};
@@ -501,14 +501,14 @@ always @(posedge clk) begin
         end
 
         // register input
-        ctrl_regs[CL_STAT_REG_OFF]     <= cl_eoc_i;   // eoc
-        ctrl_regs[CL_STAT_REG_OFF + 1] <= cl_busy_i;  // busy
+        ctrl_regs[STATS_CLUSTER_REG_OFF]     <= cl_eoc_i;   // eoc
+        ctrl_regs[STATS_CLUSTER_REG_OFF + 1] <= cl_busy_i;  // busy
 
         // we only have 16 MPQs
-        ctrl_regs[MPQ_REG_OFF] <= {{DATA_WIDTH - NUM_MPQ{1'b0}}, mpq_full_i};
+        ctrl_regs[STATS_MPQ_REG_OFF] <= {{DATA_WIDTH - NUM_MPQ{1'b0}}, mpq_full_i};
 
-        ctrl_regs[DATAPATH_STATS_REG_OFF] <= alloc_dropped_pkts;
-        ctrl_regs[DATAPATH_STATS_REG_OFF + 1] <= {28'b0, egress_dma_last_error};
+        ctrl_regs[STATS_DATAPATH_REG_OFF] <= alloc_dropped_pkts;
+        ctrl_regs[STATS_DATAPATH_REG_OFF + 1] <= {28'b0, egress_dma_last_error};
     end
 end
 
