@@ -5,6 +5,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from os.path import join, realpath, dirname, isdir
 from math import ceil
 from datetime import datetime
+from collections import deque
 import sys
 
 GRPID_SHIFT = 12
@@ -14,6 +15,7 @@ parser.add_argument('name', type=str, help='name of the template to compile')
 parser.add_argument('output', type=str, help='output file path')
 parser.add_argument('--base-addr', type=int, help='register base address', default=0)
 parser.add_argument('--word-size', type=int, help='size of native word', default=4)
+parser.add_argument('--all', action='store_true', help='generate all with name as extension')
 
 args = parser.parse_args()
 
@@ -131,7 +133,7 @@ groups = [
     ]),
     RegGroup('me', [
         RegSubGroup('valid',    False, 1, 1),
-        RegSubGroup('mode',     False, params['UMATCH_RULESETS'], params['UMATCH_MODES'].bit_length()),
+        RegSubGroup('mode',     False, params['UMATCH_RULESETS'], (params['UMATCH_MODES']-1).bit_length()),
         RegSubGroup('idx',      False, params['UMATCH_RULESETS'] * params['UMATCH_ENTRIES'], params['UMATCH_WIDTH']),
         RegSubGroup('mask',     False, params['UMATCH_RULESETS'] * params['UMATCH_ENTRIES'], params['UMATCH_WIDTH']),
         RegSubGroup('start',    False, params['UMATCH_RULESETS'] * params['UMATCH_ENTRIES'], params['UMATCH_WIDTH']),
@@ -169,32 +171,41 @@ groups = {rg.name: rg for rg in groups}
 templates_dir = join(dirname(realpath(__file__)), 'templates/')
 print(f'Search path for templates: {templates_dir}', file=sys.stderr)
 environment = Environment(loader=FileSystemLoader(templates_dir))
-
-template = environment.get_template(args.name)
 template_args = {
     'groups': groups,
     'num_regs': sum(map(lambda rg: rg.reg_count(), groups.values())),
     'params': params,
     'args': args,
 }
-content = template.render(template_args)
 
-if args.name.endswith(('.c', '.v')):
-    comment_f = lambda c: f'/* {c} */\n'
-else:
-    comment_f = lambda c: f'# {c}\n'
+def gen_single(name):
+    template = environment.get_template(name)
+    content = template.render(template_args)
 
-content = comment_f(f'Generated on {datetime.now()} with: {" ".join(sys.argv)}') + '\n' + content
-
-if args.output == '-':
-    filename = 'stdout'
-    print(content)
-else:
-    if isdir(args.output):
-        filename = join(args.output, args.name)
+    if name.endswith(('.c', '.v')):
+        comment_f = lambda c: f'/* {c} */\n'
     else:
-        filename = args.output
-    with open(filename, mode='w', encoding='utf-8') as f:
-        f.write(content)
+        comment_f = lambda c: f'# {c}\n'
 
-print(f'Written output to {filename}', file=sys.stderr)
+    content = comment_f(f'Generated on {datetime.now()} with: {" ".join(sys.argv)}') + '\n' + content
+
+    if args.output == '-':
+        filename = 'stdout'
+        print(content)
+    else:
+        if isdir(args.output):
+            filename = join(args.output, name)
+        else:
+            filename = args.output
+        with open(filename, mode='w', encoding='utf-8') as f:
+            f.write(content)
+
+    print(f'Written output to {filename}', file=sys.stderr)
+
+if args.all:
+    if not isdir(args.output):
+        print('Output can only be a dir with --all', file=sys.stderr)
+        sys.exit(1)
+    deque(map(gen_single, environment.list_templates(args.name)), maxlen=0)
+else:
+    gen_single(args.name)
