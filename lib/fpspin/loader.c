@@ -43,26 +43,26 @@ static void write_reg(const char *name, int id, uint32_t val) {
 }
 
 static void cycle_reset() {
-  write_reg("cl_ctrl", 1, 1);
-  write_reg("cl_ctrl", 1, 0);
+  write_reg("cl/ctrl", 1, 1);
+  write_reg("cl/ctrl", 1, 0);
 }
 
-static void fetch_on() { write_reg("cl_ctrl", 0, (1 << NUM_CLUSTERS) - 1); }
-static void fetch_off() { write_reg("cl_ctrl", 0, 0); }
+static void fetch_on() { write_reg("cl/ctrl", 0, (1 << NUM_CLUSTERS) - 1); }
+static void fetch_off() { write_reg("cl/ctrl", 0, 0); }
 
-static void me_on() { write_reg("me_valid", 0, 1); }
-static void me_off() { write_reg("me_valid", 0, 0); }
+static void me_on() { write_reg("me/valid", 0, 1); }
+static void me_off() { write_reg("me/valid", 0, 0); }
 
-static void her_on() { write_reg("her_valid", 0, 1); }
-static void her_off() { write_reg("her_valid", 0, 0); }
+static void her_on() { write_reg("her/valid", 0, 1); }
+static void her_off() { write_reg("her/valid", 0, 0); }
 
 static void set_me_rule(int ctx_id, int rid, const struct fpspin_rule *ru) {
   int reg_id = ctx_id * NUM_RULES_PER_RULESET + rid;
   // FIXME: do we need idx to be big endian as well?
-  write_reg("me_idx", reg_id, ru->idx);
-  write_reg("me_mask", reg_id, htonl(ru->mask));
-  write_reg("me_start", reg_id, htonl(ru->start));
-  write_reg("me_end", reg_id, htonl(ru->end));
+  write_reg("me/idx", reg_id, ru->idx);
+  write_reg("me/mask", reg_id, htonl(ru->mask));
+  write_reg("me/start", reg_id, htonl(ru->start));
+  write_reg("me/end", reg_id, htonl(ru->end));
 }
 
 static void dump_me_rule(const struct fpspin_rule *ru) {
@@ -213,10 +213,10 @@ static void set_handler(const char *elf, const char *handler, int ctx_id,
   out_area->addr = haddr;
   out_area->size = hsize;
 
-  snprintf(regname, sizeof(regname), "her_%s_addr", handler);
+  snprintf(regname, sizeof(regname), "her_meta/%s_addr", handler);
   write_reg(regname, ctx_id, haddr);
 
-  snprintf(regname, sizeof(regname), "her_%s_size", handler);
+  snprintf(regname, sizeof(regname), "her_meta/%s_size", handler);
   write_reg(regname, ctx_id, hsize);
 }
 
@@ -241,8 +241,8 @@ static void set_handler_mem(const char *elf, int ctx_id,
   out_area->addr = mem_addr;
   out_area->size = mem_size;
 
-  write_reg("her_handler_mem_addr", ctx_id, mem_addr);
-  write_reg("her_handler_mem_size", ctx_id, mem_size);
+  write_reg("her_meta/handler_mem_addr", ctx_id, mem_addr);
+  write_reg("her_meta/handler_mem_size", ctx_id, mem_size);
 }
 
 void fpspin_prog_me(const fpspin_ruleset_t *rs, int num_rs) {
@@ -287,15 +287,15 @@ void fpspin_load(fpspin_ctx_t *ctx, const char *elf, uint64_t hostmem_ptr,
   set_handler(elf, "th", ctx_id, &ctx->th);
   set_handler_mem(elf, ctx_id, &ctx->handler_mem);
 
-  write_reg("her_host_mem_addr_hi", ctx_id, hostmem_ptr >> 32);
-  write_reg("her_host_mem_addr_lo", ctx_id, hostmem_ptr);
-  write_reg("her_host_mem_size", ctx_id, hostmem_size);
+  write_reg("her_meta/host_mem_addr_1", ctx_id, hostmem_ptr >> 32);
+  write_reg("her_meta/host_mem_addr_0", ctx_id, hostmem_ptr);
+  write_reg("her_meta/host_mem_size", ctx_id, hostmem_size);
 
   // scratchpad 0 and 1 - address is calculated in hardware
-  write_reg("her_scratchpad_0_size", ctx_id, 4096);
-  write_reg("her_scratchpad_1_size", ctx_id, 4096);
+  write_reg("her_meta/scratchpad_0_size", ctx_id, 4096);
+  write_reg("her_meta/scratchpad_1_size", ctx_id, 4096);
 
-  write_reg("her_ctx_enabled", ctx_id, 1);
+  write_reg("her/ctx_enabled", ctx_id, 1);
   her_on();
 }
 
