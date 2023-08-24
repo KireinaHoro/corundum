@@ -49,6 +49,13 @@ class RegSubGroup:
         self.parent = None
 
         self.expanded = None
+
+        # aux data for templates
+        self.aux = None
+
+    def set_aux(self, data):
+        self.aux = data
+        return ''
     
     def get_base_addr(self):
         global args
@@ -106,6 +113,7 @@ class RegGroup:
 
         # expand to concrete subgroups
         self.expanded = sum(map(lambda sg: sg.expand(), self.subgroups), start=[])
+        self.dict = {sg.name: sg for sg in self.expanded}
 
         # store parent reference for address calculation
         cur_base = 0
@@ -113,6 +121,11 @@ class RegGroup:
             sg.parent = self
             sg.base = cur_base
             cur_base += sg.count * args.word_size
+
+    def set_aux(self, data):
+        for sg in self.expanded:
+            sg.set_aux(data)
+        return ''
 
     def reg_count(self):
         return sum(map(lambda sg: sg.count, self.expanded))
@@ -184,6 +197,7 @@ template_args = {
     'num_regs': sum(map(lambda rg: rg.reg_count(), groups.values())),
     'params': params,
     'args': args,
+    'RegGroup': RegGroup,
 }
 
 def gen_single(name):
