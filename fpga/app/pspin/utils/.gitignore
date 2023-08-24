@@ -2,6 +2,7 @@ app-pspin
 test-mem
 *.log
 *.txt
+!templates/*
 *.pcap
 pspin-user
 read_mem

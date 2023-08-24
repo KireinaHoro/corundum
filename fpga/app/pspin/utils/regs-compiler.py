@@ -2,8 +2,9 @@
 
 from jinja2 import Environment, FileSystemLoader
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from os.path import join, realpath, dirname
+from os.path import join, realpath, dirname, isdir
 from math import ceil
+from datetime import datetime
 import sys
 
 GRPID_SHIFT = 12
@@ -178,8 +179,22 @@ template_args = {
 }
 content = template.render(template_args)
 
+if args.name.endswith(('.c', '.v')):
+    comment_f = lambda c: f'/* {c} */\n'
+else:
+    comment_f = lambda c: f'# {c}\n'
+
+content = comment_f(f'Generated on {datetime.now()} with: {" ".join(sys.argv)}') + '\n' + content
+
 if args.output == '-':
+    filename = 'stdout'
     print(content)
 else:
-    with open(args.output, mode='w', encoding='utf-8') as f:
+    if isdir(args.output):
+        filename = join(args.output, args.name)
+    else:
+        filename = args.output
+    with open(filename, mode='w', encoding='utf-8') as f:
         f.write(content)
+
+print(f'Written output to {filename}', file=sys.stderr)
