@@ -380,9 +380,13 @@ always @(posedge clk) begin
             end
 
             if (match_valid) begin
+                for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
 {{- m.call_group("me", m.update_store, "match") }}
+                end
             end else begin
+                for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
 {{- m.call_group("me", m.reset_store, None) }}
+                end
             end
 
             matched_q <= 1'b0;
