@@ -96,9 +96,6 @@ static s64 pspin_addr_to_corundum(u64 pspin_addr) {
 #define NUM_HPUS_PER_CLUSTER 8
 #define NUM_HPUS (NUM_HPUS_PER_CLUSTER * PSPIN_NUM_CLUSTERS)
 
-static int hostdma_num_pages = 16;
-module_param(hostdma_num_pages, int, 0444);
-
 #define REG(app, offset) ((app)->app_hw_addr + 0x800000 + (offset))
 #define PSPIN_MEM(app, off) ((app)->app_hw_addr + (off))
 
@@ -542,10 +539,18 @@ static void pspin_vma_open(struct vm_area_struct *vma) {
            map_data->ctx_id, area->ref_count);
 }
 
+static int pspin_vma_may_split(struct vm_area_struct *vma, unsigned long addr) {
+  // never allow splitting of the host dma vma
+  return -EINVAL;
+}
+
 static void pspin_vma_close(struct vm_area_struct *vma) {
   struct pspin_map_data *map_data = vma->vm_private_data;
   struct pspin_cdev *cdev = map_data->cdev;
   struct dma_area_int *area = &cdev->app->dma_areas[map_data->ctx_id];
+  unsigned long len = vma->vm_end - vma->vm_start;
+  int num_pages = len / PAGE_SIZE;
+
   if (!area->ref_count) {
     dev_warn(cdev->dev, "trying to decrement ref_count below 0\n");
     return;
@@ -555,7 +560,7 @@ static void pspin_vma_close(struct vm_area_struct *vma) {
     if (area->phys.enabled) {
       dev_info(cdev->dev, "freeing hostdma area for ctx %d\n",
                map_data->ctx_id);
-      set_memory_wb((u64)area->cpu_addr, hostdma_num_pages);
+      set_memory_wb((u64)area->cpu_addr, num_pages);
       dma_free_coherent(cdev->app->nic_dev, area->phys.dma_size, area->cpu_addr,
                         area->phys.dma_handle);
       area->phys.enabled = false;
@@ -574,6 +579,7 @@ static int pspin_release(struct inode *inode, struct file *filp) { return 0; }
 static struct vm_operations_struct pspin_vm_ops = {
     .open = pspin_vma_open,
     .close = pspin_vma_close,
+    .may_split = pspin_vma_may_split,
 };
 
 static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
@@ -582,19 +588,14 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
   struct mqnic_app_pspin *app = cdev->app;
   struct pspin_map_data *map_data;
 
-  int ctx_id = vma->vm_pgoff / hostdma_num_pages;
-  struct dma_area_int *area;
   unsigned long len = vma->vm_end - vma->vm_start;
   int num_pages_requested = len / PAGE_SIZE;
+  int ctx_id = vma->vm_pgoff / num_pages_requested;
+  struct dma_area_int *area;
 
   if (ctx_id >= HER_NUM_HANDLER_CTX) {
     dev_err(dev, "dma ctx_id too large: %d; total %d\n", ctx_id,
             HER_NUM_HANDLER_CTX);
-    return -EINVAL;
-  }
-  if (num_pages_requested != hostdma_num_pages) {
-    dev_err(dev, "number of pages to map mismatch: %d vs actual %d\n",
-            num_pages_requested, hostdma_num_pages);
     return -EINVAL;
   }
   if (!(vma->vm_flags & VM_SHARED)) {
@@ -619,7 +620,7 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
 
   // allocate DMA buffer
   if (!area->phys.enabled) {
-    area->phys.dma_size = hostdma_num_pages * PAGE_SIZE;
+    area->phys.dma_size = num_pages_requested * PAGE_SIZE;
     area->cpu_addr =
         dma_alloc_coherent(app->nic_dev, area->phys.dma_size,
                            &area->phys.dma_handle, GFP_KERNEL | __GFP_ZERO);
@@ -645,7 +646,7 @@ static int pspin_mmap(struct file *filp, struct vm_area_struct *vma) {
   // https://stackoverflow.com/questions/53196359/mmap-dma-memory-uncached-map-pfn-ram-range-req-uncached-minus-got-write-back
   // FIXME: figure out is uncached the right thing to do (or e.g. write
   // combine?)
-  set_memory_uc((u64)area->cpu_addr, hostdma_num_pages);
+  set_memory_uc((u64)area->cpu_addr, num_pages_requested);
   if (vm_iomap_memory(vma, virt_to_phys(area->cpu_addr), len)) {
     dev_err(dev, "failed to map dma region into user\n");
     return -EIO;
@@ -740,8 +741,7 @@ static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
   int devices_to_destroy = 0;
   dev_t devno = 0;
 
-  dev_info(dev, "%s() called, hostdma_num_pages = %d", __func__,
-           hostdma_num_pages);
+  dev_info(dev, "%s() called", __func__);
 
   if (!mdev->hw_addr || !mdev->app_hw_addr) {
     dev_err(dev,
