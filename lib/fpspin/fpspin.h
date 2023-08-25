@@ -194,8 +194,10 @@ void fpspin_load(fpspin_ctx_t *ctx, const char *elf, uint64_t hostmem_ptr,
                  uint32_t hostmem_size);
 void fpspin_unload(fpspin_ctx_t *ctx);
 
+#define FPSPIN_HOSTDMA_PAGES_DEFAULT 16
 bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
-                 int dest_ctx, const fpspin_ruleset_t *rs, int num_rs);
+                 int dest_ctx, const fpspin_ruleset_t *rs, int num_rs,
+                 int hostdma_pages);
 void fpspin_exit(fpspin_ctx_t *ctx);
 // TODO: rework to use streaming DMA; the coherent buffer should only be used
 // for descriptors

@@ -9,8 +9,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define HOSTDMA_PAGES_FILE                                                     \
-  "/sys/module/mqnic_app_pspin/parameters/hostdma_num_pages"
 #define NM "nm"
 
 void hexdump(const volatile void *data, size_t size) {
@@ -44,7 +42,8 @@ void hexdump(const volatile void *data, size_t size) {
 }
 
 bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
-                 int dest_ctx, const fpspin_ruleset_t *rs, int num_rs) {
+                 int dest_ctx, const fpspin_ruleset_t *rs, int num_rs,
+                 int hostdma_pages) {
   if (!fpspin_get_regs_base())
     fpspin_set_regs_base("/sys/devices/pci0000:00/0000:00:03.1/0000:1d:00.0/"
                          "mqnic.app_12340100.0");
@@ -56,33 +55,20 @@ bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
   }
   ctx->ctx_id = dest_ctx;
 
-  FILE *fp = fopen(HOSTDMA_PAGES_FILE, "r");
-  if (!fp) {
-    perror("open hostdma configuration");
-    goto fail;
+  if (hostdma_pages) {
+    ctx->mmap_len = hostdma_pages * PAGE_SIZE;
+    ctx->cpu_addr = mmap(NULL, ctx->mmap_len, PROT_READ | PROT_WRITE,
+                         MAP_SHARED, ctx->fd, dest_ctx * ctx->mmap_len);
+    if (ctx->cpu_addr == MAP_FAILED) {
+      perror("map host dma area");
+      goto fail;
+    }
+    if (madvise(ctx->cpu_addr, ctx->mmap_len, MADV_DONTFORK)) {
+      perror("madvise DONTFORK");
+      goto unmap;
+    }
+    printf("Mapped host dma at %p\n", ctx->cpu_addr);
   }
-  int hostdma_num_pages = 0;
-  if (fscanf(fp, "%d\n", &hostdma_num_pages) != 1) {
-    fprintf(stderr, "failed to read host dma number of pages\n");
-    goto fail;
-  }
-  if (fclose(fp)) {
-    perror("close hostdma configuration");
-  }
-  printf("Host DMA buffer: %d pages\n", hostdma_num_pages);
-
-  ctx->mmap_len = hostdma_num_pages * PAGE_SIZE;
-  ctx->cpu_addr = mmap(NULL, ctx->mmap_len, PROT_READ | PROT_WRITE, MAP_SHARED,
-                       ctx->fd, dest_ctx * ctx->mmap_len);
-  if (ctx->cpu_addr == MAP_FAILED) {
-    perror("map host dma area");
-    goto fail;
-  }
-  if (madvise(ctx->cpu_addr, ctx->mmap_len, MADV_DONTFORK)) {
-    perror("madvise DONTFORK");
-    goto unmap;
-  }
-  printf("Mapped host dma at %p\n", ctx->cpu_addr);
 
   struct pspin_ioctl_msg msg = {
       .query.req.ctx_id = dest_ctx,
