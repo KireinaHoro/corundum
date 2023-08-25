@@ -294,7 +294,6 @@ static ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
   struct pspin_cdev *dev = filp->private_data;
   struct mqnic_app_pspin *app = dev->app;
   ssize_t retval = 0;
-  s64 corundum_addr;
   int i;
 
   // prevent operation on mem if in reset
@@ -316,13 +315,7 @@ static ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
 
   if (dev->type == TY_MEM) {
     for (i = 0; i < count; i += 4) {
-      if ((corundum_addr = pspin_addr_to_corundum(*f_pos + i)) < 0) {
-        dev_err(dev->dev, "trying to access non-existent PsPIN memory %#llx\n",
-                *f_pos + i);
-        retval = -EFAULT;
-        goto out;
-      }
-      *((u32 *)&dev->block_buffer[i]) = ioread32(PSPIN_MEM(app, corundum_addr));
+      *((u32 *)&dev->block_buffer[i]) = ioread32(PSPIN_MEM(app, *f_pos + i));
     }
     retval = count;
   } else {
@@ -368,7 +361,6 @@ static ssize_t pspin_write(struct file *filp, const char __user *buf,
   struct pspin_cdev *dev = filp->private_data;
   struct mqnic_app_pspin *app = dev->app;
   ssize_t retval = 0;
-  s64 corundum_addr;
   int i;
 
   if (dev->type == TY_FIFO) {
@@ -402,13 +394,7 @@ static ssize_t pspin_write(struct file *filp, const char __user *buf,
   }
 
   for (i = 0; i < count; i += 4) {
-    if ((corundum_addr = pspin_addr_to_corundum(*f_pos + i)) < 0) {
-      dev_err(dev->dev, "trying to access non-existent PsPIN memory %#llx\n",
-              *f_pos + i);
-      retval = -EFAULT;
-      goto out;
-    }
-    iowrite32(*((u32 *)&dev->block_buffer[i]), PSPIN_MEM(app, corundum_addr));
+    iowrite32(*((u32 *)&dev->block_buffer[i]), PSPIN_MEM(app, *f_pos + i));
   }
   *f_pos += count;
   retval = count;
@@ -435,7 +421,10 @@ static loff_t pspin_llseek(struct file *filp, loff_t off, int whence) {
 
   switch (whence) {
   case SEEK_SET:
-    newpos = off;
+    if ((newpos = pspin_addr_to_corundum(off)) < 0) {
+      dev_err(dev->dev, "seeking to non-existent PsPIN memory %#llx\n", off);
+      return -EINVAL;
+    }
     break;
   case SEEK_CUR:
     newpos = filp->f_pos + off;
