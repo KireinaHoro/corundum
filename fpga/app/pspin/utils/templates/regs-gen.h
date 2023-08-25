@@ -43,9 +43,6 @@ static struct attribute_group ag_{{ rg.name }}_{{ sg.name }};
 {%- endfor %}
 
 {%- endfor %}
-#define REG_ADDR(app, name, _idx)                                              \
-  REG(app, ATTR_REG_ADDR(                                                      \
-               attr_to_pspin_dev_attr(ag_##name.attrs[_idx])))
 
 static bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg);
 static bool check_me_en(struct device *dev, u32 idx, u32 reg);
@@ -53,10 +50,10 @@ static bool check_her_en(struct device *dev, u32 idx, u32 reg);
 static bool check_me_in_conf(struct device *dev, u32 idx, u32 reg);
 static bool check_her_in_conf(struct device *dev, u32 idx, u32 reg);
 
-static ssize_t pspin_reg_show(struct device *dev, struct device_attribute *attr,
+static ssize_t pspin_reg_show(struct kobject *dir, struct kobj_attribute *attr,
                               char *buf);
-static ssize_t pspin_reg_store(struct device *dev,
-                               struct device_attribute *attr, const char *buf,
+static ssize_t pspin_reg_store(struct kobject *dir,
+                               struct kobj_attribute *attr, const char *buf,
                                size_t count);
 
 static void remove_pspin_sysfs(void *data) {
@@ -72,7 +69,7 @@ static void remove_pspin_sysfs(void *data) {
 static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   struct device *dev = app->dev;
   int i, ret;
-  struct pspin_device_attribute *dev_attr;
+  struct pspin_attribute *attr;
 
 {%- for rg in groups.values() %}
   dir_{{ rg.name }} = kobject_create_and_add("{{ rg.name }}", &dev->kobj);
@@ -83,19 +80,18 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < {{ sg.count }}; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = {{ "0444" if sg.readonly else "0644" }};
-    dev_attr->dev_attr.show = pspin_reg_show;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = {{ "0444" if sg.readonly else "0644" }};
+    attr->attr.show = pspin_reg_show;
 {%- if not sg.readonly %}
-    dev_attr->dev_attr.store = pspin_reg_store;
+    attr->attr.store = pspin_reg_store;
 {%- endif %}
-    dev_attr->idx = i;
-    dev_attr->offset = {{ "%#x" | format(sg.get_base_addr()) }};
-    dev_attr->group_name = {{ ag }}.name;
-    dev_attr->check_func = {{ sg.aux or "NULL" }};
-    {{ ag }}.attrs[i] = (struct attribute *)dev_attr;
+    attr->idx = i;
+    attr->offset = {{ "%#x" | format(sg.get_base_addr()) }};
+    attr->group_name = {{ ag }}.name;
+    attr->check_func = {{ sg.aux or "NULL" }};
+    {{ ag }}.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_{{ rg.name }}, &{{ ag }}))) {
     dev_err(dev, "failed to create sysfs subgroup {{ ag }}\n");

@@ -57,8 +57,8 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 
-struct pspin_device_attribute {
-  struct device_attribute dev_attr;
+struct pspin_attribute {
+  struct kobj_attribute attr;
   u32 idx;                // index of register in block
   u32 offset;             // offset of block
   const char *group_name; // name of the group
@@ -99,13 +99,15 @@ static s64 pspin_addr_to_corundum(u64 pspin_addr) {
 #define REG(app, offset) ((app)->app_hw_addr + 0x800000 + (offset))
 #define PSPIN_MEM(app, off) ((app)->app_hw_addr + (off))
 
-#define ATTR_REG_ADDR(_pspin_dev_attr)                                         \
-  (_pspin_dev_attr)->offset + (_pspin_dev_attr)->idx * 4
+#define REG_ADDR(app, name, _idx)                                              \
+  REG(app, ATTR_REG_ADDR(attr_to_pspin_attr(ag_##name.attrs[_idx])))
+#define ATTR_REG_ADDR(_pspin_attr)                                             \
+  (_pspin_attr)->offset + (_pspin_attr)->idx * 4
 
-#define to_pspin_dev_attr(_dev_attr)                                           \
-  container_of(_dev_attr, struct pspin_device_attribute, dev_attr)
-#define attr_to_pspin_dev_attr(_attr)                                          \
-  to_pspin_dev_attr(container_of(_attr, struct device_attribute, attr))
+#define kattr_to_pspin_attr(_attr)                                             \
+  container_of(_attr, struct pspin_attribute, attr)
+#define attr_to_pspin_attr(_attr)                                              \
+  kattr_to_pspin_attr(container_of(_attr, struct kobj_attribute, attr))
 
 static bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg) {
   u32 clusters = reg ? 32 - __builtin_clz(reg) : 0;
@@ -199,11 +201,11 @@ static bool check_her_in_conf(struct device *dev, u32 idx, u32 reg) {
   return true;
 }
 
-static ssize_t pspin_reg_store(struct device *dev,
-                               struct device_attribute *attr, const char *buf,
-                               size_t count) {
+static ssize_t pspin_reg_store(struct kobject *dir, struct kobj_attribute *attr,
+                               const char *buf, size_t count) {
+  struct device *dev = container_of(dir->parent, struct device, kobj);
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
-  struct pspin_device_attribute *dev_attr = to_pspin_dev_attr(attr);
+  struct pspin_attribute *dev_attr = kattr_to_pspin_attr(attr);
   u32 off = ATTR_REG_ADDR(dev_attr);
   u32 reg = 0;
   sscanf(buf, "%u\n", &reg);
@@ -216,10 +218,11 @@ static ssize_t pspin_reg_store(struct device *dev,
   return count;
 }
 
-static ssize_t pspin_reg_show(struct device *dev, struct device_attribute *attr,
+static ssize_t pspin_reg_show(struct kobject *dir, struct kobj_attribute *attr,
                               char *buf) {
+  struct device *dev = container_of(dir->parent, struct device, kobj);
   struct mqnic_app_pspin *app = dev_get_drvdata(dev);
-  struct pspin_device_attribute *dev_attr = to_pspin_dev_attr(attr);
+  struct pspin_attribute *dev_attr = kattr_to_pspin_attr(attr);
   u32 off = ATTR_REG_ADDR(dev_attr);
   return scnprintf(buf, PAGE_SIZE, "%u\n", ioread32(REG(app, off)));
 }

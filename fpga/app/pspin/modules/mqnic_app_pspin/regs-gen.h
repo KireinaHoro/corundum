@@ -1,4 +1,4 @@
-/* Generated on 2023-08-24 13:44:29.390156 with: ./regs-compiler.py regs-gen.h ../modules/mqnic_app_pspin/ */
+/* Generated on 2023-08-25 20:39:06.660412 with: ./regs-compiler.py regs-gen.h ../modules/mqnic_app_pspin/ */
 
 #ifndef __FPSPIN_REGS_GEN_H__
 #define __FPSPIN_REGS_GEN_H__
@@ -68,9 +68,6 @@ static struct attribute_group ag_her_meta_scratchpad_2_addr;
 static struct attribute_group ag_her_meta_scratchpad_2_size;
 static struct attribute_group ag_her_meta_scratchpad_3_addr;
 static struct attribute_group ag_her_meta_scratchpad_3_size;
-#define REG_ADDR(app, name, _idx)                                              \
-  REG(app, ATTR_REG_ADDR(                                                      \
-               attr_to_pspin_dev_attr(ag_##name.attrs[_idx])))
 
 static bool check_cl_ctrl(struct device *dev, u32 idx, u32 reg);
 static bool check_me_en(struct device *dev, u32 idx, u32 reg);
@@ -78,10 +75,10 @@ static bool check_her_en(struct device *dev, u32 idx, u32 reg);
 static bool check_me_in_conf(struct device *dev, u32 idx, u32 reg);
 static bool check_her_in_conf(struct device *dev, u32 idx, u32 reg);
 
-static ssize_t pspin_reg_show(struct device *dev, struct device_attribute *attr,
+static ssize_t pspin_reg_show(struct kobject *dir, struct kobj_attribute *attr,
                               char *buf);
-static ssize_t pspin_reg_store(struct device *dev,
-                               struct device_attribute *attr, const char *buf,
+static ssize_t pspin_reg_store(struct kobject *dir,
+                               struct kobj_attribute *attr, const char *buf,
                                size_t count);
 
 static void remove_pspin_sysfs(void *data) {
@@ -128,24 +125,23 @@ static void remove_pspin_sysfs(void *data) {
 static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   struct device *dev = app->dev;
   int i, ret;
-  struct pspin_device_attribute *dev_attr;
+  struct pspin_attribute *attr;
   dir_cl = kobject_create_and_add("cl", &dev->kobj);
   ag_cl_ctrl.name = "ctrl";
   ag_cl_ctrl.attrs = devm_kcalloc(dev, 3, sizeof(void *), GFP_KERNEL);
   for (i = 0; i < 2; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x0;
-    dev_attr->group_name = ag_cl_ctrl.name;
-    dev_attr->check_func = check_cl_ctrl;
-    ag_cl_ctrl.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x0;
+    attr->group_name = ag_cl_ctrl.name;
+    attr->check_func = check_cl_ctrl;
+    ag_cl_ctrl.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_cl, &ag_cl_ctrl))) {
     dev_err(dev, "failed to create sysfs subgroup ag_cl_ctrl\n");
@@ -156,16 +152,15 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 1; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0444;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x8;
-    dev_attr->group_name = ag_cl_fifo.name;
-    dev_attr->check_func = NULL;
-    ag_cl_fifo.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0444;
+    attr->attr.show = pspin_reg_show;
+    attr->idx = i;
+    attr->offset = 0x8;
+    attr->group_name = ag_cl_fifo.name;
+    attr->check_func = NULL;
+    ag_cl_fifo.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_cl, &ag_cl_fifo))) {
     dev_err(dev, "failed to create sysfs subgroup ag_cl_fifo\n");
@@ -178,16 +173,15 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 2; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0444;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x1000;
-    dev_attr->group_name = ag_stats_cluster.name;
-    dev_attr->check_func = NULL;
-    ag_stats_cluster.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0444;
+    attr->attr.show = pspin_reg_show;
+    attr->idx = i;
+    attr->offset = 0x1000;
+    attr->group_name = ag_stats_cluster.name;
+    attr->check_func = NULL;
+    ag_stats_cluster.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_stats, &ag_stats_cluster))) {
     dev_err(dev, "failed to create sysfs subgroup ag_stats_cluster\n");
@@ -198,16 +192,15 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 1; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0444;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x1008;
-    dev_attr->group_name = ag_stats_mpq.name;
-    dev_attr->check_func = NULL;
-    ag_stats_mpq.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0444;
+    attr->attr.show = pspin_reg_show;
+    attr->idx = i;
+    attr->offset = 0x1008;
+    attr->group_name = ag_stats_mpq.name;
+    attr->check_func = NULL;
+    ag_stats_mpq.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_stats, &ag_stats_mpq))) {
     dev_err(dev, "failed to create sysfs subgroup ag_stats_mpq\n");
@@ -218,16 +211,15 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 2; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0444;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x100c;
-    dev_attr->group_name = ag_stats_datapath.name;
-    dev_attr->check_func = NULL;
-    ag_stats_datapath.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0444;
+    attr->attr.show = pspin_reg_show;
+    attr->idx = i;
+    attr->offset = 0x100c;
+    attr->group_name = ag_stats_datapath.name;
+    attr->check_func = NULL;
+    ag_stats_datapath.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_stats, &ag_stats_datapath))) {
     dev_err(dev, "failed to create sysfs subgroup ag_stats_datapath\n");
@@ -240,17 +232,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 1; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x2000;
-    dev_attr->group_name = ag_me_valid.name;
-    dev_attr->check_func = check_me_en;
-    ag_me_valid.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x2000;
+    attr->group_name = ag_me_valid.name;
+    attr->check_func = check_me_en;
+    ag_me_valid.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_me, &ag_me_valid))) {
     dev_err(dev, "failed to create sysfs subgroup ag_me_valid\n");
@@ -261,17 +252,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x2004;
-    dev_attr->group_name = ag_me_mode.name;
-    dev_attr->check_func = check_me_in_conf;
-    ag_me_mode.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x2004;
+    attr->group_name = ag_me_mode.name;
+    attr->check_func = check_me_in_conf;
+    ag_me_mode.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_me, &ag_me_mode))) {
     dev_err(dev, "failed to create sysfs subgroup ag_me_mode\n");
@@ -282,17 +272,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 16; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x2014;
-    dev_attr->group_name = ag_me_idx.name;
-    dev_attr->check_func = check_me_in_conf;
-    ag_me_idx.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x2014;
+    attr->group_name = ag_me_idx.name;
+    attr->check_func = check_me_in_conf;
+    ag_me_idx.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_me, &ag_me_idx))) {
     dev_err(dev, "failed to create sysfs subgroup ag_me_idx\n");
@@ -303,17 +292,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 16; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x2054;
-    dev_attr->group_name = ag_me_mask.name;
-    dev_attr->check_func = check_me_in_conf;
-    ag_me_mask.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x2054;
+    attr->group_name = ag_me_mask.name;
+    attr->check_func = check_me_in_conf;
+    ag_me_mask.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_me, &ag_me_mask))) {
     dev_err(dev, "failed to create sysfs subgroup ag_me_mask\n");
@@ -324,17 +312,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 16; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x2094;
-    dev_attr->group_name = ag_me_start.name;
-    dev_attr->check_func = check_me_in_conf;
-    ag_me_start.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x2094;
+    attr->group_name = ag_me_start.name;
+    attr->check_func = check_me_in_conf;
+    ag_me_start.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_me, &ag_me_start))) {
     dev_err(dev, "failed to create sysfs subgroup ag_me_start\n");
@@ -345,17 +332,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 16; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x20d4;
-    dev_attr->group_name = ag_me_end.name;
-    dev_attr->check_func = check_me_in_conf;
-    ag_me_end.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x20d4;
+    attr->group_name = ag_me_end.name;
+    attr->check_func = check_me_in_conf;
+    ag_me_end.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_me, &ag_me_end))) {
     dev_err(dev, "failed to create sysfs subgroup ag_me_end\n");
@@ -368,17 +354,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 1; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x3000;
-    dev_attr->group_name = ag_her_valid.name;
-    dev_attr->check_func = check_her_en;
-    ag_her_valid.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x3000;
+    attr->group_name = ag_her_valid.name;
+    attr->check_func = check_her_en;
+    ag_her_valid.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her, &ag_her_valid))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_valid\n");
@@ -389,17 +374,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x3004;
-    dev_attr->group_name = ag_her_ctx_enabled.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_ctx_enabled.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x3004;
+    attr->group_name = ag_her_ctx_enabled.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_ctx_enabled.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her, &ag_her_ctx_enabled))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_ctx_enabled\n");
@@ -412,17 +396,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4000;
-    dev_attr->group_name = ag_her_meta_handler_mem_addr.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_handler_mem_addr.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4000;
+    attr->group_name = ag_her_meta_handler_mem_addr.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_handler_mem_addr.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_handler_mem_addr))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_handler_mem_addr\n");
@@ -433,17 +416,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4010;
-    dev_attr->group_name = ag_her_meta_handler_mem_size.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_handler_mem_size.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4010;
+    attr->group_name = ag_her_meta_handler_mem_size.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_handler_mem_size.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_handler_mem_size))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_handler_mem_size\n");
@@ -454,17 +436,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4020;
-    dev_attr->group_name = ag_her_meta_host_mem_addr_0.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_host_mem_addr_0.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4020;
+    attr->group_name = ag_her_meta_host_mem_addr_0.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_host_mem_addr_0.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_host_mem_addr_0))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_host_mem_addr_0\n");
@@ -475,17 +456,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4030;
-    dev_attr->group_name = ag_her_meta_host_mem_addr_1.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_host_mem_addr_1.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4030;
+    attr->group_name = ag_her_meta_host_mem_addr_1.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_host_mem_addr_1.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_host_mem_addr_1))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_host_mem_addr_1\n");
@@ -496,17 +476,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4040;
-    dev_attr->group_name = ag_her_meta_host_mem_size.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_host_mem_size.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4040;
+    attr->group_name = ag_her_meta_host_mem_size.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_host_mem_size.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_host_mem_size))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_host_mem_size\n");
@@ -517,17 +496,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4050;
-    dev_attr->group_name = ag_her_meta_hh_addr.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_hh_addr.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4050;
+    attr->group_name = ag_her_meta_hh_addr.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_hh_addr.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_hh_addr))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_hh_addr\n");
@@ -538,17 +516,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4060;
-    dev_attr->group_name = ag_her_meta_hh_size.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_hh_size.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4060;
+    attr->group_name = ag_her_meta_hh_size.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_hh_size.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_hh_size))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_hh_size\n");
@@ -559,17 +536,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4070;
-    dev_attr->group_name = ag_her_meta_ph_addr.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_ph_addr.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4070;
+    attr->group_name = ag_her_meta_ph_addr.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_ph_addr.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_ph_addr))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_ph_addr\n");
@@ -580,17 +556,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4080;
-    dev_attr->group_name = ag_her_meta_ph_size.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_ph_size.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4080;
+    attr->group_name = ag_her_meta_ph_size.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_ph_size.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_ph_size))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_ph_size\n");
@@ -601,17 +576,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4090;
-    dev_attr->group_name = ag_her_meta_th_addr.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_th_addr.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4090;
+    attr->group_name = ag_her_meta_th_addr.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_th_addr.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_th_addr))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_th_addr\n");
@@ -622,17 +596,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x40a0;
-    dev_attr->group_name = ag_her_meta_th_size.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_th_size.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x40a0;
+    attr->group_name = ag_her_meta_th_size.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_th_size.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_th_size))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_th_size\n");
@@ -643,17 +616,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x40b0;
-    dev_attr->group_name = ag_her_meta_scratchpad_0_addr.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_scratchpad_0_addr.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x40b0;
+    attr->group_name = ag_her_meta_scratchpad_0_addr.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_scratchpad_0_addr.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_scratchpad_0_addr))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_scratchpad_0_addr\n");
@@ -664,17 +636,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x40c0;
-    dev_attr->group_name = ag_her_meta_scratchpad_0_size.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_scratchpad_0_size.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x40c0;
+    attr->group_name = ag_her_meta_scratchpad_0_size.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_scratchpad_0_size.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_scratchpad_0_size))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_scratchpad_0_size\n");
@@ -685,17 +656,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x40d0;
-    dev_attr->group_name = ag_her_meta_scratchpad_1_addr.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_scratchpad_1_addr.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x40d0;
+    attr->group_name = ag_her_meta_scratchpad_1_addr.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_scratchpad_1_addr.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_scratchpad_1_addr))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_scratchpad_1_addr\n");
@@ -706,17 +676,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x40e0;
-    dev_attr->group_name = ag_her_meta_scratchpad_1_size.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_scratchpad_1_size.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x40e0;
+    attr->group_name = ag_her_meta_scratchpad_1_size.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_scratchpad_1_size.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_scratchpad_1_size))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_scratchpad_1_size\n");
@@ -727,17 +696,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x40f0;
-    dev_attr->group_name = ag_her_meta_scratchpad_2_addr.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_scratchpad_2_addr.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x40f0;
+    attr->group_name = ag_her_meta_scratchpad_2_addr.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_scratchpad_2_addr.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_scratchpad_2_addr))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_scratchpad_2_addr\n");
@@ -748,17 +716,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4100;
-    dev_attr->group_name = ag_her_meta_scratchpad_2_size.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_scratchpad_2_size.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4100;
+    attr->group_name = ag_her_meta_scratchpad_2_size.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_scratchpad_2_size.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_scratchpad_2_size))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_scratchpad_2_size\n");
@@ -769,17 +736,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4110;
-    dev_attr->group_name = ag_her_meta_scratchpad_3_addr.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_scratchpad_3_addr.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4110;
+    attr->group_name = ag_her_meta_scratchpad_3_addr.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_scratchpad_3_addr.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_scratchpad_3_addr))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_scratchpad_3_addr\n");
@@ -790,17 +756,16 @@ static int init_pspin_sysfs(struct mqnic_app_pspin *app) {
   for (i = 0; i < 4; ++i) {
     char *name_buf = (char *)devm_kzalloc(dev, ATTR_NAME_LEN, GFP_KERNEL);
     scnprintf(name_buf, ATTR_NAME_LEN, "%d", i);
-    dev_attr =
-        devm_kzalloc(dev, sizeof(struct pspin_device_attribute), GFP_KERNEL);
-    dev_attr->dev_attr.attr.name = name_buf;
-    dev_attr->dev_attr.attr.mode = 0644;
-    dev_attr->dev_attr.show = pspin_reg_show;
-    dev_attr->dev_attr.store = pspin_reg_store;
-    dev_attr->idx = i;
-    dev_attr->offset = 0x4120;
-    dev_attr->group_name = ag_her_meta_scratchpad_3_size.name;
-    dev_attr->check_func = check_her_in_conf;
-    ag_her_meta_scratchpad_3_size.attrs[i] = (struct attribute *)dev_attr;
+    attr = devm_kzalloc(dev, sizeof(struct pspin_attribute), GFP_KERNEL);
+    attr->attr.attr.name = name_buf;
+    attr->attr.attr.mode = 0644;
+    attr->attr.show = pspin_reg_show;
+    attr->attr.store = pspin_reg_store;
+    attr->idx = i;
+    attr->offset = 0x4120;
+    attr->group_name = ag_her_meta_scratchpad_3_size.name;
+    attr->check_func = check_her_in_conf;
+    ag_her_meta_scratchpad_3_size.attrs[i] = (struct attribute *)attr;
   }
   if ((ret = sysfs_create_group(dir_her_meta, &ag_her_meta_scratchpad_3_size))) {
     dev_err(dev, "failed to create sysfs subgroup ag_her_meta_scratchpad_3_size\n");
