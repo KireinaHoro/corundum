@@ -1,4 +1,4 @@
-/* Generated on 2023-08-24 10:59:28.339251 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-25 21:44:51.266142 with: ./regs-compiler.py --all v ../rtl */
 
 /**
  * PsPIN Packet Match Engine
@@ -395,17 +395,21 @@ always @(posedge clk) begin
             end
 
             if (match_valid) begin
+                for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
 store_mode[idx] <= `SLICE(match_mode, idx, 1);
 store_idx[idx] <= `SLICE(match_idx, idx, 32);
 store_mask[idx] <= `SLICE(match_mask, idx, 32);
 store_start[idx] <= `SLICE(match_start, idx, 32);
 store_end[idx] <= `SLICE(match_end, idx, 32);
+                end
             end else begin
+                for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
 store_mode[idx] <= 1'b0;
 store_idx[idx] <= 32'b0;
 store_mask[idx] <= 32'b0;
 store_start[idx] <= 32'b0;
 store_end[idx] <= 32'b0;
+                end
             end
 
             matched_q <= 1'b0;
