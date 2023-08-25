@@ -8,7 +8,7 @@ LDLIBS += -lfpspin
 
 LIBFPSPIN = $(LIBS)/fpspin/libfpspin.a
 
-all: read_mem
+all: mem
 
 GENDEPFLAGS = -MD -MP -MF .$(@F).d
 
@@ -22,11 +22,11 @@ $(LIBFPSPIN): FORCE
 %.o: %.c
 	$(CC) $(ALL_CFLAGS) -c -o $@ $<
 
-read_mem: read_mem.o $(LIBFPSPIN)
+mem: mem.o $(LIBFPSPIN)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $^ $(LDFLAGS) -o $@
 
 clean:
-	rm -f read_mem
+	rm -f mem
 	rm -f *.o
 	rm -f .*.d
 

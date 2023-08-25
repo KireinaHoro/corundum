@@ -1,5 +1,6 @@
 #include <argp.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,16 +10,20 @@
 
 struct arguments {
   uint64_t addr;
+  bool do_write;
+  uint64_t data;
   const char *dev_file;
 };
 
 static char doc[] =
-    "Read memory from the FPsPIN device over ioctl.  This utility calls into "
-    "libfpspin to read a 64-bit word and prints it out.";
+    "Read or write memory from the FPsPIN device over ioctl.  This utility "
+    "calls into libfpspin to perform the read or write oepration.";
 static char args_doc[] = "ADDR_HEX";
 
 static struct argp_option options[] = {
-    {"device", 'd', "DEV_FILE", 0, "pspin device file"}, {0}};
+    {"device", 'd', "DEV_FILE", 0, "pspin device file"},
+    {"write", 'w', "HEX", 0, "data to write to the specified address"},
+    {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   struct arguments *args = state->input;
@@ -26,6 +31,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   switch (key) {
   case 'd':
     args->dev_file = arg;
+    break;
+  case 'w':
+    args->do_write = true;
+    sscanf(arg, "%lx", &args->data);
     break;
   case ARGP_NO_ARGS:
     argp_usage(state);
@@ -66,13 +75,25 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  struct pspin_ioctl_msg read_msg = {
-      .read.word = args.addr,
-  };
-  if (ioctl(fd, PSPIN_HOST_READ, &read_msg) < 0) {
-    perror("ioctl pspin device");
-    return EXIT_FAILURE;
+  if (args.do_write) {
+    struct pspin_ioctl_msg write_msg = {
+        .write.addr = args.addr,
+        .write.data = args.data,
+    };
+    if (ioctl(fd, PSPIN_HOST_WRITE, &write_msg) < 0) {
+      perror("ioctl pspin device");
+      return EXIT_FAILURE;
+    }
+    printf("Written %#lx to %#lx\n", args.data, args.addr);
+  } else {
+    struct pspin_ioctl_msg read_msg = {
+        .read.word = args.addr,
+    };
+    if (ioctl(fd, PSPIN_HOST_READ, &read_msg) < 0) {
+      perror("ioctl pspin device");
+      return EXIT_FAILURE;
+    }
+    printf("%#lx: %016lx\n", args.addr, read_msg.read.word);
   }
-  printf("%#lx: %016lx\n", args.addr, read_msg.read.word);
   return EXIT_SUCCESS;
 }

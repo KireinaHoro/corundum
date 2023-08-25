@@ -5,4 +5,4 @@ test-mem
 !templates/*
 *.pcap
 pspin-user
-read_mem
+mem
