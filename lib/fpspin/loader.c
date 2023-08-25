@@ -32,6 +32,7 @@ static void write_reg(const char *name, int id, uint32_t val) {
   snprintf(buf, sizeof(buf), "%s/%s/%d", base, name, id);
   FILE *fp = fopen(buf, "w");
   if (!fp) {
+    fprintf(stderr, "failed to open %s\n", buf);
     perror("open reg");
     exit(EXIT_FAILURE);
   }
@@ -206,7 +207,7 @@ static void set_handler(const char *elf, const char *handler, int ctx_id,
   }
   pclose(fp);
 
-  char regname[16];
+  char regname[32];
 
   printf("%s: %#x (size %d)\n", handler, haddr, hsize);
 
