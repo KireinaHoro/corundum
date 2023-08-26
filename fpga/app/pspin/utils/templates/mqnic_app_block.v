@@ -1037,7 +1037,7 @@ wire                                            her_is_eom;
 wire [AXI_ADDR_WIDTH-1:0]                       her_addr;
 wire [AXI_ADDR_WIDTH-1:0]                       her_size;
 wire [AXI_ADDR_WIDTH-1:0]                       her_xfer_size;
-{{- m.call_group("her_meta", m.declare_wire, "her_meta") }}
+{{- m.call_group_single("her_meta", m.declare_wire, "her_meta") }}
 
 wire                                            feedback_ready;
 wire                                            feedback_valid;

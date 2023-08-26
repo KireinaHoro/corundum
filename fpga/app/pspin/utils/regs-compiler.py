@@ -56,6 +56,9 @@ class RegSubGroup:
     def set_aux(self, data):
         self.aux = data
         return ''
+
+    def clone_single(self):
+        return RegSubGroup(self.name, self.readonly, 1, self.signal_width)
     
     def get_base_addr(self):
         global args

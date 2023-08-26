@@ -4,6 +4,12 @@
 {%- endfor %}
 {%- endmacro %}
 
+{% macro call_group_single(group, func, arg) -%}
+{%- for sg in groups[group].subgroups -%}
+{{ func(arg, sg.clone_single()) }}
+{%- endfor %}
+{%- endmacro %}
+
 {% macro call_expanded(group, func, arg) -%}
 {%- for sg in groups[group].expanded -%}
 {{ func(arg, sg) }}

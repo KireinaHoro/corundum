@@ -1,4 +1,4 @@
-/* Generated on 2023-08-26 17:59:41.477553 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-26 18:20:43.547597 with: ./regs-compiler.py --all v ../rtl */
 
 /*
 
@@ -1064,24 +1064,24 @@ wire                                            her_is_eom;
 wire [AXI_ADDR_WIDTH-1:0]                       her_addr;
 wire [AXI_ADDR_WIDTH-1:0]                       her_size;
 wire [AXI_ADDR_WIDTH-1:0]                       her_xfer_size;
-wire [127:0] her_meta_handler_mem_addr;
-wire [127:0] her_meta_handler_mem_size;
-wire [255:0] her_meta_host_mem_addr;
-wire [127:0] her_meta_host_mem_size;
-wire [127:0] her_meta_hh_addr;
-wire [127:0] her_meta_hh_size;
-wire [127:0] her_meta_ph_addr;
-wire [127:0] her_meta_ph_size;
-wire [127:0] her_meta_th_addr;
-wire [127:0] her_meta_th_size;
-wire [127:0] her_meta_scratchpad_0_addr;
-wire [127:0] her_meta_scratchpad_0_size;
-wire [127:0] her_meta_scratchpad_1_addr;
-wire [127:0] her_meta_scratchpad_1_size;
-wire [127:0] her_meta_scratchpad_2_addr;
-wire [127:0] her_meta_scratchpad_2_size;
-wire [127:0] her_meta_scratchpad_3_addr;
-wire [127:0] her_meta_scratchpad_3_size;
+wire [31:0] her_meta_handler_mem_addr;
+wire [31:0] her_meta_handler_mem_size;
+wire [63:0] her_meta_host_mem_addr;
+wire [31:0] her_meta_host_mem_size;
+wire [31:0] her_meta_hh_addr;
+wire [31:0] her_meta_hh_size;
+wire [31:0] her_meta_ph_addr;
+wire [31:0] her_meta_ph_size;
+wire [31:0] her_meta_th_addr;
+wire [31:0] her_meta_th_size;
+wire [31:0] her_meta_scratchpad_0_addr;
+wire [31:0] her_meta_scratchpad_0_size;
+wire [31:0] her_meta_scratchpad_1_addr;
+wire [31:0] her_meta_scratchpad_1_size;
+wire [31:0] her_meta_scratchpad_2_addr;
+wire [31:0] her_meta_scratchpad_2_size;
+wire [31:0] her_meta_scratchpad_3_addr;
+wire [31:0] her_meta_scratchpad_3_size;
 
 wire                                            feedback_ready;
 wire                                            feedback_valid;

@@ -1,4 +1,4 @@
-/* Generated on 2023-08-26 17:59:41.499547 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-26 18:20:43.569179 with: ./regs-compiler.py --all v ../rtl */
 
 /**
  * PsPIN Handler Execution Request (HER) Generator
@@ -35,24 +35,24 @@ module pspin_her_gen #(
     output reg  [AXI_ADDR_WIDTH-1:0]        her_addr,
     output reg  [AXI_ADDR_WIDTH-1:0]        her_size,
     output reg  [AXI_ADDR_WIDTH-1:0]        her_xfer_size,
-    output reg  [127:0] her_meta_handler_mem_addr,
-    output reg  [127:0] her_meta_handler_mem_size,
-    output reg  [255:0] her_meta_host_mem_addr,
-    output reg  [127:0] her_meta_host_mem_size,
-    output reg  [127:0] her_meta_hh_addr,
-    output reg  [127:0] her_meta_hh_size,
-    output reg  [127:0] her_meta_ph_addr,
-    output reg  [127:0] her_meta_ph_size,
-    output reg  [127:0] her_meta_th_addr,
-    output reg  [127:0] her_meta_th_size,
-    output reg  [127:0] her_meta_scratchpad_0_addr,
-    output reg  [127:0] her_meta_scratchpad_0_size,
-    output reg  [127:0] her_meta_scratchpad_1_addr,
-    output reg  [127:0] her_meta_scratchpad_1_size,
-    output reg  [127:0] her_meta_scratchpad_2_addr,
-    output reg  [127:0] her_meta_scratchpad_2_size,
-    output reg  [127:0] her_meta_scratchpad_3_addr,
-    output reg  [127:0] her_meta_scratchpad_3_size,
+    output reg  [31:0] her_meta_handler_mem_addr,
+    output reg  [31:0] her_meta_handler_mem_size,
+    output reg  [63:0] her_meta_host_mem_addr,
+    output reg  [31:0] her_meta_host_mem_size,
+    output reg  [31:0] her_meta_hh_addr,
+    output reg  [31:0] her_meta_hh_size,
+    output reg  [31:0] her_meta_ph_addr,
+    output reg  [31:0] her_meta_ph_size,
+    output reg  [31:0] her_meta_th_addr,
+    output reg  [31:0] her_meta_th_size,
+    output reg  [31:0] her_meta_scratchpad_0_addr,
+    output reg  [31:0] her_meta_scratchpad_0_size,
+    output reg  [31:0] her_meta_scratchpad_1_addr,
+    output reg  [31:0] her_meta_scratchpad_1_size,
+    output reg  [31:0] her_meta_scratchpad_2_addr,
+    output reg  [31:0] her_meta_scratchpad_2_size,
+    output reg  [31:0] her_meta_scratchpad_3_addr,
+    output reg  [31:0] her_meta_scratchpad_3_size,
 
     // execution context from ctrl regs
     input wire [127:0] conf_handler_mem_addr,

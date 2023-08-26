@@ -34,7 +34,7 @@ module pspin_her_gen #(
     output reg  [AXI_ADDR_WIDTH-1:0]        her_addr,
     output reg  [AXI_ADDR_WIDTH-1:0]        her_size,
     output reg  [AXI_ADDR_WIDTH-1:0]        her_xfer_size,
-{{- m.call_group("her_meta", m.declare_out, "her_meta") }}
+{{- m.call_group_single("her_meta", m.declare_out, "her_meta") }}
 
     // execution context from ctrl regs
 {{- m.call_group("her_meta", m.declare_in, "conf")}}
