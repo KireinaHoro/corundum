@@ -235,6 +235,7 @@ struct pspin_cdev {
   struct mqnic_app_pspin *app;
   unsigned char *block_buffer;
   struct mutex pspin_mutex; // only locked during memory load (not mmap)
+  bool exiting;
   struct cdev cdev;
   struct device *dev;
 };
@@ -302,6 +303,10 @@ static ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
     return -EPERM;
   }
 
+  if (dev->exiting) {
+    return -ENODEV;
+  }
+
   if (mutex_lock_killable(&dev->pspin_mutex))
     return -EINTR;
   if (dev->type == TY_MEM && *f_pos >= pspin_mem_size)
@@ -325,22 +330,23 @@ static ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
     // TODO: demultiplex stdout stream in kernel (and use dedicated pspin_stdout
     // device) with deferred work
 
-    // read at least one first so we don't trigger EOF
-    do {
-      retval = wait_event_interruptible_timeout(
-          stdout_read_queue, (reg = ioread32(REG_ADDR(app, cl_fifo, 0))) != ~0,
-          usecs_to_jiffies(50));
-    } while (!retval);
-    if (retval == -ERESTARTSYS)
-      goto out;
-    *((u32 *)&dev->block_buffer[off]) = reg;
-    off += 4;
-
-    while ((reg = ioread32(REG_ADDR(app, cl_fifo, 0))) != ~0 &&
-           off < pspin_block_size) {
+    while (off < pspin_block_size) {
+      do {
+        retval = wait_event_interruptible_timeout(
+            stdout_read_queue,
+            (reg = ioread32(REG_ADDR(app, cl_fifo, 0))) != ~0,
+            usecs_to_jiffies(50));
+        if (dev->exiting) {
+          retval = -EINTR;
+          goto out;
+        }
+      } while (!retval);
+      if (retval == -ERESTARTSYS)
+        goto out;
       *((u32 *)&dev->block_buffer[off]) = reg;
       off += 4;
     }
+
     retval = off;
   }
 
@@ -674,6 +680,7 @@ static int pspin_construct_device(struct pspin_cdev *dev, int minor,
   dev->block_buffer = NULL;
   dev->app = app;
   mutex_init(&dev->pspin_mutex);
+  dev->exiting = false;
   cdev_init(&dev->cdev, &pspin_fops);
   dev->cdev.owner = THIS_MODULE;
   dev->type = minor == 0 ? TY_MEM : TY_FIFO;
@@ -701,6 +708,12 @@ static void pspin_destroy_device(struct pspin_cdev *dev, int minor,
                                  struct class *class) {
   BUG_ON(dev == NULL || class == NULL);
   BUG_ON(minor < 0 || minor >= 2);
+
+  // block future pspin_read
+  dev->exiting = true;
+
+  // wait for already running pspin_read
+  mutex_lock(&dev->pspin_mutex);
 
   device_destroy(class, MKDEV(pspin_major, minor));
   cdev_del(&dev->cdev);
