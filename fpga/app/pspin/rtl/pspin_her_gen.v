@@ -1,4 +1,4 @@
-/* Generated on 2023-08-25 21:44:51.251838 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-26 17:59:41.499547 with: ./regs-compiler.py --all v ../rtl */
 
 /**
  * PsPIN Handler Execution Request (HER) Generator
@@ -93,25 +93,25 @@ localparam HER_NUM_HANDLER_CTX = 4;
 
 localparam CTX_ID_WIDTH = $clog2(HER_NUM_HANDLER_CTX);
 `define DEFAULT_CTX_ID {CTX_ID_WIDTH{1'b0}}
-reg [3:0] store_handler_mem_addr [31:0];
-reg [3:0] store_handler_mem_size [31:0];
-reg [3:0] store_host_mem_addr [63:0];
-reg [3:0] store_host_mem_size [31:0];
-reg [3:0] store_hh_addr [31:0];
-reg [3:0] store_hh_size [31:0];
-reg [3:0] store_ph_addr [31:0];
-reg [3:0] store_ph_size [31:0];
-reg [3:0] store_th_addr [31:0];
-reg [3:0] store_th_size [31:0];
-reg [3:0] store_scratchpad_0_addr [31:0];
-reg [3:0] store_scratchpad_0_size [31:0];
-reg [3:0] store_scratchpad_1_addr [31:0];
-reg [3:0] store_scratchpad_1_size [31:0];
-reg [3:0] store_scratchpad_2_addr [31:0];
-reg [3:0] store_scratchpad_2_size [31:0];
-reg [3:0] store_scratchpad_3_addr [31:0];
-reg [3:0] store_scratchpad_3_size [31:0];
-reg [3:0] store_ctx_enabled [0:0];
+reg [31:0] store_handler_mem_addr [3:0];
+reg [31:0] store_handler_mem_size [3:0];
+reg [63:0] store_host_mem_addr [3:0];
+reg [31:0] store_host_mem_size [3:0];
+reg [31:0] store_hh_addr [3:0];
+reg [31:0] store_hh_size [3:0];
+reg [31:0] store_ph_addr [3:0];
+reg [31:0] store_ph_size [3:0];
+reg [31:0] store_th_addr [3:0];
+reg [31:0] store_th_size [3:0];
+reg [31:0] store_scratchpad_0_addr [3:0];
+reg [31:0] store_scratchpad_0_size [3:0];
+reg [31:0] store_scratchpad_1_addr [3:0];
+reg [31:0] store_scratchpad_1_size [3:0];
+reg [31:0] store_scratchpad_2_addr [3:0];
+reg [31:0] store_scratchpad_2_size [3:0];
+reg [31:0] store_scratchpad_3_addr [3:0];
+reg [31:0] store_scratchpad_3_size [3:0];
+reg [0:0] store_ctx_enabled [3:0];
 
 wire [C_MSGID_WIDTH-1:0] decode_msgid;
 wire decode_is_eom;

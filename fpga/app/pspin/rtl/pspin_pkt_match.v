@@ -1,4 +1,4 @@
-/* Generated on 2023-08-25 21:44:51.266142 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-26 17:59:41.514245 with: ./regs-compiler.py --all v ../rtl */
 
 /**
  * PsPIN Packet Match Engine
@@ -169,11 +169,11 @@ reg [AXIS_IF_RX_ID_WIDTH-1:0] saved_tid [MATCHER_BEATS-1:0];
 reg [AXIS_IF_RX_DEST_WIDTH-1:0] saved_tdest [MATCHER_BEATS-1:0];
 
 // saved matching rules - only updated when in IDLE
-reg [3:0] store_mode [0:0];
-reg [15:0] store_idx [31:0];
-reg [15:0] store_mask [31:0];
-reg [15:0] store_start [31:0];
-reg [15:0] store_end [31:0];
+reg [0:0] store_mode [3:0];
+reg [31:0] store_idx [15:0];
+reg [31:0] store_mask [15:0];
+reg [31:0] store_start [15:0];
+reg [31:0] store_end [15:0];
 
 // matching units, in rulesets
 reg [UMATCH_WIDTH-1:0]      mu_data  [UMATCH_RULESETS-1:0][UMATCH_ENTRIES-1:0];

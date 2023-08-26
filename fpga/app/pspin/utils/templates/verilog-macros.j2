@@ -38,7 +38,7 @@ localparam {{ k }} = {{ v }};
 
 {%- macro declare_store(_, sg) %}
 {%- if sg.name != 'valid' %}
-reg [{{ sg.count - 1 }}:0] store_{{ sg.name }} [{{ sg.signal_width - 1 }}:0];
+reg [{{ sg.signal_width - 1 }}:0] store_{{ sg.name }} [{{ sg.count - 1 }}:0];
 {%- endif %}
 {%- endmacro %}
 

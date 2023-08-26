@@ -1,4 +1,4 @@
-/* Generated on 2023-08-25 21:44:51.245023 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-26 17:59:41.492655 with: ./regs-compiler.py --all v ../rtl */
 
 `timescale 1ns / 1ps
 `define SLICE(arr, idx, width) arr[(idx)*(width) +: width]
