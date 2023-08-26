@@ -331,18 +331,26 @@ static ssize_t pspin_read(struct file *filp, char __user *buf, size_t count,
     // device) with deferred work
 
     while (off < pspin_block_size) {
-      do {
-        retval = wait_event_interruptible_timeout(
-            stdout_read_queue,
-            (reg = ioread32(REG_ADDR(app, cl_fifo, 0))) != ~0,
-            usecs_to_jiffies(50));
-        if (dev->exiting) {
-          retval = -EINTR;
-          goto out;
-        }
-      } while (!retval);
-      if (retval == -ERESTARTSYS)
+      if (dev->exiting) {
+        retval = -EINTR;
         goto out;
+      }
+      retval = wait_event_interruptible_timeout(
+          stdout_read_queue, (reg = ioread32(REG_ADDR(app, cl_fifo, 0))) != ~0,
+          usecs_to_jiffies(50));
+      if (retval == -ERESTARTSYS) // interrupted by signal
+        goto out;
+      else if (!retval) {
+        // timeout expired
+        if (!off) {
+          // we haven't read anything yet - don't trigger EOF
+          continue;
+        } else {
+          // we got some data - short read
+          break;
+        }
+      }
+      // we got data on time
       *((u32 *)&dev->block_buffer[off]) = reg;
       off += 4;
     }
