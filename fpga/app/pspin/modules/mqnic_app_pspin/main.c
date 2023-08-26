@@ -370,7 +370,6 @@ static ssize_t pspin_write(struct file *filp, const char __user *buf,
   int i;
 
   if (dev->type == TY_FIFO) {
-    dev_warn(dev->dev, "stdout FIFO does not support writing\n");
     return -EINVAL;
   }
 
@@ -463,8 +462,7 @@ static long pspin_ioctl(struct file *filp, unsigned int cmd,
   s64 corundum_addr;
 
   if (cdev->type == TY_FIFO) {
-    dev_warn(dev, "stdout FIFO does not support writing\n");
-    return -EINVAL;
+    return -ENOTTY;
   }
 
   switch (cmd) {
@@ -516,7 +514,7 @@ static long pspin_ioctl(struct file *filp, unsigned int cmd,
 
   default:
     dev_dbg(dev, "unknwon ioctl %d\n", cmd);
-    return -EINVAL;
+    return -ENOTTY;
   }
 
   return 0;
