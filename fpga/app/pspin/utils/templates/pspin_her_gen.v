@@ -69,24 +69,18 @@ initial begin
     end
 
     // dump for icarus verilog
-    for (idx = 0; idx < HER_NUM_HANDLER_CTX; idx = idx + 1) begin
 {{- m.call_group("her_meta", m.dump_store, None) }}
 {{- m.call_group("her", m.dump_store, None) }}
-    end
 end
 
 // latch the config
 always @(posedge clk) begin
     if (!rstn) begin
-        for (idx = 0; idx < HER_NUM_HANDLER_CTX; idx = idx + 1) begin
 {{- m.call_group("her_meta", m.reset_store, None) }}
 {{- m.call_group("her", m.reset_store, None) }}
-        end
     end else if (conf_valid) begin
-        for (idx = 0; idx < HER_NUM_HANDLER_CTX; idx = idx + 1) begin
 {{- m.call_group("her_meta", m.update_store, "conf") }}
 {{- m.call_group("her", m.update_store, "conf") }}
-        end
     end
 end
 

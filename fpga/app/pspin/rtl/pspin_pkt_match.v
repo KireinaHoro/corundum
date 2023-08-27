@@ -1,4 +1,4 @@
-/* Generated on 2023-08-26 18:20:43.583519 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-27 16:16:25.283867 with: ./regs-compiler.py --all v ../rtl */
 
 /**
  * PsPIN Packet Match Engine
@@ -257,6 +257,16 @@ for (j = 0; j < UMATCH_RULESETS; j = j + 1) begin
             $dumpvars(0, mu_idx  [j][i]);
             $dumpvars(0, mu_start[j][i]);
             $dumpvars(0, mu_end  [j][i]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_mode[idx]);
+for (idx = 0; idx < 16; idx = idx + 1)
+    $dumpvars(0, store_idx[idx]);
+for (idx = 0; idx < 16; idx = idx + 1)
+    $dumpvars(0, store_mask[idx]);
+for (idx = 0; idx < 16; idx = idx + 1)
+    $dumpvars(0, store_start[idx]);
+for (idx = 0; idx < 16; idx = idx + 1)
+    $dumpvars(0, store_end[idx]);
         end
 
         always @* begin
@@ -395,21 +405,27 @@ always @(posedge clk) begin
             end
 
             if (match_valid) begin
-                for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
-store_mode[idx] <= `SLICE(match_mode, idx, 1);
-store_idx[idx] <= `SLICE(match_idx, idx, 32);
-store_mask[idx] <= `SLICE(match_mask, idx, 32);
-store_start[idx] <= `SLICE(match_start, idx, 32);
-store_end[idx] <= `SLICE(match_end, idx, 32);
-                end
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_mode[idx] <= `SLICE(match_mode, idx, 1);
+for (idx = 0; idx < 16; idx = idx + 1)
+    store_idx[idx] <= `SLICE(match_idx, idx, 32);
+for (idx = 0; idx < 16; idx = idx + 1)
+    store_mask[idx] <= `SLICE(match_mask, idx, 32);
+for (idx = 0; idx < 16; idx = idx + 1)
+    store_start[idx] <= `SLICE(match_start, idx, 32);
+for (idx = 0; idx < 16; idx = idx + 1)
+    store_end[idx] <= `SLICE(match_end, idx, 32);
             end else begin
-                for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
-store_mode[idx] <= 1'b0;
-store_idx[idx] <= 32'b0;
-store_mask[idx] <= 32'b0;
-store_start[idx] <= 32'b0;
-store_end[idx] <= 32'b0;
-                end
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_mode[idx] <= 1'h0;
+for (idx = 0; idx < 16; idx = idx + 1)
+    store_idx[idx] <= 32'h0;
+for (idx = 0; idx < 16; idx = idx + 1)
+    store_mask[idx] <= 32'h0;
+for (idx = 0; idx < 16; idx = idx + 1)
+    store_start[idx] <= 32'h1;
+for (idx = 0; idx < 16; idx = idx + 1)
+    store_end[idx] <= 32'h0;
             end
 
             matched_q <= 1'b0;

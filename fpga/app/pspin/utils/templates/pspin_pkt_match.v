@@ -242,6 +242,8 @@ for (j = 0; j < UMATCH_RULESETS; j = j + 1) begin
             $dumpvars(0, mu_idx  [j][i]);
             $dumpvars(0, mu_start[j][i]);
             $dumpvars(0, mu_end  [j][i]);
+
+{{- m.call_group("me", m.dump_store, None) }}
         end
 
         always @* begin
@@ -380,13 +382,9 @@ always @(posedge clk) begin
             end
 
             if (match_valid) begin
-                for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
 {{- m.call_group("me", m.update_store, "match") }}
-                end
             end else begin
-                for (idx = 0; idx < UMATCH_RULESETS; idx = idx + 1) begin
 {{- m.call_group("me", m.reset_store, None) }}
-                end
             end
 
             matched_q <= 1'b0;

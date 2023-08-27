@@ -1,4 +1,4 @@
-/* Generated on 2023-08-26 18:20:43.569179 with: ./regs-compiler.py --all v ../rtl */
+/* Generated on 2023-08-27 16:16:25.269225 with: ./regs-compiler.py --all v ../rtl */
 
 /**
  * PsPIN Handler Execution Request (HER) Generator
@@ -126,75 +126,126 @@ initial begin
     end
 
     // dump for icarus verilog
-    for (idx = 0; idx < HER_NUM_HANDLER_CTX; idx = idx + 1) begin
-$dumpvars(0, store_handler_mem_addr[idx]);
-$dumpvars(0, store_handler_mem_size[idx]);
-$dumpvars(0, store_host_mem_addr[idx]);
-$dumpvars(0, store_host_mem_size[idx]);
-$dumpvars(0, store_hh_addr[idx]);
-$dumpvars(0, store_hh_size[idx]);
-$dumpvars(0, store_ph_addr[idx]);
-$dumpvars(0, store_ph_size[idx]);
-$dumpvars(0, store_th_addr[idx]);
-$dumpvars(0, store_th_size[idx]);
-$dumpvars(0, store_scratchpad_0_addr[idx]);
-$dumpvars(0, store_scratchpad_0_size[idx]);
-$dumpvars(0, store_scratchpad_1_addr[idx]);
-$dumpvars(0, store_scratchpad_1_size[idx]);
-$dumpvars(0, store_scratchpad_2_addr[idx]);
-$dumpvars(0, store_scratchpad_2_size[idx]);
-$dumpvars(0, store_scratchpad_3_addr[idx]);
-$dumpvars(0, store_scratchpad_3_size[idx]);
-$dumpvars(0, store_ctx_enabled[idx]);
-    end
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_handler_mem_addr[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_handler_mem_size[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_host_mem_addr[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_host_mem_size[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_hh_addr[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_hh_size[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_ph_addr[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_ph_size[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_th_addr[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_th_size[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_scratchpad_0_addr[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_scratchpad_0_size[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_scratchpad_1_addr[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_scratchpad_1_size[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_scratchpad_2_addr[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_scratchpad_2_size[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_scratchpad_3_addr[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_scratchpad_3_size[idx]);
+for (idx = 0; idx < 4; idx = idx + 1)
+    $dumpvars(0, store_ctx_enabled[idx]);
 end
 
 // latch the config
 always @(posedge clk) begin
     if (!rstn) begin
-        for (idx = 0; idx < HER_NUM_HANDLER_CTX; idx = idx + 1) begin
-store_handler_mem_addr[idx] <= 32'b0;
-store_handler_mem_size[idx] <= 32'b0;
-store_host_mem_addr[idx] <= 64'b0;
-store_host_mem_size[idx] <= 32'b0;
-store_hh_addr[idx] <= 32'b0;
-store_hh_size[idx] <= 32'b0;
-store_ph_addr[idx] <= 32'b0;
-store_ph_size[idx] <= 32'b0;
-store_th_addr[idx] <= 32'b0;
-store_th_size[idx] <= 32'b0;
-store_scratchpad_0_addr[idx] <= 32'b0;
-store_scratchpad_0_size[idx] <= 32'b0;
-store_scratchpad_1_addr[idx] <= 32'b0;
-store_scratchpad_1_size[idx] <= 32'b0;
-store_scratchpad_2_addr[idx] <= 32'b0;
-store_scratchpad_2_size[idx] <= 32'b0;
-store_scratchpad_3_addr[idx] <= 32'b0;
-store_scratchpad_3_size[idx] <= 32'b0;
-store_ctx_enabled[idx] <= 1'b0;
-        end
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_handler_mem_addr[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_handler_mem_size[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_host_mem_addr[idx] <= 64'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_host_mem_size[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_hh_addr[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_hh_size[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_ph_addr[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_ph_size[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_th_addr[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_th_size[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_0_addr[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_0_size[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_1_addr[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_1_size[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_2_addr[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_2_size[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_3_addr[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_3_size[idx] <= 32'h0;
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_ctx_enabled[idx] <= 1'h0;
     end else if (conf_valid) begin
-        for (idx = 0; idx < HER_NUM_HANDLER_CTX; idx = idx + 1) begin
-store_handler_mem_addr[idx] <= `SLICE(conf_handler_mem_addr, idx, 32);
-store_handler_mem_size[idx] <= `SLICE(conf_handler_mem_size, idx, 32);
-store_host_mem_addr[idx] <= `SLICE(conf_host_mem_addr, idx, 64);
-store_host_mem_size[idx] <= `SLICE(conf_host_mem_size, idx, 32);
-store_hh_addr[idx] <= `SLICE(conf_hh_addr, idx, 32);
-store_hh_size[idx] <= `SLICE(conf_hh_size, idx, 32);
-store_ph_addr[idx] <= `SLICE(conf_ph_addr, idx, 32);
-store_ph_size[idx] <= `SLICE(conf_ph_size, idx, 32);
-store_th_addr[idx] <= `SLICE(conf_th_addr, idx, 32);
-store_th_size[idx] <= `SLICE(conf_th_size, idx, 32);
-store_scratchpad_0_addr[idx] <= `SLICE(conf_scratchpad_0_addr, idx, 32);
-store_scratchpad_0_size[idx] <= `SLICE(conf_scratchpad_0_size, idx, 32);
-store_scratchpad_1_addr[idx] <= `SLICE(conf_scratchpad_1_addr, idx, 32);
-store_scratchpad_1_size[idx] <= `SLICE(conf_scratchpad_1_size, idx, 32);
-store_scratchpad_2_addr[idx] <= `SLICE(conf_scratchpad_2_addr, idx, 32);
-store_scratchpad_2_size[idx] <= `SLICE(conf_scratchpad_2_size, idx, 32);
-store_scratchpad_3_addr[idx] <= `SLICE(conf_scratchpad_3_addr, idx, 32);
-store_scratchpad_3_size[idx] <= `SLICE(conf_scratchpad_3_size, idx, 32);
-store_ctx_enabled[idx] <= `SLICE(conf_ctx_enabled, idx, 1);
-        end
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_handler_mem_addr[idx] <= `SLICE(conf_handler_mem_addr, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_handler_mem_size[idx] <= `SLICE(conf_handler_mem_size, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_host_mem_addr[idx] <= `SLICE(conf_host_mem_addr, idx, 64);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_host_mem_size[idx] <= `SLICE(conf_host_mem_size, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_hh_addr[idx] <= `SLICE(conf_hh_addr, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_hh_size[idx] <= `SLICE(conf_hh_size, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_ph_addr[idx] <= `SLICE(conf_ph_addr, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_ph_size[idx] <= `SLICE(conf_ph_size, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_th_addr[idx] <= `SLICE(conf_th_addr, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_th_size[idx] <= `SLICE(conf_th_size, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_0_addr[idx] <= `SLICE(conf_scratchpad_0_addr, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_0_size[idx] <= `SLICE(conf_scratchpad_0_size, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_1_addr[idx] <= `SLICE(conf_scratchpad_1_addr, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_1_size[idx] <= `SLICE(conf_scratchpad_1_size, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_2_addr[idx] <= `SLICE(conf_scratchpad_2_addr, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_2_size[idx] <= `SLICE(conf_scratchpad_2_size, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_3_addr[idx] <= `SLICE(conf_scratchpad_3_addr, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_scratchpad_3_size[idx] <= `SLICE(conf_scratchpad_3_size, idx, 32);
+for (idx = 0; idx < 4; idx = idx + 1)
+    store_ctx_enabled[idx] <= `SLICE(conf_ctx_enabled, idx, 1);
     end
 end
 

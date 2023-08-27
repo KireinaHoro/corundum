@@ -50,18 +50,21 @@ reg [{{ sg.signal_width - 1 }}:0] store_{{ sg.name }} [{{ sg.count - 1 }}:0];
 
 {%- macro reset_store(_, sg) %}
 {%- if sg.name != 'valid' %}
-store_{{ sg.name }}[idx] <= {{ sg.signal_width }}'b0;
+for (idx = 0; idx < {{ sg.count }}; idx = idx + 1)
+    store_{{ sg.name }}[idx] <= {{ sg.signal_width }}'h{{ '%x' | format(sg.reset) }};
 {%- endif %}
 {%- endmacro %}
 
 {%- macro update_store(signal_name, sg) %}
 {%- if sg.name != 'valid' %}
-store_{{ sg.name }}[idx] <= `SLICE({{ signal_name }}_{{ sg.name }}, idx, {{ sg.signal_width }});
+for (idx = 0; idx < {{ sg.count }}; idx = idx + 1)
+    store_{{ sg.name }}[idx] <= `SLICE({{ signal_name }}_{{ sg.name }}, idx, {{ sg.signal_width }});
 {%- endif %}
 {%- endmacro %}
 
 {%- macro dump_store(_, sg) %}
 {%- if sg.name != 'valid' %}
-$dumpvars(0, store_{{ sg.name }}[idx]);
+for (idx = 0; idx < {{ sg.count }}; idx = idx + 1)
+    $dumpvars(0, store_{{ sg.name }}[idx]);
 {%- endif %}
 {%- endmacro %}

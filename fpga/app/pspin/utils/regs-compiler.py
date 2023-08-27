@@ -23,7 +23,7 @@ word_width = args.word_size * 8
 class RegSubGroup:
     next_alloc = 0
 
-    def __init__(self, name, readonly, count, signal_width=args.word_size*8, expand_id=None):
+    def __init__(self, name, readonly, count, signal_width=args.word_size*8, reset=0, expand_id=None):
         self.name = name
         self.readonly = readonly
         self.count = count
@@ -31,6 +31,7 @@ class RegSubGroup:
         # if > word_size, registers would be split
         # width is for a single register
         self.signal_width = signal_width
+        self.reset = reset
 
         if signal_width:
             self.num_words = int(ceil(self.signal_width / word_width))
@@ -157,10 +158,11 @@ groups = [
     ]),
     RegGroup('me', [
         RegSubGroup('valid',    False, 1, 1),
+        # reset: mode=0 idx=0 mask=0 start=1 end=0 ==> bypass
         RegSubGroup('mode',     False, params['UMATCH_RULESETS'], (params['UMATCH_MODES']-1).bit_length()),
         RegSubGroup('idx',      False, params['UMATCH_RULESETS'] * params['UMATCH_ENTRIES'], params['UMATCH_WIDTH']),
         RegSubGroup('mask',     False, params['UMATCH_RULESETS'] * params['UMATCH_ENTRIES'], params['UMATCH_WIDTH']),
-        RegSubGroup('start',    False, params['UMATCH_RULESETS'] * params['UMATCH_ENTRIES'], params['UMATCH_WIDTH']),
+        RegSubGroup('start',    False, params['UMATCH_RULESETS'] * params['UMATCH_ENTRIES'], params['UMATCH_WIDTH'], reset=1),
         RegSubGroup('end',      False, params['UMATCH_RULESETS'] * params['UMATCH_ENTRIES'], params['UMATCH_WIDTH']),
     ]),
     RegGroup('her', [
