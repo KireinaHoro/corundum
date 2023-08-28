@@ -822,6 +822,17 @@ static int mqnic_app_pspin_probe(struct auxiliary_device *adev,
   if (err)
     goto fail;
 
+  // bring datapath out of reset
+  iowrite32(0, REG_ADDR(app, cl_ctrl, 1));
+  app->in_reset = false;
+
+  // reset ME to bypass
+  for (i = 0; i < UMATCH_RULESETS * UMATCH_ENTRIES; ++i) {
+    iowrite32(htonl(1), REG_ADDR(app, me_start, i));
+  }
+  iowrite32(1, REG_ADDR(app, me_valid, 0));
+  app->in_me_conf = false;
+
   return 0;
 
 fail:

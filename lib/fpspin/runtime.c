@@ -67,7 +67,8 @@ bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
       perror("madvise DONTFORK");
       goto unmap;
     }
-    printf("Mapped host dma at %p\n", ctx->cpu_addr);
+    printf("Mapped host dma at [%p:%p]\n", ctx->cpu_addr,
+           ctx->cpu_addr + ctx->mmap_len);
   }
 
   struct pspin_ioctl_msg msg = {
