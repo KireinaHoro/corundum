@@ -105,13 +105,28 @@ struct mem_area {
   uint32_t size;
 };
 
+// XXX: keep in sync with pspin.h
+#define MAX_COUNTERS 16
+typedef struct perf_counter {
+  uint32_t sum;
+  uint32_t count;
+} fpspin_counter_t;
+
+struct host_data {
+  uint64_t flag[NUM_HPUS];
+  struct perf_counter counters[MAX_COUNTERS];
+};
+
 typedef struct {
   int ctx_id;
   int fd;
   void *cpu_addr;
   size_t mmap_len;
   uint8_t dma_idx[NUM_HPUS];
-  uint64_t host_flag_base;
+  union {
+    struct host_data *pspin_host_data;
+    uint64_t host_data_ptr;
+  };
 
   // image information
   struct mem_area hh, ph, th;
@@ -205,12 +220,9 @@ void fpspin_exit(fpspin_ctx_t *ctx);
 volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t *f);
 void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t flag);
 
-typedef struct {
-  uint32_t sum;
-  uint32_t count;
-} fpspin_counter_t;
 static_assert(sizeof(fpspin_counter_t) == sizeof(uint64_t),
               "counter size should not exceed a uint64_t");
+double fpspin_get_cycles(fpspin_ctx_t *ctx, int id);
 fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id);
 void fpspin_clear_counter(fpspin_ctx_t *ctx, int id);
 uint32_t fpspin_get_avg_cycles(fpspin_ctx_t *ctx);

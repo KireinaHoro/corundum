@@ -94,12 +94,12 @@ bool fpspin_init(fpspin_ctx_t *ctx, const char *dev, const char *img,
     perror("nm to get host flag");
     goto close_dev;
   }
-  if (fscanf(nm_fp, "%lx", &ctx->host_flag_base) < 1) {
+  if (fscanf(nm_fp, "%lx", &ctx->host_data_ptr) < 1) {
     fprintf(stderr, "failed to get host flags offset\n");
     goto close_dev;
   }
   fclose(nm_fp);
-  printf("Host flags at %#lx\n", ctx->host_flag_base);
+  printf("Host flags at %#lx\n", ctx->host_data_ptr);
 
   memset(ctx->dma_idx, 0, sizeof(ctx->dma_idx));
 
@@ -158,6 +158,8 @@ volatile void *fpspin_pop_req(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t *f) {
 
   // set as processed
   ctx->dma_idx[hpu_id] = f->dma_id;
+
+  // returns the rest of the flag page for the core
   return flag_addr + DMA_ALIGN;
 }
 
@@ -170,7 +172,7 @@ void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t flag) {
 
   // notify pspin via host flag
   struct pspin_ioctl_msg flag_msg = {
-      .write.addr = ctx->host_flag_base + 8 * hpu_id,
+      .write.addr = (uint64_t)&ctx->pspin_host_data->flag[hpu_id],
       .write.data = flag.data,
   };
   if (ioctl(ctx->fd, PSPIN_HOST_WRITE, &flag_msg) < 0) {
@@ -179,8 +181,7 @@ void fpspin_push_resp(fpspin_ctx_t *ctx, int hpu_id, fpspin_flag_t flag) {
 }
 
 void fpspin_clear_counter(fpspin_ctx_t *ctx, int id) {
-  uint64_t perf_off = ctx->host_flag_base + 8 * NUM_HPUS +
-                      sizeof(fpspin_counter_t) * id; // perf_count & perf_sum
+  uint64_t perf_off = (uint64_t)&ctx->pspin_host_data->counters[id];
   struct pspin_ioctl_msg perf_msg = {
       .write.addr = perf_off,
       .write.data = 0UL,
@@ -190,9 +191,14 @@ void fpspin_clear_counter(fpspin_ctx_t *ctx, int id) {
   }
 }
 
+double fpspin_get_cycles(fpspin_ctx_t *ctx, int id) {
+  fpspin_counter_t counter = fpspin_get_counter(ctx, id);
+
+  return (double)counter.sum / counter.count;
+}
+
 fpspin_counter_t fpspin_get_counter(fpspin_ctx_t *ctx, int id) {
-  uint64_t perf_off = ctx->host_flag_base + 8 * NUM_HPUS +
-                      sizeof(fpspin_counter_t) * id; // perf_count & perf_sum
+  uint64_t perf_off = (uint64_t)&ctx->pspin_host_data->counters[id];
   struct pspin_ioctl_msg perf_msg = {
       .read.word = perf_off,
   };
