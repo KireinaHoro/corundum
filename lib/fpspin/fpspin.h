@@ -75,11 +75,14 @@ typedef struct slmp_pkt_hdr {
 
 typedef struct {
   bool always_ack;
+  bool parallel;
   int align;
+  int fc_us;
 } slmp_sock_t;
-int slmp_socket(slmp_sock_t *sock, bool always_ack, int align);
+int slmp_socket(slmp_sock_t *sock, bool always_ack, int align, int fc_us,
+                bool parallel);
 int slmp_sendmsg(slmp_sock_t *sock, in_addr_t server, int msgid, void *buf,
-                 size_t sz, int fc_us);
+                 size_t sz);
 int slmp_close(slmp_sock_t *sock);
 
 /*
