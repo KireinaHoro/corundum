@@ -10,6 +10,9 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+// #define DEBUG(...) printf(__VA_ARGS__)
+#define DEBUG(...)
+
 int slmp_socket(slmp_sock_t *sock, int wnd_sz, int align, int fc_us,
                 int num_threads) {
   if (num_threads <= 0) {
@@ -65,7 +68,7 @@ static int drain_ack(int sockfd, int to_expect) {
 
 static int drain_ack_timeout(int sockfd, int to_expect,
                              struct timeval *timeout) {
-  // printf("drain_ack_timeout: to_expect=%d\n", to_expect);
+  DEBUG("drain_ack_timeout: to_expect=%d\n", to_expect);
   if (!to_expect)
     return 0;
 
@@ -98,8 +101,8 @@ static int send_single(int sockfd, int fc_us, uint8_t *cur, uint8_t *char_buf,
                        uint16_t hflags, int msgid, bool expect_ack,
                        int *window_left, int total_window,
                        struct timeval *timeout) {
-  // printf("send_single: *window_left=%d total_window=%d\n", *window_left,
-  //     total_window);
+  DEBUG("send_single: *window_left=%d total_window=%d\n", *window_left,
+        total_window);
 
   // reclaim window if we are out
   while (expect_ack && !*window_left) {
@@ -204,7 +207,9 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
     return -1;
   }
 
-  int window_thread_limit = sock->wnd_sz / sock->num_threads;
+  // round up
+  int window_thread_limit =
+      (sock->wnd_sz + sock->num_threads - 1) / sock->num_threads;
   int window_thread[sock->num_threads];
   for (int i = 0; i < sock->num_threads; ++i) {
     window_thread[i] = window_thread_limit;
