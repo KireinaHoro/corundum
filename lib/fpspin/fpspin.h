@@ -74,13 +74,14 @@ typedef struct slmp_pkt_hdr {
 #define SLMP_PORT 9330
 
 typedef struct {
-  bool always_ack;
   bool parallel;
+  int wnd_sz;
   int align;
   int fc_us;
+  int num_threads;
 } slmp_sock_t;
-int slmp_socket(slmp_sock_t *sock, bool always_ack, int align, int fc_us,
-                bool parallel);
+int slmp_socket(slmp_sock_t *sock, int wnd_sz, int align, int fc_us,
+                int num_threads);
 int slmp_sendmsg(slmp_sock_t *sock, in_addr_t server, int msgid, void *buf,
                  size_t sz);
 int slmp_close(slmp_sock_t *sock);
