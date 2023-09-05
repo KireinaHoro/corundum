@@ -1,6 +1,7 @@
 #include "fpspin.h"
 
 #include <asm-generic/errno.h>
+#include <asm-generic/socket.h>
 #include <errno.h>
 #include <omp.h>
 #include <stdbool.h>
@@ -10,8 +11,9 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-// #define DEBUG(...) printf(__VA_ARGS__)
-#define DEBUG(...)
+#define DEBUG(fmt, ...)                                                        \
+  printf("%s[%d]: " fmt, __func__, omp_get_thread_num(), __VA_ARGS__)
+// #define DEBUG(...)
 
 int slmp_socket(slmp_sock_t *sock, int wnd_sz, int align, int fc_us,
                 int num_threads) {
@@ -38,12 +40,12 @@ fail:
 static int drain_ack(int sockfd, int to_expect) {
   int acked = 0;
   for (int i = 0; i < to_expect; ++i) {
-    uint8_t ack[sizeof(slmp_hdr_t)];
-    ssize_t rcvd = recvfrom(sockfd, ack, sizeof(ack), 0, NULL, NULL);
+    slmp_hdr_t ack;
+    ssize_t rcvd = recvfrom(sockfd, &ack, sizeof(ack), 0, NULL, NULL);
     // we should be bound at this time == not setting addr
     if (rcvd < 0) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return acked;
+        break;
       } else {
         perror("recvfrom ACK");
         return -1;
@@ -53,28 +55,30 @@ static int drain_ack(int sockfd, int to_expect) {
               sizeof(slmp_hdr_t), rcvd);
       return -1;
     }
-    slmp_hdr_t *hdr = (slmp_hdr_t *)ack;
-    uint16_t flags = ntohs(hdr->flags);
+    // check ACK
+    uint16_t flags = ntohs(ack.flags);
     if (!ACK(flags)) {
       fprintf(stderr, "no ACK set in reply; flag=%#x\n", flags);
       return -1;
     }
 
+    DEBUG("ACK seq=%d off=%d\n", ntohl(ack.msg_id), ntohl(ack.pkt_off));
     ++acked;
   }
 
   return acked;
 }
 
-static int drain_ack_timeout(int sockfd, int to_expect,
+static int drain_ack_timeout(int sockfd, int to_expect, bool need_all,
                              struct timeval *timeout) {
-  DEBUG("drain_ack_timeout: to_expect=%d\n", to_expect);
+  DEBUG("to_expect=%d\n", to_expect);
   if (!to_expect)
     return 0;
 
   struct timeval start_synack, deadline_synack;
   gettimeofday(&start_synack, NULL);
   timeradd(&start_synack, timeout, &deadline_synack);
+
   int acked = 0;
 
   while (acked < to_expect) {
@@ -82,8 +86,11 @@ static int drain_ack_timeout(int sockfd, int to_expect,
     if (v < 0)
       return v;
     else {
-      if (!v && acked) // we received at least one ack before this round, break
+      if (!v && acked &&
+          !need_all) // we received at least one ack before this round, break
         break;
+      if (v)
+        DEBUG("received %d ACKs\n", v);
       acked += v;
     }
     struct timeval now;
@@ -101,23 +108,25 @@ static int send_single(int sockfd, int fc_us, uint8_t *cur, uint8_t *char_buf,
                        uint16_t hflags, int msgid, bool expect_ack,
                        int *window_left, int total_window,
                        struct timeval *timeout) {
-  DEBUG("send_single: *window_left=%d total_window=%d\n", *window_left,
+  uint8_t packet[SLMP_PAYLOAD_SIZE + sizeof(slmp_hdr_t)];
+  slmp_hdr_t *hdr = (slmp_hdr_t *)packet;
+  uint32_t offset = cur - char_buf;
+  uint8_t *payload = packet + sizeof(slmp_hdr_t);
+
+  DEBUG("off=%d *window_left=%d total_window=%d\n", offset, *window_left,
         total_window);
 
   // reclaim window if we are out
   while (expect_ack && !*window_left) {
-    int v = drain_ack_timeout(sockfd, total_window, timeout);
+    int v = drain_ack_timeout(sockfd, total_window, false, timeout);
     if (!v) {
       fprintf(stderr, "timeout waiting for window\n");
       return -1;
     }
     *window_left += v;
+    DEBUG("reclaimed window %d, left %d\n", v, *window_left);
   }
 
-  uint8_t packet[SLMP_PAYLOAD_SIZE + sizeof(slmp_hdr_t)];
-  slmp_hdr_t *hdr = (slmp_hdr_t *)packet;
-  uint32_t offset = cur - char_buf;
-  uint8_t *payload = packet + sizeof(slmp_hdr_t);
   hdr->msg_id = htonl(msgid);
   hdr->flags = htons(hflags);
   hdr->pkt_off = htonl(offset);
@@ -157,6 +166,9 @@ static int send_single(int sockfd, int fc_us, uint8_t *cur, uint8_t *char_buf,
     }
   }
 
+  // update window
+  --*window_left;
+
   // printf("Sent packet offset=%d in msg #%d\n", offset, msgid);
   if (fc_us)
     usleep(fc_us);
@@ -168,11 +180,24 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
                  size_t sz) {
   // non-blocking
   int sockfd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
+  
+  // increase send and receive buffer
+  int buf_sz = 1024 * 1024; // 1MB
+  int ret = setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &buf_sz, sizeof(buf_sz));
+  if (ret < 0) {
+    perror("setsockopt SO_SNDBUF");
+    return ret;
+  }
+  ret = setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &buf_sz, sizeof(buf_sz));
+  if (ret < 0) {
+    perror("setsockopt SO_RCVBUF");
+    return ret;
+  }
+
   struct timeval timeout = {
       .tv_sec = 0,
       .tv_usec = 100 * 1000, // 100ms
   };
-  int ret = 0;
 
   // window size; 0: unlimited window (no ACK)
   bool ack_for_all = sock->wnd_sz > 0;
@@ -202,7 +227,7 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
     return ret;
   }
 
-  if (!drain_ack_timeout(sockfd, 1, &timeout)) {
+  if (!drain_ack_timeout(sockfd, 1, true, &timeout)) {
     fprintf(stderr, "SYN timed out\n");
     return -1;
   }
@@ -265,10 +290,18 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
 
   // drain all windows
   int remaining = 0;
+  struct timeval final_timeout = {
+      .tv_sec = 5, // 5 seconds
+      .tv_usec = 0,
+  };
   for (int i = 0; i < sock->num_threads; ++i) {
+    DEBUG("thread %d window %d limit %d\n", i, window_thread[i],
+          window_thread_limit);
     remaining += window_thread_limit - window_thread[i];
   }
-  if (drain_ack_timeout(sockfd, remaining, &timeout) < remaining) {
+  int drained = drain_ack_timeout(sockfd, remaining, true, &final_timeout);
+  DEBUG("drained %d, remaining %d\n", drained, remaining);
+  if (drained < remaining) {
     fprintf(stderr, "timeout waiting for final drain\n");
     ret = -1;
   }
