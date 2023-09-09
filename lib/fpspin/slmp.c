@@ -11,9 +11,12 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#if 0
 #define DEBUG(fmt, ...)                                                        \
   printf("%s[%d]: " fmt, __func__, omp_get_thread_num(), __VA_ARGS__)
-// #define DEBUG(...)
+#else
+#define DEBUG(...)
+#endif
 
 int slmp_socket(slmp_sock_t *sock, int wnd_sz, int align, int fc_us,
                 int num_threads) {
@@ -93,6 +96,11 @@ static int drain_ack_timeout(int sockfd, int to_expect, bool need_all,
         DEBUG("received %d ACKs\n", v);
       acked += v;
     }
+    if (!v) {
+      // sleep for 100us so we don't completely occupy the CPU
+      usleep(100);
+    }
+
     struct timeval now;
     gettimeofday(&now, NULL);
     if (timercmp(&now, &deadline_synack, >)) {
@@ -180,12 +188,13 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
                  size_t sz) {
   // non-blocking
   int sockfd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
-  
+
   // increase send and receive buffer
   int buf_sz = 1024 * 1024; // 1MB
   int ret = setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &buf_sz, sizeof(buf_sz));
   if (ret < 0) {
     perror("setsockopt SO_SNDBUF");
+    ret = -1;
     return ret;
   }
   ret = setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &buf_sz, sizeof(buf_sz));
@@ -195,8 +204,8 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
   }
 
   struct timeval timeout = {
-      .tv_sec = 0,
-      .tv_usec = 100 * 1000, // 100ms
+      .tv_sec = 1,
+      .tv_usec = 0,
   };
 
   // window size; 0: unlimited window (no ACK)
@@ -224,17 +233,18 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
                     srv_addr, hflags, msgid, true, &syn_window, 1, &timeout);
   if (ret < 0) {
     fprintf(stderr, "failed to send SYN\n");
-    return ret;
+    return -3;
   }
 
   if (!drain_ack_timeout(sockfd, 1, true, &timeout)) {
     fprintf(stderr, "SYN timed out\n");
-    return -1;
+    return -2;
   }
 
   // round up
   int window_thread_limit =
       (sock->wnd_sz + sock->num_threads - 1) / sock->num_threads;
+  int window_total = window_thread_limit * sock->num_threads;
   int window_thread[sock->num_threads];
   for (int i = 0; i < sock->num_threads; ++i) {
     window_thread[i] = window_thread_limit;
@@ -278,30 +288,37 @@ int slmp_sendmsg(slmp_sock_t *sock, in_addr_t srv_addr, int msgid, void *buf,
     }
   }
 
-  if (ret)
+  if (ret) {
+    ret = -1;
     goto out;
+  }
 
-  // send last packet
-  syn_window = 1;
-  if (cur < char_buf + sz)
-    ret = send_single(sockfd, sock->fc_us, cur, char_buf, sz, payload_size,
-                      srv_addr, MKEOM | MKSYN, msgid, true, &syn_window, 1,
-                      &timeout);
-
-  // drain all windows
-  int remaining = 0;
-  struct timeval final_timeout = {
-      .tv_sec = 5, // 5 seconds
-      .tv_usec = 0,
-  };
+  // collect all windows before sending the final segment
+  int window_left = 0;
   for (int i = 0; i < sock->num_threads; ++i) {
     DEBUG("thread %d window %d limit %d\n", i, window_thread[i],
           window_thread_limit);
-    remaining += window_thread_limit - window_thread[i];
+    window_left += window_thread[i];
   }
-  int drained = drain_ack_timeout(sockfd, remaining, true, &final_timeout);
-  DEBUG("drained %d, remaining %d\n", drained, remaining);
-  if (drained < remaining) {
+
+  DEBUG("Before last packet: left=%d total=%d\n", window_left, window_total);
+
+  // send last packet
+  if (cur < char_buf + sz)
+    ret = send_single(sockfd, sock->fc_us, cur, char_buf, sz, payload_size,
+                      srv_addr, MKEOM | MKSYN, msgid, true, &window_left,
+                      window_total, &timeout);
+
+  // drain all windows
+  struct timeval final_timeout = {
+      .tv_sec = 2, // 2 seconds
+      .tv_usec = 0,
+  };
+
+  int to_drain = window_total - window_left;
+  int drained = drain_ack_timeout(sockfd, to_drain, true, &final_timeout);
+  DEBUG("drained %d, to_drain %d\n", drained, to_drain);
+  if (drained < to_drain) {
     fprintf(stderr, "timeout waiting for final drain\n");
     ret = -1;
   }
