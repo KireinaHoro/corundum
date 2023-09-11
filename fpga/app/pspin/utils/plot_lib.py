@@ -78,3 +78,14 @@ class TitledLegendBuilder:
 
         fig.legend(graphics, texts, handler_map={str: LegendTitle({'weight': 'normal'})}, bbox_to_anchor=(1, .5), loc='center right')
 
+
+class RegularLegendBuilder:
+    def __init__(self):
+        self.legend_dict = {}
+
+    def push(self, title, name, shape):
+        self.legend_dict[name] = shape
+
+    def draw(self, fig):
+        texts, graphics = zip(*self.legend_dict.items())
+        fig.legend(graphics, texts, bbox_to_anchor=(1, .5), loc='center right')
